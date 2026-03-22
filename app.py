@@ -44,12 +44,16 @@ def create_app():
     from blueprints.patients import patients_bp
     from blueprints.calendar import calendar_bp
     from blueprints.employees import employees_bp
+    from blueprints.treatment import treatment_bp
+    from blueprints.resources import resources_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(patients_bp, url_prefix='/patients')
     app.register_blueprint(calendar_bp, url_prefix='/calendar')
     app.register_blueprint(employees_bp, url_prefix='/employees')
+    app.register_blueprint(treatment_bp, url_prefix='/treatment')
+    app.register_blueprint(resources_bp, url_prefix='/resources')
 
     # API-Routen umleiten (Dashboard-Chat-API global verfügbar machen)
     @app.route('/api/chat', methods=['POST'])
@@ -111,7 +115,9 @@ def create_app():
 def _seed_demo_data_if_needed():
     """Erstellt Demo-Daten beim ersten Start."""
     from models import (Organization, Location, User, Employee, WorkSchedule,
-                        Patient, Appointment, Resource, InsuranceProvider)
+                        Patient, Appointment, Resource, InsuranceProvider,
+                        Doctor, TreatmentSeriesTemplate, TreatmentSeries,
+                        TreatmentGoal, TreatmentMeasurement)
 
     # Prüfen ob bereits Daten vorhanden
     if Organization.query.first():
@@ -161,11 +167,16 @@ def _seed_demo_data_if_needed():
     db.session.add_all([loc_zh, loc_wt])
     db.session.flush()
 
-    # === Ressourcen (Behandlungsräume) ===
-    res1 = Resource(location_id=loc_zh.id, name='Behandlungsraum 1', type='room')
-    res2 = Resource(location_id=loc_zh.id, name='Behandlungsraum 2', type='room')
-    res3 = Resource(location_id=loc_wt.id, name='Behandlungsraum 1', type='room')
-    db.session.add_all([res1, res2, res3])
+    # === Ressourcen (3 Räume pro Standort + 2 Geräte) ===
+    res_zh1 = Resource(location_id=loc_zh.id, name='Behandlungsraum 1', type='room')
+    res_zh2 = Resource(location_id=loc_zh.id, name='Behandlungsraum 2', type='room')
+    res_zh3 = Resource(location_id=loc_zh.id, name='Behandlungsraum 3', type='room')
+    res_wt1 = Resource(location_id=loc_wt.id, name='Behandlungsraum 1', type='room')
+    res_wt2 = Resource(location_id=loc_wt.id, name='Behandlungsraum 2', type='room')
+    res_wt3 = Resource(location_id=loc_wt.id, name='Behandlungsraum 3', type='room')
+    res_emr1 = Resource(location_id=loc_zh.id, name='Ultraschallgerät', type='equipment')
+    res_emr2 = Resource(location_id=loc_zh.id, name='Elektrotherapiegerät', type='equipment')
+    db.session.add_all([res_zh1, res_zh2, res_zh3, res_wt1, res_wt2, res_wt3, res_emr1, res_emr2])
 
     # === Versicherungen ===
     ins_css = InsuranceProvider(name='CSS Versicherung', gln_number='7601003000015', supports_electronic_billing=True)
@@ -173,6 +184,13 @@ def _seed_demo_data_if_needed():
     ins_helsana = InsuranceProvider(name='Helsana', gln_number='7601003000039', supports_electronic_billing=True)
     ins_suva = InsuranceProvider(name='Suva', gln_number='7601003000046', supports_electronic_billing=True)
     db.session.add_all([ins_css, ins_swica, ins_helsana, ins_suva])
+    db.session.flush()
+
+    # === Ärzte ===
+    dr_mueller = Doctor(name='Dr. med. Peter Müller', specialty='Allgemeinmedizin', gln_number='7601000000501', zsr_number='A123456')
+    dr_schmidt = Doctor(name='Dr. med. Eva Schmidt', specialty='Orthopädie', gln_number='7601000000502', zsr_number='A234567')
+    dr_weber = Doctor(name='Dr. med. Hans Weber', specialty='Rheumatologie', gln_number='7601000000503', zsr_number='A345678')
+    db.session.add_all([dr_mueller, dr_schmidt, dr_weber])
     db.session.flush()
 
     # === Benutzer & Mitarbeiter ===
@@ -321,14 +339,43 @@ def _seed_demo_data_if_needed():
 
     db.session.flush()
 
+    # === Behandlungsserien-Templates (3 Demo-Templates) ===
+    tpl_physio = TreatmentSeriesTemplate(
+        organization_id=org.id,
+        name='Physiotherapie KVG Standard',
+        tariff_type='311',
+        num_appointments=9,
+        duration_minutes=30,
+        min_interval_days=2,
+        requires_resource=True,
+    )
+    tpl_ergo = TreatmentSeriesTemplate(
+        organization_id=org.id,
+        name='Ergotherapie Standard',
+        tariff_type='338',
+        num_appointments=9,
+        duration_minutes=45,
+        min_interval_days=3,
+        requires_resource=True,
+    )
+    tpl_emr = TreatmentSeriesTemplate(
+        organization_id=org.id,
+        name='EMR Komplementärmedizin',
+        tariff_type='590',
+        num_appointments=6,
+        duration_minutes=60,
+        min_interval_days=7,
+        requires_resource=False,
+    )
+    db.session.add_all([tpl_physio, tpl_ergo, tpl_emr])
+    db.session.flush()
+
     # === Termine (20 Termine über die nächsten 2 Wochen) ===
     heute = date.today()
-    # Nächsten Montag finden
     naechster_montag = heute + timedelta(days=(7 - heute.weekday()) % 7)
     if naechster_montag == heute and heute.weekday() == 0:
         naechster_montag = heute
 
-    # Termine verteilen
     termin_daten = [
         # Woche 1
         (patienten[0], thomas_emp, naechster_montag, time(8, 0), 30),
@@ -354,6 +401,7 @@ def _seed_demo_data_if_needed():
         (patienten[9], thomas_emp, naechster_montag + timedelta(days=10), time(10, 0), 45),
     ]
 
+    alle_termine = []
     for patient, therapeut, datum, uhrzeit, dauer in termin_daten:
         start_dt = datetime.combine(datum, uhrzeit)
         end_dt = start_dt + timedelta(minutes=dauer)
@@ -367,9 +415,149 @@ def _seed_demo_data_if_needed():
             type='treatment',
         )
         db.session.add(termin)
+        alle_termine.append(termin)
+
+    db.session.flush()
+
+    # === Behandlungsserien (5 Demo-Serien) ===
+    # Serie 1: Anna Müller - Physio bei Thomas (aktiv, 3 von 9 Terminen)
+    serie1 = TreatmentSeries(
+        patient_id=patienten[0].id,
+        template_id=tpl_physio.id,
+        therapist_id=thomas_emp.id,
+        prescribing_doctor_id=dr_schmidt.id,
+        diagnosis='Lumbalgie, chronische Rückenschmerzen',
+        prescription_date=date.today() - timedelta(days=14),
+        prescription_type='initial',
+        status='active',
+        insurance_type='KVG',
+        billing_model='tiers_garant',
+        healing_phase='treatment',
+    )
+    db.session.add(serie1)
+    db.session.flush()
+
+    # Termine der Serie 1 zuweisen (die ersten 2 Anna-Termine)
+    for t in alle_termine:
+        if t.patient_id == patienten[0].id and t.employee_id == thomas_emp.id:
+            t.series_id = serie1.id
+
+    # Ziele für Serie 1
+    ziel1 = TreatmentGoal(
+        series_id=serie1.id, title='Schmerzreduktion auf VAS 3',
+        target_value='VAS 3', current_value='VAS 7', phase='treatment',
+    )
+    ziel2 = TreatmentGoal(
+        series_id=serie1.id, title='Rumpfstabilität verbessern',
+        description='Core-Muskulatur aufbauen für Alltagsbelastung',
+        target_value='30s Plank', current_value='10s Plank', phase='treatment',
+    )
+    db.session.add_all([ziel1, ziel2])
+
+    # Serie 2: Peter Schmid - Physio bei Thomas (aktiv)
+    serie2 = TreatmentSeries(
+        patient_id=patienten[1].id,
+        template_id=tpl_physio.id,
+        therapist_id=thomas_emp.id,
+        prescribing_doctor_id=dr_mueller.id,
+        diagnosis='Gonarthrose rechts',
+        prescription_date=date.today() - timedelta(days=7),
+        prescription_type='initial',
+        status='active',
+        insurance_type='KVG',
+        billing_model='tiers_garant',
+        healing_phase='initial',
+    )
+    db.session.add(serie2)
+    db.session.flush()
+
+    for t in alle_termine:
+        if t.patient_id == patienten[1].id:
+            t.series_id = serie2.id
+
+    # Serie 3: Markus Huber - Physio bei Marco (aktiv)
+    serie3 = TreatmentSeries(
+        patient_id=patienten[5].id,
+        template_id=tpl_physio.id,
+        therapist_id=marco_emp.id,
+        prescribing_doctor_id=dr_schmidt.id,
+        diagnosis='Schulterimpingement links',
+        prescription_date=date.today() - timedelta(days=21),
+        prescription_type='initial',
+        status='active',
+        insurance_type='UVG',
+        billing_model='tiers_payant',
+        healing_phase='treatment',
+    )
+    db.session.add(serie3)
+    db.session.flush()
+
+    for t in alle_termine:
+        if t.patient_id == patienten[5].id:
+            t.series_id = serie3.id
+
+    # Serie 4: Daniel Steiner - UVG bei Sarah (aktiv)
+    serie4 = TreatmentSeries(
+        patient_id=patienten[7].id,
+        template_id=tpl_physio.id,
+        therapist_id=sarah_emp.id,
+        prescribing_doctor_id=dr_weber.id,
+        diagnosis='Distorsion OSG rechts (Sportunfall)',
+        prescription_date=date.today() - timedelta(days=5),
+        prescription_type='initial',
+        status='active',
+        insurance_type='UVG',
+        billing_model='tiers_payant',
+        healing_phase='initial',
+    )
+    db.session.add(serie4)
+    db.session.flush()
+
+    for t in alle_termine:
+        if t.patient_id == patienten[7].id:
+            t.series_id = serie4.id
+
+    # Serie 5: René Gerber - EMR (abgeschlossen)
+    serie5 = TreatmentSeries(
+        patient_id=patienten[9].id,
+        template_id=tpl_emr.id,
+        therapist_id=thomas_emp.id,
+        diagnosis='Spannungskopfschmerzen',
+        prescription_date=date.today() - timedelta(days=60),
+        prescription_type='initial',
+        status='completed',
+        insurance_type='private',
+        billing_model='tiers_garant',
+        healing_phase='autonomy',
+    )
+    db.session.add(serie5)
+    db.session.flush()
+
+    # Messungen für Serie 1
+    messung1 = TreatmentMeasurement(
+        series_id=serie1.id, measurement_type='single',
+        label='Schmerzskala VAS', value='7', unit='VAS 0-10',
+        notes='Erstbefund',
+        measured_at=datetime.now() - timedelta(days=14),
+    )
+    messung2 = TreatmentMeasurement(
+        series_id=serie1.id, measurement_type='single',
+        label='Schmerzskala VAS', value='5', unit='VAS 0-10',
+        notes='Nach 2 Behandlungen',
+        measured_at=datetime.now() - timedelta(days=7),
+    )
+    messung3 = TreatmentMeasurement(
+        series_id=serie1.id, measurement_type='pair',
+        label='Rumpfflexion', value_pair_left='', value_pair_right='',
+        unit='cm',
+        notes='Finger-Boden-Abstand',
+    )
+    db.session.add_all([messung1, messung2, messung3])
 
     db.session.commit()
-    print(f'Demo-Daten erstellt: 1 Organisation, 2 Standorte, 5 Mitarbeiter, {len(patienten)} Patienten, {len(termin_daten)} Termine')
+    print(f'Demo-Daten erstellt: 1 Organisation, 2 Standorte, 8 Ressourcen, 5 Mitarbeiter, '
+          f'{len(patienten)} Patienten, {len(termin_daten)} Termine, '
+          f'3 Templates, 5 Behandlungsserien, 3 Ärzte')
 
 
 # App erstellen

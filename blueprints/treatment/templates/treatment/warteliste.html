@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Warteliste - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Warteliste{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Warteliste ({{ eintraege|length }})</h2>
+</div>
+
+{% if eintraege %}
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Priorität</th>
+                <th>Patient</th>
+                <th class="hide-mobile">Therapeut</th>
+                <th class="hide-mobile">Dauer</th>
+                <th class="hide-mobile">Notizen</th>
+                <th>Seit</th>
+                <th>Aktion</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in eintraege %}
+            <tr>
+                <td>
+                    <span class="priority-badge priority-{{ 'high' if e.priority <= 3 else 'normal' if e.priority <= 6 else 'low' }}">
+                        {{ e.priority }}
+                    </span>
+                </td>
+                <td><strong>{{ e.patient.full_name }}</strong></td>
+                <td class="hide-mobile">{{ e.therapist.display_name if e.therapist else 'Beliebig' }}</td>
+                <td class="hide-mobile">{{ e.duration_minutes }} Min.</td>
+                <td class="hide-mobile">{{ e.notes or '-' }}</td>
+                <td>{{ e.created_at.strftime('%d.%m.%Y') }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('treatment.warteliste_remove', id=e.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('Eintrag entfernen?')">Entfernen</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>Warteliste ist leer</p>
+</div>
+{% endif %}
+
+<!-- Hinzufügen-Formular -->
+<div class="form-section" style="margin-top: 2rem">
+    <h3>Patient zur Warteliste hinzufügen</h3>
+    <form method="POST" action="{{ url_for('treatment.warteliste_add') }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="wl_patient">Patient *</label>
+                <input type="text" id="wl_patient_search" placeholder="Patient suchen..." oninput="searchPatientWaitlist(this.value)">
+                <input type="hidden" id="wl_patient_id" name="patient_id" required>
+                <div id="wl_patient_results" class="autocomplete-results"></div>
+            </div>
+            <div class="form-group">
+                <label for="wl_therapist">Therapeut</label>
+                <select name="therapist_id">
+                    <option value="">Beliebig</option>
+                    {% set therapeuten = [] %}
+                    {% for e in eintraege %}
+                        {% if e.therapist and e.therapist not in therapeuten %}
+                            {% if therapeuten.append(e.therapist) %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="wl_duration">Dauer</label>
+                <select name="duration_minutes">
+                    <option value="30">30 Min.</option>
+                    <option value="45">45 Min.</option>
+                    <option value="60">60 Min.</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="wl_priority">Priorität</label>
+                <select name="priority">
+                    <option value="1">1 - Sehr hoch</option>
+                    <option value="3">3 - Hoch</option>
+                    <option value="5" selected>5 - Normal</option>
+                    <option value="7">7 - Niedrig</option>
+                    <option value="10">10 - Sehr niedrig</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="wl_notes">Notizen</label>
+            <input type="text" name="notes" placeholder="z.B. Nur Montag/Mittwoch möglich">
+        </div>
+        <button type="submit" class="btn btn-primary">Zur Warteliste hinzufügen</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let searchTimeout;
+function searchPatientWaitlist(query) {
+    clearTimeout(searchTimeout);
+    if (query.length < 2) {
+        document.getElementById('wl_patient_results').classList.remove('active');
+        return;
+    }
+    searchTimeout = setTimeout(() => {
+        fetch('/patients/api/search?q=' + encodeURIComponent(query))
+            .then(r => r.json())
+            .then(data => {
+                const results = document.getElementById('wl_patient_results');
+                results.innerHTML = '';
+                data.forEach(p => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = p.name + (p.geburtsdatum ? ' (' + p.geburtsdatum + ')' : '');
+                    item.onclick = () => {
+                        document.getElementById('wl_patient_search').value = p.name;
+                        document.getElementById('wl_patient_id').value = p.id;
+                        results.classList.remove('active');
+                    };
+                    results.appendChild(item);
+                });
+                results.classList.toggle('active', data.length > 0);
+            });
+    }, 300);
+}
+</script>
+{% endblock %}

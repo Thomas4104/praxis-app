@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Template bearbeiten' if template else 'Neues Template' }} - OMNIA{% endblock %}
+{% block page_title %}{{ 'Template bearbeiten' if template else 'Neues Template' }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <form method="POST">
+        <div class="form-section">
+            <h3>Template-Details</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">Name *</label>
+                    <input type="text" id="name" name="name" required
+                           value="{{ template.name if template else '' }}"
+                           placeholder="z.B. Physiotherapie KVG Standard">
+                </div>
+                <div class="form-group">
+                    <label for="tariff_type">Tarif-Typ</label>
+                    <select id="tariff_type" name="tariff_type">
+                        {% set tariff_options = [('311', '311 - Physiotherapie'), ('312', '312 - Ergänzungsleistung'), ('338', '338 - Ergotherapie'), ('325', '325 - Logopädie'), ('590', '590 - EMR/Komplementärmedizin'), ('999', '999 - Sonstige'), ('flatrate', 'Pauschal')] %}
+                        {% for val, label in tariff_options %}
+                        <option value="{{ val }}" {{ 'selected' if template and template.tariff_type == val }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="num_appointments">Anzahl Termine</label>
+                    <input type="number" id="num_appointments" name="num_appointments" min="1" max="100"
+                           value="{{ template.num_appointments if template else 9 }}">
+                </div>
+                <div class="form-group">
+                    <label for="duration_minutes">Dauer (Minuten)</label>
+                    <input type="number" id="duration_minutes" name="duration_minutes" min="5" max="240" step="5"
+                           value="{{ template.duration_minutes if template else 30 }}">
+                </div>
+                <div class="form-group">
+                    <label for="min_interval_days">Mindestabstand (Tage)</label>
+                    <input type="number" id="min_interval_days" name="min_interval_days" min="0" max="30"
+                           value="{{ template.min_interval_days if template else 1 }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="group_therapy" value="1"
+                               {{ 'checked' if template and template.group_therapy }}>
+                        Gruppentherapie
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="requires_resource" value="1"
+                               {{ 'checked' if template and template.requires_resource }}>
+                        Raum/Gerät benötigt
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{{ 'Speichern' if template else 'Template erstellen' }}</button>
+            <a href="{{ url_for('treatment.templates') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

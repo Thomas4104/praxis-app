@@ -1102,3 +1102,253 @@ a:hover { color: var(--primary-dark); }
         margin-right: var(--chat-width);
     }
 }
+
+/* ============================================================
+   Phase 2: Sidebar Subnav
+   ============================================================ */
+.sidebar-subnav {
+    list-style: none;
+    padding-left: 2.5rem;
+}
+
+.sidebar-subnav li a {
+    display: block;
+    padding: 0.4rem 0.75rem;
+    color: var(--gray-500);
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+
+.sidebar-subnav li a:hover,
+.sidebar-subnav li.active a {
+    color: var(--white);
+}
+
+/* ============================================================
+   Phase 2: Template-Cards
+   ============================================================ */
+.template-card {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.template-card-header {
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.template-card-header h3 { font-size: 0.95rem; }
+
+.template-card-body { padding: 1rem; }
+
+.template-detail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 0.3rem;
+}
+
+.template-detail label {
+    color: var(--gray-600);
+    font-weight: 500;
+}
+
+.template-card-actions {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+/* ============================================================
+   Phase 2: Progress Bar
+   ============================================================ */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.75rem;
+    color: var(--gray-600);
+}
+
+/* ============================================================
+   Phase 2: Filter Tabs
+   ============================================================ */
+.filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.filter-tab {
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    background: var(--gray-100);
+    transition: var(--transition);
+}
+
+.filter-tab:hover { background: var(--gray-200); color: var(--gray-700); }
+
+.filter-tab.active {
+    background: var(--primary);
+    color: var(--white);
+}
+
+/* ============================================================
+   Phase 2: Status Badges erweitert
+   ============================================================ */
+.status-active { background: #d4edda; color: var(--success); }
+.status-completed { background: #d4edda; color: var(--success); }
+.status-cancelled { background: #f8d7da; color: var(--danger); }
+.status-waiting { background: #fff3cd; color: #856404; }
+
+.row-error { background: #fff5f5; }
+.warning-text { font-size: 0.75rem; color: var(--warning); display: block; }
+.info-text { font-size: 0.875rem; color: var(--gray-600); margin-bottom: 1rem; }
+
+/* ============================================================
+   Phase 2: Heilungsphasen
+   ============================================================ */
+.phase-indicator {
+    display: flex;
+    gap: 1rem;
+    margin: 0.75rem 0;
+}
+
+.phase-step {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+
+.phase-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--gray-300);
+    flex-shrink: 0;
+}
+
+.phase-step.active .phase-dot { background: var(--primary); }
+.phase-step.active { color: var(--primary); font-weight: 600; }
+
+.phase-form { margin-top: 0.75rem; }
+.phase-form select {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+/* ============================================================
+   Phase 2: Goals
+   ============================================================ */
+.goals-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.goal-item {
+    background: var(--gray-50);
+    border-radius: var(--border-radius);
+    padding: 0.75rem;
+    border-left: 3px solid var(--primary);
+}
+
+.goal-item.goal-achieved { border-left-color: var(--success); opacity: 0.8; }
+
+.goal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.goal-desc { font-size: 0.85rem; color: var(--gray-600); }
+
+.goal-values {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--gray-700);
+    margin-top: 0.25rem;
+}
+
+/* ============================================================
+   Phase 2: Resource Cards
+   ============================================================ */
+.resource-card {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.resource-card-icon { font-size: 2rem; }
+
+.resource-card-body { flex: 1; }
+.resource-card-body h4 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+.resource-type { font-size: 0.8rem; color: var(--gray-600); }
+.resource-capacity { font-size: 0.8rem; color: var(--primary); display: block; }
+
+/* ============================================================
+   Phase 2: Resource Calendar
+   ============================================================ */
+.resource-table td { vertical-align: top; }
+
+.resource-day-cell { min-height: 60px; }
+
+.resource-booking {
+    background: var(--primary-light);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-bottom: 2px;
+    font-size: 0.75rem;
+}
+
+.resource-booking-time { font-weight: 600; display: block; }
+.resource-booking-name { color: var(--gray-700); }
+
+.resource-free {
+    color: var(--gray-400);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* ============================================================
+   Phase 2: Priority Badges
+   ============================================================ */
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--white);
+}
+
+.priority-high { background: var(--danger); }
+.priority-normal { background: var(--primary); }
+.priority-low { background: var(--gray-500); }

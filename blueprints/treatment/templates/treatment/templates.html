@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Templates - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Behandlungsserien-Templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Templates</h2>
+    <a href="{{ url_for('treatment.template_create') }}" class="btn btn-primary">+ Neues Template</a>
+</div>
+
+{% if templates %}
+<div class="cards-grid">
+    {% for t in templates %}
+    <div class="template-card">
+        <div class="template-card-header">
+            <h3>{{ t.name }}</h3>
+            <span class="status-badge status-scheduled">{{ t.tariff_type }}</span>
+        </div>
+        <div class="template-card-body">
+            <div class="template-detail">
+                <label>Termine</label>
+                <span>{{ t.num_appointments }} x {{ t.duration_minutes }} Min.</span>
+            </div>
+            <div class="template-detail">
+                <label>Mindestabstand</label>
+                <span>{{ t.min_interval_days }} Tag(e)</span>
+            </div>
+            {% if t.group_therapy %}
+            <div class="template-detail">
+                <label>Typ</label>
+                <span>Gruppentherapie</span>
+            </div>
+            {% endif %}
+            {% if t.requires_resource %}
+            <div class="template-detail">
+                <label>Ressource</label>
+                <span>Raum benötigt</span>
+            </div>
+            {% endif %}
+        </div>
+        <div class="template-card-actions">
+            <a href="{{ url_for('treatment.template_edit', id=t.id) }}" class="btn btn-secondary btn-small">Bearbeiten</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>Noch keine Templates vorhanden</p>
+    <a href="{{ url_for('treatment.template_create') }}" class="btn btn-primary">Erstes Template erstellen</a>
+</div>
+{% endif %}
+{% endblock %}

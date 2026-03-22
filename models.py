@@ -210,9 +210,32 @@ class TreatmentSeries(db.Model):
     status = db.Column(db.String(20), default='active')  # active/completed/cancelled
     insurance_type = db.Column(db.String(20))  # KVG/UVG/MVG/IVG/private/self
     billing_model = db.Column(db.String(20))  # tiers_garant/tiers_payant
+    healing_phase = db.Column(db.String(30), default='initial')  # initial/treatment/consolidation/autonomy
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     appointments = db.relationship('Appointment', backref='series', lazy='dynamic')
+    template = db.relationship('TreatmentSeriesTemplate', backref='series')
+    prescribing_doctor = db.relationship('Doctor', backref='treatment_series')
+
+    @property
+    def num_completed(self):
+        """Anzahl abgeschlossener Termine"""
+        return self.appointments.filter_by(status='completed').count()
+
+    @property
+    def num_total(self):
+        """Geplante Anzahl Termine (aus Template oder gezählte)"""
+        if self.template:
+            return self.template.num_appointments
+        return self.appointments.count()
+
+    PHASE_NAMES = {
+        'initial': 'Initialphase',
+        'treatment': 'Behandlungsphase',
+        'consolidation': 'Konsolidierungsphase',
+        'autonomy': 'Autonomiephase',
+    }
 
 
 class Appointment(db.Model):
@@ -242,7 +265,68 @@ class Resource(db.Model):
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=False)
     name = db.Column(db.String(200), nullable=False)
     type = db.Column(db.String(20), default='room')  # room/equipment/other
+    capacity = db.Column(db.Integer, default=1)  # Für Gruppentherapie
     is_active = db.Column(db.Boolean, default=True)
+
+
+# ============================================================
+# Behandlungsplan (Ziele, Messungen, Phasen)
+# ============================================================
+
+class TreatmentGoal(db.Model):
+    """Behandlungsziel pro Serie"""
+    __tablename__ = 'treatment_goals'
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=False)
+    title = db.Column(db.String(300), nullable=False)
+    description = db.Column(db.Text)
+    target_value = db.Column(db.String(100))  # z.B. "90 Grad Flexion"
+    current_value = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='active')  # active/achieved/abandoned
+    phase = db.Column(db.String(30), default='initial')  # initial/treatment/consolidation/autonomy
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    achieved_at = db.Column(db.DateTime)
+
+    series = db.relationship('TreatmentSeries', backref=db.backref('goals', lazy='dynamic'))
+
+
+class TreatmentMeasurement(db.Model):
+    """Messwerte pro Serie/Termin"""
+    __tablename__ = 'treatment_measurements'
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=False)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'))
+    goal_id = db.Column(db.Integer, db.ForeignKey('treatment_goals.id'))
+    measurement_type = db.Column(db.String(50), nullable=False)  # single/pair/multi
+    label = db.Column(db.String(200), nullable=False)  # z.B. "Knieflexion rechts"
+    value = db.Column(db.String(100))  # Einzelwert
+    value_pair_left = db.Column(db.String(100))  # Wertepaar links
+    value_pair_right = db.Column(db.String(100))  # Wertepaar rechts
+    values_json = db.Column(db.JSON)  # Mehrfachwerte
+    unit = db.Column(db.String(30))  # Grad, cm, kg, etc.
+    notes = db.Column(db.Text)
+    measured_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    series = db.relationship('TreatmentSeries', backref=db.backref('measurements', lazy='dynamic'))
+
+
+class WaitlistEntry(db.Model):
+    """Warteliste: Patient wartet auf einen Termin"""
+    __tablename__ = 'waitlist_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
+    therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    duration_minutes = db.Column(db.Integer, default=30)
+    preferred_times_json = db.Column(db.JSON, default=dict)  # z.B. {"days": [0,1], "time_from": "08:00", "time_to": "12:00"}
+    priority = db.Column(db.Integer, default=5)  # 1=höchste, 10=niedrigste
+    notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='waiting')  # waiting/offered/scheduled/cancelled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('waitlist_entries', lazy='dynamic'))
+    therapist = db.relationship('Employee', backref=db.backref('waitlist_entries', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', backref=db.backref('waitlist_entries', lazy='dynamic'))
 
 
 # ============================================================

@@ -34,6 +34,29 @@
                     <span class="nav-text">Patienten</span>
                 </a>
             </li>
+            <li class="{{ 'active' if request.blueprint == 'treatment' and 'template' not in (request.endpoint or '') and 'warteliste' not in (request.endpoint or '') }}">
+                <a href="{{ url_for('treatment.serien') }}">
+                    <span class="nav-icon">💊</span>
+                    <span class="nav-text">Behandlung</span>
+                </a>
+                <ul class="sidebar-subnav">
+                    <li class="{{ 'active' if request.endpoint == 'treatment.serien' or (request.endpoint or '').startswith('treatment.serie') }}">
+                        <a href="{{ url_for('treatment.serien') }}">Serien</a>
+                    </li>
+                    <li class="{{ 'active' if 'template' in (request.endpoint or '') }}">
+                        <a href="{{ url_for('treatment.templates') }}">Templates</a>
+                    </li>
+                    <li class="{{ 'active' if 'warteliste' in (request.endpoint or '') }}">
+                        <a href="{{ url_for('treatment.warteliste') }}">Warteliste</a>
+                    </li>
+                </ul>
+            </li>
+            <li class="{{ 'active' if request.blueprint == 'resources' }}">
+                <a href="{{ url_for('resources.index') }}">
+                    <span class="nav-icon">🏥</span>
+                    <span class="nav-text">Ressourcen</span>
+                </a>
+            </li>
             <li class="{{ 'active' if request.blueprint == 'employees' }}">
                 <a href="{{ url_for('employees.index') }}">
                     <span class="nav-icon">👤</span>
@@ -98,10 +121,11 @@
                 <p><strong>Hallo! Ich bin dein KI-Assistent.</strong></p>
                 <p>Ich kann dir bei allem helfen:</p>
                 <ul>
-                    <li>Termine suchen und erstellen</li>
+                    <li>Termine suchen, erstellen und planen</li>
                     <li>Patienten verwalten</li>
-                    <li>Verfügbarkeiten prüfen</li>
-                    <li>Fragen beantworten</li>
+                    <li>Behandlungsserien starten und planen</li>
+                    <li>Verfügbarkeit prüfen (7 Constraints)</li>
+                    <li>Ressourcen und Warteliste verwalten</li>
                 </ul>
                 <p>Was kann ich für dich tun?</p>
             </div>

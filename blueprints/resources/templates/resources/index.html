@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Ressourcen - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Ressourcen{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Räume & Geräte</h2>
+    <div class="detail-actions">
+        <a href="{{ url_for('resources.calendar') }}" class="btn btn-secondary">Ressourcen-Kalender</a>
+        <a href="{{ url_for('resources.create') }}" class="btn btn-primary">+ Neue Ressource</a>
+    </div>
+</div>
+
+{% for loc in locations %}
+<div class="detail-section">
+    <h3>{{ loc.name }}</h3>
+    {% set ressourcen = loc.resources.filter_by(is_active=True).all() %}
+    {% if ressourcen %}
+    <div class="cards-grid">
+        {% for r in ressourcen %}
+        <div class="resource-card">
+            <div class="resource-card-icon">
+                {% if r.type == 'room' %}🚪{% elif r.type == 'equipment' %}🔧{% else %}📦{% endif %}
+            </div>
+            <div class="resource-card-body">
+                <h4>{{ r.name }}</h4>
+                <span class="resource-type">{{ {'room': 'Raum', 'equipment': 'Gerät', 'other': 'Sonstige'}.get(r.type, r.type) }}</span>
+                {% if r.capacity > 1 %}
+                <span class="resource-capacity">Kapazität: {{ r.capacity }}</span>
+                {% endif %}
+            </div>
+            <div class="resource-card-actions">
+                <a href="{{ url_for('resources.edit', id=r.id) }}" class="btn btn-secondary btn-small">Bearbeiten</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-text">Keine aktiven Ressourcen an diesem Standort</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

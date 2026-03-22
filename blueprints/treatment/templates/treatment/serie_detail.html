@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Serie #{{ serie.id }} - {{ serie.patient.full_name }} - OMNIA{% endblock %}
+{% block page_title %}Behandlungsserie #{{ serie.id }}{% endblock %}
+
+{% block content %}
+<!-- Serie-Header -->
+<div class="detail-header">
+    <div class="page-header">
+        <div>
+            <h2>{{ serie.patient.full_name }}</h2>
+            <span class="status-badge status-{{ serie.status }}">
+                {{ {'active': 'Aktiv', 'completed': 'Abgeschlossen', 'cancelled': 'Abgebrochen'}.get(serie.status, serie.status) }}
+            </span>
+        </div>
+        <div class="detail-actions">
+            {% if serie.status == 'active' %}
+            <a href="{{ url_for('treatment.serie_planen', id=serie.id) }}" class="btn btn-primary">Termine planen</a>
+            <form method="POST" action="{{ url_for('treatment.serie_complete', id=serie.id) }}" style="display:inline">
+                <button type="submit" class="btn btn-secondary" onclick="return confirm('Serie wirklich abschliessen?')">Abschliessen</button>
+            </form>
+            <form method="POST" action="{{ url_for('treatment.serie_cancel', id=serie.id) }}" style="display:inline">
+                <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('Serie wirklich abbrechen? Alle zukünftigen Termine werden abgesagt.')">Abbrechen</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Serien-Info -->
+<div class="detail-grid">
+    <div class="detail-card">
+        <h3>Behandlung</h3>
+        <div class="detail-field">
+            <label>Template</label>
+            <span>{{ serie.template.name if serie.template else 'Individuell' }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Diagnose</label>
+            <span>{{ serie.diagnosis or '-' }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Therapeut</label>
+            <span>{{ serie.therapist.display_name if serie.therapist else '-' }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Arzt</label>
+            <span>{{ serie.prescribing_doctor.name if serie.prescribing_doctor else '-' }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Verordnung</label>
+            <span>{{ {'initial': 'Erstverordnung', 'followup': 'Folgeverordnung'}.get(serie.prescription_type, serie.prescription_type) }}
+                {% if serie.prescription_date %} vom {{ serie.prescription_date.strftime('%d.%m.%Y') }}{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <h3>Versicherung</h3>
+        <div class="detail-field">
+            <label>Typ</label>
+            <span>{{ serie.insurance_type or '-' }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Abrechnungsmodell</label>
+            <span>{{ {'tiers_garant': 'Tiers Garant', 'tiers_payant': 'Tiers Payant'}.get(serie.billing_model, serie.billing_model or '-') }}</span>
+        </div>
+        <div class="detail-field">
+            <label>Fortschritt</label>
+            <div class="progress-bar" style="margin-top: 4px">
+                <div class="progress-fill" style="width: {{ (serie.num_completed / serie.num_total * 100) if serie.num_total > 0 else 0 }}%"></div>
+            </div>
+            <span>{{ serie.num_completed }} von {{ serie.num_total }} Terminen</span>
+        </div>
+    </div>
+
+    <div class="detail-card">
+        <h3>Heilungsphase</h3>
+        <div class="phase-indicator">
+            {% set phases = [('initial', 'Initial'), ('treatment', 'Behandlung'), ('consolidation', 'Konsolidierung'), ('autonomy', 'Autonomie')] %}
+            {% for phase_key, phase_name in phases %}
+            <div class="phase-step {{ 'active' if serie.healing_phase == phase_key }} {{ 'completed' if phases|map(attribute=0)|list|batch(1)|list|flatten|list.index(phase_key) < phases|map(attribute=0)|list|batch(1)|list|flatten|list.index(serie.healing_phase) if phase_key != serie.healing_phase else '' }}">
+                <span class="phase-dot"></span>
+                <span class="phase-label">{{ phase_name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% if serie.status == 'active' %}
+        <form method="POST" action="{{ url_for('treatment.update_phase', id=serie.id) }}" class="phase-form">
+            <select name="phase" onchange="this.form.submit()">
+                {% for phase_key, phase_name in phases %}
+                <option value="{{ phase_key }}" {{ 'selected' if serie.healing_phase == phase_key }}>{{ phase_name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Termine -->
+<div class="detail-section">
+    <h3>Termine ({{ termine|length }})</h3>
+    {% if termine %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Datum</th>
+                    <th>Uhrzeit</th>
+                    <th class="hide-mobile">Therapeut</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in termine %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ t.start_time.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ t.start_time.strftime('%H:%M') }} - {{ t.end_time.strftime('%H:%M') }}</td>
+                    <td class="hide-mobile">{{ t.employee.display_name }}</td>
+                    <td>
+                        <span class="status-badge status-{{ t.status }}">
+                            {{ {'scheduled': 'Geplant', 'completed': 'Durchgeführt', 'cancelled': 'Abgesagt', 'no_show': 'Nicht erschienen'}.get(t.status, t.status) }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-text">Noch keine Termine geplant.
+        {% if serie.status == 'active' %}
+        <a href="{{ url_for('treatment.serie_planen', id=serie.id) }}">Jetzt planen</a>
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<!-- Behandlungsziele -->
+<div class="detail-section">
+    <h3>Behandlungsziele</h3>
+    {% if ziele %}
+    <div class="goals-list">
+        {% for z in ziele %}
+        <div class="goal-item {{ 'goal-achieved' if z.status == 'achieved' }}">
+            <div class="goal-header">
+                <strong>{{ z.title }}</strong>
+                {% if z.status == 'achieved' %}
+                <span class="status-badge status-completed">Erreicht</span>
+                {% elif serie.status == 'active' %}
+                <form method="POST" action="{{ url_for('treatment.goal_achieved', id=z.id) }}" style="display:inline">
+                    <button type="submit" class="btn btn-small btn-secondary">Als erreicht markieren</button>
+                </form>
+                {% endif %}
+            </div>
+            {% if z.description %}<p class="goal-desc">{{ z.description }}</p>{% endif %}
+            <div class="goal-values">
+                {% if z.target_value %}<span>Ziel: {{ z.target_value }}</span>{% endif %}
+                {% if z.current_value %}<span>Aktuell: {{ z.current_value }}</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if serie.status == 'active' %}
+    <div class="form-section" style="margin-top: 1rem">
+        <h4>Neues Ziel</h4>
+        <form method="POST" action="{{ url_for('treatment.add_goal', id=serie.id) }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="title">Ziel *</label>
+                    <input type="text" id="title" name="title" required placeholder="z.B. Schmerzreduktion auf VAS 3">
+                </div>
+                <div class="form-group">
+                    <label for="target_value">Zielwert</label>
+                    <input type="text" id="target_value" name="target_value" placeholder="z.B. 90 Grad">
+                </div>
+                <div class="form-group">
+                    <label for="current_value">Aktueller Wert</label>
+                    <input type="text" id="current_value" name="current_value" placeholder="z.B. 45 Grad">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="goal_description">Beschreibung</label>
+                <textarea id="goal_description" name="description" rows="2" placeholder="Optional"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-small">Ziel hinzufügen</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Messungen -->
+<div class="detail-section">
+    <h3>Messungen</h3>
+    {% if messungen %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Messung</th>
+                    <th>Wert</th>
+                    <th class="hide-mobile">Einheit</th>
+                    <th class="hide-mobile">Notizen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in messungen %}
+                <tr>
+                    <td>{{ m.measured_at.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ m.label }}</td>
+                    <td>
+                        {% if m.measurement_type == 'pair' %}
+                            L: {{ m.value_pair_left or '-' }} / R: {{ m.value_pair_right or '-' }}
+                        {% else %}
+                            {{ m.value or '-' }}
+                        {% endif %}
+                    </td>
+                    <td class="hide-mobile">{{ m.unit or '' }}</td>
+                    <td class="hide-mobile">{{ m.notes or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if serie.status == 'active' %}
+    <div class="form-section" style="margin-top: 1rem">
+        <h4>Neue Messung</h4>
+        <form method="POST" action="{{ url_for('treatment.add_measurement', id=serie.id) }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="measurement_type">Typ</label>
+                    <select id="measurement_type" name="measurement_type" onchange="toggleMeasurementFields(this.value)">
+                        <option value="single">Einzelwert</option>
+                        <option value="pair">Wertepaar (links/rechts)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="label">Bezeichnung *</label>
+                    <input type="text" id="label" name="label" required placeholder="z.B. Knieflexion">
+                </div>
+                <div class="form-group">
+                    <label for="unit">Einheit</label>
+                    <input type="text" id="unit" name="unit" placeholder="z.B. Grad, cm, kg">
+                </div>
+            </div>
+            <div class="form-row" id="singleValueFields">
+                <div class="form-group">
+                    <label for="value">Wert</label>
+                    <input type="text" id="value" name="value" placeholder="z.B. 90">
+                </div>
+            </div>
+            <div class="form-row" id="pairValueFields" style="display:none">
+                <div class="form-group">
+                    <label for="value_pair_left">Links</label>
+                    <input type="text" id="value_pair_left" name="value_pair_left">
+                </div>
+                <div class="form-group">
+                    <label for="value_pair_right">Rechts</label>
+                    <input type="text" id="value_pair_right" name="value_pair_right">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="measurement_notes">Notizen</label>
+                <textarea id="measurement_notes" name="notes" rows="2" placeholder="Optional"></textarea>
+            </div>
+            {% if ziele %}
+            <div class="form-group">
+                <label for="goal_id">Zugehöriges Ziel</label>
+                <select id="goal_id" name="goal_id">
+                    <option value="">-- Kein Ziel --</option>
+                    {% for z in ziele %}
+                    <option value="{{ z.id }}">{{ z.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-small">Messung erfassen</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleMeasurementFields(type) {
+    document.getElementById('singleValueFields').style.display = type === 'single' ? '' : 'none';
+    document.getElementById('pairValueFields').style.display = type === 'pair' ? '' : 'none';
+}
+</script>
+{% endblock %}
