@@ -336,21 +336,96 @@ class WaitlistEntry(db.Model):
 class Invoice(db.Model):
     __tablename__ = 'invoices'
     id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True)  # z.B. "RE-2026-0001"
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
+    therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'))
     amount = db.Column(db.Float, default=0)
     status = db.Column(db.String(20), default='open')  # open/sent/answered/partially_paid/paid/in_collection
     billing_type = db.Column(db.String(20))  # KVG/UVG/MVG/IVG/private/self
     billing_model = db.Column(db.String(20))  # tiers_garant/tiers_payant
+    tariff_type = db.Column(db.String(20))  # 311/312/338/325/590/999/flatrate
     due_date = db.Column(db.Date)
     sent_at = db.Column(db.DateTime)
     paid_at = db.Column(db.DateTime)
     dunning_level = db.Column(db.Integer, default=0)  # 0/1/2/3
+    last_dunning_date = db.Column(db.Date)
+    dunning_fees = db.Column(db.Float, default=0)  # Aufgelaufene Mahngebühren
+    qr_reference = db.Column(db.String(30))  # QR-Referenznummer
+    notes = db.Column(db.Text)
+    tp_copy_sent = db.Column(db.Boolean, default=False)  # Rechnungskopie an Patient bei Tiers Payant
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic')
     payments = db.relationship('Payment', backref='invoice', lazy='dynamic')
+    patient = db.relationship('Patient', backref=db.backref('invoices', lazy='dynamic'))
+    insurance_provider = db.relationship('InsuranceProvider', backref=db.backref('invoices', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', backref=db.backref('invoices', lazy='dynamic'))
+    therapist = db.relationship('Employee', backref=db.backref('invoices', lazy='dynamic'))
+    doctor = db.relationship('Doctor', backref=db.backref('invoices', lazy='dynamic'))
+
+    STATUS_LABELS = {
+        'open': 'Offen',
+        'sent': 'Gesendet',
+        'answered': 'Beantwortet',
+        'partially_paid': 'Teilbezahlt',
+        'paid': 'Bezahlt',
+        'in_collection': 'Im Inkasso',
+    }
+
+    BILLING_TYPE_LABELS = {
+        'KVG': 'KVG (Grundversicherung)',
+        'UVG': 'UVG (Unfall)',
+        'MVG': 'MVG (Militär)',
+        'IVG': 'IVG (Invalidität)',
+        'private': 'Privat (Zusatzversicherung)',
+        'self': 'Selbstzahler',
+    }
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)
+
+    @property
+    def billing_type_label(self):
+        return self.BILLING_TYPE_LABELS.get(self.billing_type, self.billing_type or '-')
+
+    @property
+    def total_paid(self):
+        """Summe aller Zahlungen"""
+        return sum(p.amount for p in self.payments.all())
+
+    @property
+    def outstanding(self):
+        """Offener Betrag inkl. Mahngebühren"""
+        return (self.amount or 0) + (self.dunning_fees or 0) - self.total_paid
+
+    @property
+    def is_overdue(self):
+        """Ist die Rechnung überfällig?"""
+        if self.status in ('paid', 'in_collection'):
+            return False
+        if self.due_date and date.today() > self.due_date:
+            return True
+        return False
+
+    @staticmethod
+    def generate_invoice_number():
+        """Generiert eine fortlaufende Rechnungsnummer"""
+        year = date.today().year
+        last = Invoice.query.filter(
+            Invoice.invoice_number.like(f'RE-{year}-%')
+        ).order_by(Invoice.id.desc()).first()
+        if last and last.invoice_number:
+            try:
+                num = int(last.invoice_number.split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                num = 1
+        else:
+            num = 1
+        return f'RE-{year}-{num:04d}'
 
 
 class InvoiceItem(db.Model):
@@ -363,6 +438,8 @@ class InvoiceItem(db.Model):
     tax_points = db.Column(db.Float, default=0)
     tax_point_value = db.Column(db.Float, default=1.0)
     amount = db.Column(db.Float, default=0)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'))
+    position = db.Column(db.Integer, default=0)  # Reihenfolge
 
 
 class Payment(db.Model):
@@ -373,6 +450,8 @@ class Payment(db.Model):
     payment_date = db.Column(db.Date, nullable=False)
     reference = db.Column(db.String(200))
     source = db.Column(db.String(20), default='manual')  # manual/vesr/medidata
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class CostApproval(db.Model):
@@ -383,8 +462,89 @@ class CostApproval(db.Model):
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'))
     status = db.Column(db.String(20), default='pending')  # pending/sent/approved/rejected
+    approved_sessions = db.Column(db.Integer)  # Anzahl bewilligte Sitzungen
+    approved_amount = db.Column(db.Float)  # Bewilligter Betrag
+    diagnosis = db.Column(db.Text)
+    treatment_type = db.Column(db.String(100))  # z.B. "Physiotherapie"
     valid_until = db.Column(db.Date)
+    sent_at = db.Column(db.DateTime)
+    answered_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('cost_approvals', lazy='dynamic'))
+    insurance_provider = db.relationship('InsuranceProvider', backref=db.backref('cost_approvals', lazy='dynamic'))
+    doctor = db.relationship('Doctor', backref=db.backref('cost_approvals', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', backref=db.backref('cost_approvals', lazy='dynamic'))
+
+    STATUS_LABELS = {
+        'pending': 'Erstellt',
+        'sent': 'Gesendet',
+        'approved': 'Genehmigt',
+        'rejected': 'Abgelehnt',
+    }
+
+    @property
+    def status_label(self):
+        return self.STATUS_LABELS.get(self.status, self.status)
+
+
+class TaxPointValue(db.Model):
+    """Taxpunktwerte pro Kanton/Versicherer/Tarif"""
+    __tablename__ = 'tax_point_values'
+    id = db.Column(db.Integer, primary_key=True)
+    tariff_type = db.Column(db.String(20), nullable=False)  # 311/312/338/325/590/999
+    canton = db.Column(db.String(2))  # ZH, BE, etc.
+    insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
+    value = db.Column(db.Float, nullable=False)  # Taxpunktwert in CHF
+    valid_from = db.Column(db.Date, default=date.today)
+    valid_until = db.Column(db.Date)
+    notes = db.Column(db.String(200))
+
+    insurance_provider = db.relationship('InsuranceProvider', backref=db.backref('tax_point_values', lazy='dynamic'))
+
+    @staticmethod
+    def get_value(tariff_type, canton='ZH', insurance_provider_id=None):
+        """Findet den passenden Taxpunktwert"""
+        today = date.today()
+        query = TaxPointValue.query.filter(
+            TaxPointValue.tariff_type == tariff_type,
+            TaxPointValue.valid_from <= today,
+        ).filter(
+            db.or_(TaxPointValue.valid_until.is_(None), TaxPointValue.valid_until >= today)
+        )
+        # Erst spezifisch für Versicherer suchen
+        if insurance_provider_id:
+            specific = query.filter(
+                TaxPointValue.canton == canton,
+                TaxPointValue.insurance_provider_id == insurance_provider_id,
+            ).first()
+            if specific:
+                return specific.value
+        # Dann kantonal
+        cantonal = query.filter(
+            TaxPointValue.canton == canton,
+            TaxPointValue.insurance_provider_id.is_(None),
+        ).first()
+        if cantonal:
+            return cantonal.value
+        # Fallback: beliebiger Wert für diesen Tarif
+        fallback = query.first()
+        return fallback.value if fallback else 1.0
+
+
+class DunningConfig(db.Model):
+    """Mahnwesen-Konfiguration pro Stufe"""
+    __tablename__ = 'dunning_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    level = db.Column(db.Integer, nullable=False)  # 1, 2, 3
+    days_after_due = db.Column(db.Integer, nullable=False)  # Tage nach Fälligkeit
+    fee = db.Column(db.Float, default=0)  # Mahngebühr (nur bei Tiers Garant)
+    text_template = db.Column(db.Text)  # Mahntext-Vorlage
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('dunning_configs', lazy='dynamic'))
 
 
 # ============================================================

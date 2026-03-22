@@ -1352,3 +1352,322 @@ a:hover { color: var(--primary-dark); }
 .priority-high { background: var(--danger); }
 .priority-normal { background: var(--primary); }
 .priority-low { background: var(--gray-500); }
+
+/* ============================================================
+   Phase 3: Abrechnung
+   ============================================================ */
+
+/* Statistik-Zeile */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-top: 0.25rem;
+}
+
+.stat-warning .stat-value { color: var(--warning); }
+.stat-danger .stat-value { color: var(--danger); }
+.stat-success .stat-value { color: var(--success); }
+
+/* Filter-Leiste */
+.filter-bar {
+    margin-bottom: 1rem;
+}
+
+.filter-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-form select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+    background: var(--white);
+}
+
+/* Tabellen */
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table-total td {
+    font-weight: 600;
+    border-top: 2px solid var(--gray-300);
+    background: var(--gray-50);
+}
+
+/* Rechnungs-Status-Badges */
+.status-open { background: #e3f2fd; color: #1565c0; }
+.status-sent { background: #fff3e0; color: #e65100; }
+.status-answered { background: #f3e5f5; color: #7b1fa2; }
+.status-partially_paid { background: #fff8e1; color: #f57f17; }
+.status-paid { background: #e8f5e9; color: #2e7d32; }
+.status-in_collection { background: #fce4ec; color: #c62828; }
+.status-overdue { background: #ffebee; color: #b71c1c; }
+.status-dunning { background: #fff3e0; color: #e65100; }
+.status-large { font-size: 0.9rem; padding: 0.35rem 0.75rem; }
+
+/* Gutsprachen-Status */
+.status-pending { background: #e3f2fd; color: #1565c0; }
+.status-approved { background: #e8f5e9; color: #2e7d32; }
+.status-rejected { background: #fce4ec; color: #c62828; }
+
+/* Überfällige Zeilen */
+.row-overdue {
+    background: #fff5f5 !important;
+}
+
+.row-overdue:hover {
+    background: #ffe8e8 !important;
+}
+
+.days-overdue {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Detail-Ansicht */
+.detail-status {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.detail-card {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+}
+
+.detail-card h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    color: var(--gray-700);
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: 0.5rem;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+    font-size: 0.85rem;
+}
+
+.detail-row span:first-child {
+    color: var(--gray-600);
+}
+
+.detail-section {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.detail-section h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    color: var(--gray-700);
+}
+
+.amount-highlight {
+    background: var(--primary-light);
+    padding: 0.5rem !important;
+    border-radius: 6px;
+    margin-top: 0.5rem;
+}
+
+/* Aktions-Buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.inline-form {
+    display: inline-block;
+}
+
+.form-inline-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.form-input-sm {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
+    font-size: 0.85rem;
+    width: auto;
+    min-width: 100px;
+}
+
+.payment-form {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+/* Button-Varianten */
+.btn-warning {
+    background: var(--warning);
+    color: var(--white);
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+.btn-warning:hover { opacity: 0.9; }
+
+.btn-success {
+    background: var(--success);
+    color: var(--white);
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+.btn-success:hover { opacity: 0.9; }
+
+.btn-danger {
+    background: var(--danger);
+    color: var(--white);
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+.btn-danger:hover { opacity: 0.9; }
+
+.btn-sm {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+.btn-icon {
+    display: inline-block;
+    padding: 0.2rem 0.4rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.btn-icon:hover { opacity: 0.7; }
+
+/* Formular-Info */
+.form-info {
+    background: var(--primary-light);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+
+.form-info h4 {
+    margin-bottom: 0.5rem;
+    color: var(--primary-dark);
+}
+
+.form-info ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.form-info li {
+    margin-bottom: 0.25rem;
+}
+
+.form-hint {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-top: 0.25rem;
+}
+
+.empty-hint {
+    color: var(--gray-500);
+    font-size: 0.85rem;
+    font-style: italic;
+    padding: 1rem 0;
+}
+
+.text-muted {
+    color: var(--gray-500);
+}
+
+/* Dashboard-Karten erweitert */
+.card-warning {
+    border-left: 3px solid var(--warning);
+}
+
+.card-danger {
+    border-left: 3px solid var(--danger);
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Responsive Anpassungen für Abrechnung */
+@media (max-width: 768px) {
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .form-inline-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-input-sm {
+        width: 100%;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+}

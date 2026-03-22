@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Rechnung {{ rechnung.invoice_number }} - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Rechnung {{ rechnung.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2>Rechnung {{ rechnung.invoice_number }}</h2>
+    <div class="header-actions">
+        <a href="{{ url_for('billing.generate_pdf', id=rechnung.id) }}" class="btn btn-secondary">📄 PDF</a>
+        <a href="{{ url_for('billing.index') }}" class="btn btn-secondary">← Zurück</a>
+    </div>
+</div>
+
+<!-- Status-Badge -->
+<div class="detail-status">
+    <span class="status-badge status-{{ rechnung.status }} status-large">{{ rechnung.status_label }}</span>
+    {% if rechnung.is_overdue %}
+    <span class="status-badge status-overdue status-large">Überfällig</span>
+    {% endif %}
+    {% if rechnung.dunning_level > 0 %}
+    <span class="status-badge status-dunning">Mahnstufe {{ rechnung.dunning_level }}</span>
+    {% endif %}
+</div>
+
+<!-- Rechnungsinfo -->
+<div class="detail-grid">
+    <div class="detail-card">
+        <h3>Rechnungsdaten</h3>
+        <div class="detail-row"><span>Rechnungsnummer:</span> <strong>{{ rechnung.invoice_number }}</strong></div>
+        <div class="detail-row"><span>Erstellt:</span> {{ rechnung.created_at.strftime('%d.%m.%Y') }}</div>
+        <div class="detail-row"><span>Fällig:</span> {{ rechnung.due_date.strftime('%d.%m.%Y') if rechnung.due_date else '-' }}</div>
+        <div class="detail-row"><span>Versicherungstyp:</span> {{ rechnung.billing_type_label }}</div>
+        <div class="detail-row"><span>Abrechnungsmodell:</span> {{ 'Tiers Garant' if rechnung.billing_model == 'tiers_garant' else 'Tiers Payant' }}</div>
+        <div class="detail-row"><span>Tarif:</span> {{ rechnung.tariff_type or '-' }}</div>
+        {% if rechnung.billing_model == 'tiers_payant' and rechnung.tp_copy_sent %}
+        <div class="detail-row"><span>TP-Kopie:</span> ✅ An Patient gesendet</div>
+        {% endif %}
+    </div>
+
+    <div class="detail-card">
+        <h3>Patient & Versicherung</h3>
+        <div class="detail-row"><span>Patient:</span> <a href="{{ url_for('patients.detail', id=rechnung.patient_id) }}">{{ rechnung.patient.full_name if rechnung.patient else '-' }}</a></div>
+        {% if rechnung.patient and rechnung.patient.date_of_birth %}
+        <div class="detail-row"><span>Geburtsdatum:</span> {{ rechnung.patient.date_of_birth.strftime('%d.%m.%Y') }}</div>
+        {% endif %}
+        {% if rechnung.patient and rechnung.patient.ahv_number %}
+        <div class="detail-row"><span>AHV-Nr.:</span> {{ rechnung.patient.ahv_number }}</div>
+        {% endif %}
+        <div class="detail-row"><span>Versicherer:</span> {{ rechnung.insurance_provider.name if rechnung.insurance_provider else '-' }}</div>
+        <div class="detail-row"><span>Therapeut:</span> {{ rechnung.therapist.display_name if rechnung.therapist else '-' }}</div>
+        {% if rechnung.doctor %}
+        <div class="detail-row"><span>Arzt:</span> {{ rechnung.doctor.name }}</div>
+        {% endif %}
+    </div>
+
+    <div class="detail-card card-highlight">
+        <h3>Beträge</h3>
+        <div class="detail-row"><span>Rechnungsbetrag:</span> <strong>CHF {{ '%.2f'|format(rechnung.amount) }}</strong></div>
+        {% if rechnung.dunning_fees and rechnung.dunning_fees > 0 %}
+        <div class="detail-row"><span>Mahngebühren:</span> CHF {{ '%.2f'|format(rechnung.dunning_fees) }}</div>
+        <div class="detail-row"><span>Gesamtbetrag:</span> CHF {{ '%.2f'|format(rechnung.amount + rechnung.dunning_fees) }}</div>
+        {% endif %}
+        <div class="detail-row"><span>Bezahlt:</span> CHF {{ '%.2f'|format(rechnung.total_paid) }}</div>
+        <div class="detail-row amount-highlight"><span>Offener Betrag:</span> <strong>CHF {{ '%.2f'|format(rechnung.outstanding) }}</strong></div>
+    </div>
+</div>
+
+<!-- Positionen -->
+<div class="detail-section">
+    <h3>Positionen</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Pos.</th>
+                <th>Tarif</th>
+                <th>Beschreibung</th>
+                <th>Anz.</th>
+                <th>TP</th>
+                <th>TP-Wert</th>
+                <th>Betrag</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pos in positionen %}
+            <tr>
+                <td>{{ pos.position }}</td>
+                <td>{{ pos.tariff_code or '-' }}</td>
+                <td>{{ pos.description or '-' }}</td>
+                <td>{{ '%.0f'|format(pos.quantity) }}</td>
+                <td>{{ '%.1f'|format(pos.tax_points) }}</td>
+                <td>{{ '%.2f'|format(pos.tax_point_value) }}</td>
+                <td>CHF {{ '%.2f'|format(pos.amount) }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total">
+                <td colspan="6"><strong>Total</strong></td>
+                <td><strong>CHF {{ '%.2f'|format(rechnung.amount) }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Zahlungen -->
+<div class="detail-section">
+    <h3>Zahlungen</h3>
+    {% if zahlungen %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Betrag</th>
+                <th>Quelle</th>
+                <th>Referenz</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for z in zahlungen %}
+            <tr>
+                <td>{{ z.payment_date.strftime('%d.%m.%Y') }}</td>
+                <td>CHF {{ '%.2f'|format(z.amount) }}</td>
+                <td>{{ z.source }}</td>
+                <td>{{ z.reference or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-hint">Noch keine Zahlungen verbucht.</p>
+    {% endif %}
+</div>
+
+<!-- Aktionen -->
+{% if rechnung.status != 'paid' %}
+<div class="detail-section">
+    <h3>Aktionen</h3>
+    <div class="action-buttons">
+        {% if rechnung.status == 'open' %}
+        <form method="post" action="{{ url_for('billing.send_invoice', id=rechnung.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-primary">📤 Rechnung senden</button>
+        </form>
+        {% endif %}
+
+        {% if rechnung.status in ('sent', 'answered', 'partially_paid') and rechnung.dunning_level < 3 %}
+        <form method="post" action="{{ url_for('billing.send_dunning', id=rechnung.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-warning">⚠️ Mahnung Stufe {{ rechnung.dunning_level + 1 }}</button>
+        </form>
+        {% endif %}
+
+        <!-- Zahlung verbuchen -->
+        <form method="post" action="{{ url_for('billing.add_payment', id=rechnung.id) }}" class="payment-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-inline-group">
+                <input type="number" name="amount" step="0.01" min="0.01" placeholder="Betrag CHF" required class="form-input-sm">
+                <input type="date" name="payment_date" value="{{ import_date_today().isoformat() }}" class="form-input-sm">
+                <input type="text" name="reference" placeholder="Referenz" class="form-input-sm">
+                <select name="source" class="form-input-sm">
+                    <option value="manual">Manuell</option>
+                    <option value="vesr">VESR</option>
+                    <option value="medidata">MediData</option>
+                </select>
+                <button type="submit" class="btn btn-success">💰 Zahlung verbuchen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

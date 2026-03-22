@@ -46,6 +46,8 @@ def create_app():
     from blueprints.employees import employees_bp
     from blueprints.treatment import treatment_bp
     from blueprints.resources import resources_bp
+    from blueprints.billing import billing_bp
+    from blueprints.cost_approvals import cost_approvals_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -54,6 +56,8 @@ def create_app():
     app.register_blueprint(employees_bp, url_prefix='/employees')
     app.register_blueprint(treatment_bp, url_prefix='/treatment')
     app.register_blueprint(resources_bp, url_prefix='/resources')
+    app.register_blueprint(billing_bp, url_prefix='/billing')
+    app.register_blueprint(cost_approvals_bp, url_prefix='/cost-approvals')
 
     # API-Routen umleiten (Dashboard-Chat-API global verfügbar machen)
     @app.route('/api/chat', methods=['POST'])
@@ -117,7 +121,9 @@ def _seed_demo_data_if_needed():
     from models import (Organization, Location, User, Employee, WorkSchedule,
                         Patient, Appointment, Resource, InsuranceProvider,
                         Doctor, TreatmentSeriesTemplate, TreatmentSeries,
-                        TreatmentGoal, TreatmentMeasurement)
+                        TreatmentGoal, TreatmentMeasurement,
+                        Invoice, InvoiceItem, Payment, CostApproval,
+                        TaxPointValue, DunningConfig)
 
     # Prüfen ob bereits Daten vorhanden
     if Organization.query.first():
@@ -554,10 +560,220 @@ def _seed_demo_data_if_needed():
     )
     db.session.add_all([messung1, messung2, messung3])
 
+    # === Phase 3: Abrechnungs-Demo-Daten ===
+
+    # --- Taxpunktwerte (Zürich und Winterthur) ---
+    tp_values = [
+        # Tarif 311 - Physiotherapie UVG/IVG/MVG
+        TaxPointValue(tariff_type='311', canton='ZH', value=1.0, notes='Physiotherapie UVG/IVG/MVG Zürich'),
+        TaxPointValue(tariff_type='311', canton='AG', value=0.98, notes='Physiotherapie UVG/IVG/MVG Winterthur/AG'),
+        # Tarif 312 - Physiotherapie KVG
+        TaxPointValue(tariff_type='312', canton='ZH', value=1.0, notes='Physiotherapie KVG Zürich'),
+        TaxPointValue(tariff_type='312', canton='AG', value=0.97, notes='Physiotherapie KVG Winterthur/AG'),
+        # Tarif 338 - Ergotherapie
+        TaxPointValue(tariff_type='338', canton='ZH', value=1.0, notes='Ergotherapie Zürich'),
+        # Tarif 590 - EMR Komplementärmedizin
+        TaxPointValue(tariff_type='590', canton='ZH', value=1.0, notes='EMR Komplementärmedizin Zürich'),
+    ]
+    db.session.add_all(tp_values)
+
+    # --- Mahnwesen-Konfiguration ---
+    dunning_configs = [
+        DunningConfig(organization_id=org.id, level=1, days_after_due=30, fee=0,
+                      text_template='Sehr geehrte/r {patient_name}, wir erinnern Sie freundlich an die offene Rechnung {invoice_number} über CHF {amount}. Bitte begleichen Sie den Betrag innert 10 Tagen.'),
+        DunningConfig(organization_id=org.id, level=2, days_after_due=60, fee=10.0,
+                      text_template='Sehr geehrte/r {patient_name}, trotz unserer Zahlungserinnerung ist die Rechnung {invoice_number} über CHF {amount} weiterhin offen. Wir belasten Ihnen eine Mahngebühr von CHF 10.00. Bitte begleichen Sie den Betrag innert 10 Tagen.'),
+        DunningConfig(organization_id=org.id, level=3, days_after_due=90, fee=20.0,
+                      text_template='Sehr geehrte/r {patient_name}, letzte Mahnung vor Einleitung des Inkassoverfahrens. Rechnung {invoice_number} über CHF {amount} ist seit über 90 Tagen überfällig. Mahngebühr: CHF 20.00.'),
+    ]
+    db.session.add_all(dunning_configs)
+
+    db.session.flush()
+
+    # --- 5 Rechnungen (verschiedene Status) ---
+
+    # Rechnung 1: Anna Müller - Serie 1, offen (Tiers Garant, KVG)
+    inv1 = Invoice(
+        invoice_number='RE-2026-0001',
+        series_id=serie1.id,
+        patient_id=patienten[0].id,
+        insurance_provider_id=ins_css.id,
+        therapist_id=thomas_emp.id,
+        doctor_id=dr_schmidt.id,
+        amount=96.00,
+        status='sent',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tariff_type='312',
+        due_date=date.today() - timedelta(days=5),
+        sent_at=datetime.utcnow() - timedelta(days=25),
+        qr_reference='00000000000000000000000011',
+    )
+    db.session.add(inv1)
+    db.session.flush()
+    # 2 Positionen für 2 Termine
+    db.session.add(InvoiceItem(invoice_id=inv1.id, tariff_code='312',
+                               description='Physiotherapie KVG Standard (30 Min.)',
+                               quantity=1, tax_points=48.0, tax_point_value=1.0,
+                               amount=48.00, position=1))
+    db.session.add(InvoiceItem(invoice_id=inv1.id, tariff_code='312',
+                               description='Physiotherapie KVG Standard (30 Min.)',
+                               quantity=1, tax_points=48.0, tax_point_value=1.0,
+                               amount=48.00, position=2))
+
+    # Rechnung 2: Peter Schmid - Serie 2, bezahlt (Tiers Garant, KVG)
+    inv2 = Invoice(
+        invoice_number='RE-2026-0002',
+        series_id=serie2.id,
+        patient_id=patienten[1].id,
+        insurance_provider_id=ins_swica.id,
+        therapist_id=thomas_emp.id,
+        doctor_id=dr_mueller.id,
+        amount=48.00,
+        status='paid',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tariff_type='312',
+        due_date=date.today() - timedelta(days=15),
+        sent_at=datetime.utcnow() - timedelta(days=40),
+        paid_at=datetime.utcnow() - timedelta(days=10),
+        qr_reference='00000000000000000000000022',
+    )
+    db.session.add(inv2)
+    db.session.flush()
+    db.session.add(InvoiceItem(invoice_id=inv2.id, tariff_code='312',
+                               description='Physiotherapie KVG Standard (30 Min.)',
+                               quantity=1, tax_points=48.0, tax_point_value=1.0,
+                               amount=48.00, position=1))
+    # Zahlung für Rechnung 2
+    db.session.add(Payment(invoice_id=inv2.id, amount=48.00,
+                           payment_date=date.today() - timedelta(days=10),
+                           reference='VESR-20260313', source='vesr'))
+
+    # Rechnung 3: Markus Huber - Serie 3, UVG Tiers Payant, gesendet
+    inv3 = Invoice(
+        invoice_number='RE-2026-0003',
+        series_id=serie3.id,
+        patient_id=patienten[5].id,
+        insurance_provider_id=ins_helsana.id,
+        therapist_id=marco_emp.id,
+        doctor_id=dr_schmidt.id,
+        amount=144.00,
+        status='sent',
+        billing_type='UVG',
+        billing_model='tiers_payant',
+        tariff_type='311',
+        due_date=date.today() + timedelta(days=20),
+        sent_at=datetime.utcnow() - timedelta(days=10),
+        tp_copy_sent=True,
+        qr_reference='00000000000000000000000033',
+    )
+    db.session.add(inv3)
+    db.session.flush()
+    for i in range(3):
+        db.session.add(InvoiceItem(invoice_id=inv3.id, tariff_code='311',
+                                   description='Physiotherapie UVG (30 Min.)',
+                                   quantity=1, tax_points=48.0, tax_point_value=1.0,
+                                   amount=48.00, position=i + 1))
+
+    # Rechnung 4: Daniel Steiner - Serie 4, UVG Tiers Payant, teilbezahlt
+    inv4 = Invoice(
+        invoice_number='RE-2026-0004',
+        series_id=serie4.id,
+        patient_id=patienten[7].id,
+        insurance_provider_id=ins_suva.id,
+        therapist_id=sarah_emp.id,
+        doctor_id=dr_weber.id,
+        amount=96.00,
+        status='partially_paid',
+        billing_type='UVG',
+        billing_model='tiers_payant',
+        tariff_type='311',
+        due_date=date.today() + timedelta(days=10),
+        sent_at=datetime.utcnow() - timedelta(days=20),
+        tp_copy_sent=True,
+        qr_reference='00000000000000000000000044',
+    )
+    db.session.add(inv4)
+    db.session.flush()
+    db.session.add(InvoiceItem(invoice_id=inv4.id, tariff_code='311',
+                               description='Physiotherapie UVG (30 Min.)',
+                               quantity=1, tax_points=48.0, tax_point_value=1.0,
+                               amount=48.00, position=1))
+    db.session.add(InvoiceItem(invoice_id=inv4.id, tariff_code='311',
+                               description='Physiotherapie UVG (30 Min.)',
+                               quantity=1, tax_points=48.0, tax_point_value=1.0,
+                               amount=48.00, position=2))
+    # Teilzahlung
+    db.session.add(Payment(invoice_id=inv4.id, amount=48.00,
+                           payment_date=date.today() - timedelta(days=5),
+                           reference='MediData-001', source='medidata'))
+
+    # Rechnung 5: René Gerber - Serie 5, EMR Privat, offen (überfällig)
+    inv5 = Invoice(
+        invoice_number='RE-2026-0005',
+        series_id=serie5.id,
+        patient_id=patienten[9].id,
+        insurance_provider_id=ins_helsana.id,
+        therapist_id=thomas_emp.id,
+        amount=324.00,
+        status='sent',
+        billing_type='private',
+        billing_model='tiers_garant',
+        tariff_type='590',
+        due_date=date.today() - timedelta(days=35),
+        sent_at=datetime.utcnow() - timedelta(days=60),
+        dunning_level=1,
+        last_dunning_date=date.today() - timedelta(days=5),
+        qr_reference='00000000000000000000000055',
+    )
+    db.session.add(inv5)
+    db.session.flush()
+    for i in range(6):
+        db.session.add(InvoiceItem(invoice_id=inv5.id, tariff_code='590',
+                                   description='EMR Komplementärmedizin (60 Min.)',
+                                   quantity=1, tax_points=108.0, tax_point_value=0.5,
+                                   amount=54.00, position=i + 1))
+
+    # --- 2 Gutsprachen ---
+
+    # Gutsprache 1: Markus Huber - UVG, genehmigt
+    gs1 = CostApproval(
+        patient_id=patienten[5].id,
+        insurance_provider_id=ins_helsana.id,
+        doctor_id=dr_schmidt.id,
+        series_id=serie3.id,
+        diagnosis='Schulterimpingement links',
+        treatment_type='Physiotherapie',
+        status='approved',
+        approved_sessions=9,
+        approved_amount=432.00,
+        valid_until=date.today() + timedelta(days=60),
+        sent_at=datetime.utcnow() - timedelta(days=30),
+        answered_at=datetime.utcnow() - timedelta(days=20),
+    )
+    db.session.add(gs1)
+
+    # Gutsprache 2: Daniel Steiner - UVG, ausstehend
+    gs2 = CostApproval(
+        patient_id=patienten[7].id,
+        insurance_provider_id=ins_suva.id,
+        doctor_id=dr_weber.id,
+        series_id=serie4.id,
+        diagnosis='Distorsion OSG rechts (Sportunfall)',
+        treatment_type='Physiotherapie',
+        status='sent',
+        approved_sessions=9,
+        valid_until=date.today() + timedelta(days=90),
+        sent_at=datetime.utcnow() - timedelta(days=7),
+    )
+    db.session.add(gs2)
+
     db.session.commit()
     print(f'Demo-Daten erstellt: 1 Organisation, 2 Standorte, 8 Ressourcen, 5 Mitarbeiter, '
           f'{len(patienten)} Patienten, {len(termin_daten)} Termine, '
-          f'3 Templates, 5 Behandlungsserien, 3 Ärzte')
+          f'3 Templates, 5 Behandlungsserien, 3 Ärzte, '
+          f'5 Rechnungen, 3 Zahlungen, 2 Gutsprachen, 6 Taxpunktwerte')
 
 
 # App erstellen

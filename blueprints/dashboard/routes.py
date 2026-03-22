@@ -4,7 +4,7 @@ import json
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 from blueprints.dashboard import dashboard_bp
-from models import db, ChatMessage, Appointment, Patient
+from models import db, ChatMessage, Appointment, Patient, Invoice
 from ai.coordinator import process_chat_message
 from datetime import datetime, date, time
 
@@ -23,9 +23,20 @@ def index():
 
     patienten_total = Patient.query.filter_by(is_active=True).count()
 
+    # Abrechnungs-Statistiken
+    rechnungen_offen = Invoice.query.filter(
+        Invoice.status.in_(['open', 'sent', 'answered', 'partially_paid'])
+    ).count()
+    rechnungen_ueberfaellig = Invoice.query.filter(
+        Invoice.status.in_(['open', 'sent', 'answered', 'partially_paid']),
+        Invoice.due_date < date.today()
+    ).count()
+
     return render_template('dashboard/index.html',
                            termine_heute=termine_heute,
-                           patienten_total=patienten_total)
+                           patienten_total=patienten_total,
+                           rechnungen_offen=rechnungen_offen,
+                           rechnungen_ueberfaellig=rechnungen_ueberfaellig)
 
 
 @dashboard_bp.route('/api/chat', methods=['POST'])

@@ -8,6 +8,7 @@ from ai.context import get_user_context, format_context_for_prompt
 from ai.agents.termin_agent import create_termin_agent
 from ai.agents.patienten_agent import create_patienten_agent
 from ai.agents.mitarbeiter_agent import create_mitarbeiter_agent
+from ai.agents.abrechnungs_agent import create_abrechnungs_agent
 
 COORDINATOR_SYSTEM_PROMPT = """Du bist der Koordinator der OMNIA Praxissoftware. Du nimmst Anfragen entgegen und delegierst sie an spezialisierte Agenten.
 
@@ -15,6 +16,7 @@ Du hast folgende Spezialisten zur Verfügung:
 - termin_agent: Alles rund um Kalender, Termine, Planung, Verfügbarkeit, Warteliste, Ressourcen (Räume/Geräte), intelligenter Planungsassistent mit Constraint-Solver (prüft 7 Abhängigkeiten), Serien-Terminplanung
 - patienten_agent: Patientendaten, Behandlungsserien starten/anzeigen/verwalten, Behandlungsplan (Ziele, Messungen, Heilungsphasen), Templates auflisten
 - mitarbeiter_agent: Personal, Arbeitszeiten, Abwesenheiten
+- abrechnungs_agent: Rechnungen erstellen/anzeigen/auflisten, Tarife berechnen (311/312/338/590), Mahnwesen (3 Stufen), Zahlungen verbuchen, Gutsprachen erstellen/verwalten, offene Posten anzeigen, Tiers Garant/Payant
 
 Wichtige Workflows:
 1. "Starte eine neue Serie für Patient X": → patienten_agent (behandlungsserie_starten)
@@ -24,6 +26,13 @@ Wichtige Workflows:
 5. "Finde den nächsten freien Termin": → termin_agent (naechster_freier_termin)
 6. "Setze Patient auf die Warteliste": → termin_agent (warteliste_verwalten)
 7. "Prüfe ob Raum 1 frei ist": → termin_agent (ressource_pruefen)
+8. "Erstelle eine Rechnung für Serie X": → abrechnungs_agent (rechnung_erstellen)
+9. "Welche Rechnungen sind offen?": → abrechnungs_agent (offene_posten_anzeigen)
+10. "Sende Mahnung für Rechnung X": → abrechnungs_agent (mahnung_senden)
+11. "Verbuche Zahlung": → abrechnungs_agent (zahlung_verbuchen)
+12. "Erstelle Gutsprache für Patient X": → abrechnungs_agent (gutsprache_erstellen)
+13. "Was kostet eine Physio-Behandlung?": → abrechnungs_agent (tarif_berechnen)
+14. "Ist die Rechnung von Frau Müller bezahlt?": → abrechnungs_agent (rechnungen_auflisten)
 
 Regeln:
 - Analysiere die Anfrage und entscheide, welcher Spezialist zuständig ist
@@ -52,8 +61,8 @@ COORDINATOR_TOOLS = [
             "properties": {
                 "agent_name": {
                     "type": "string",
-                    "description": "Name des Agenten: termin_agent, patienten_agent, mitarbeiter_agent",
-                    "enum": ["termin_agent", "patienten_agent", "mitarbeiter_agent"]
+                    "description": "Name des Agenten: termin_agent, patienten_agent, mitarbeiter_agent, abrechnungs_agent",
+                    "enum": ["termin_agent", "patienten_agent", "mitarbeiter_agent", "abrechnungs_agent"]
                 },
                 "auftrag": {
                     "type": "string",
@@ -78,6 +87,8 @@ def _get_agent(name):
             _agents[name] = create_patienten_agent()
         elif name == 'mitarbeiter_agent':
             _agents[name] = create_mitarbeiter_agent()
+        elif name == 'abrechnungs_agent':
+            _agents[name] = create_abrechnungs_agent()
     return _agents.get(name)
 
 

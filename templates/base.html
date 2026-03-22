@@ -51,6 +51,26 @@
                     </li>
                 </ul>
             </li>
+            <li class="{{ 'active' if request.blueprint in ('billing', 'cost_approvals') }}">
+                <a href="{{ url_for('billing.index') }}">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-text">Abrechnung</span>
+                </a>
+                <ul class="sidebar-subnav">
+                    <li class="{{ 'active' if request.blueprint == 'billing' and 'mahnungen' not in (request.endpoint or '') and 'zahlungen' not in (request.endpoint or '') and 'payments' not in (request.endpoint or '') and 'tax_point' not in (request.endpoint or '') }}">
+                        <a href="{{ url_for('billing.index') }}">Rechnungen</a>
+                    </li>
+                    <li class="{{ 'active' if request.blueprint == 'cost_approvals' }}">
+                        <a href="{{ url_for('cost_approvals.index') }}">Gutsprachen</a>
+                    </li>
+                    <li class="{{ 'active' if 'zahlungen' in (request.endpoint or '') or 'payments' in (request.endpoint or '') }}">
+                        <a href="{{ url_for('billing.payments_overview') }}">Zahlungen</a>
+                    </li>
+                    <li class="{{ 'active' if 'mahnungen' in (request.endpoint or '') or 'dunning' in (request.endpoint or '') }}">
+                        <a href="{{ url_for('billing.dunning_overview') }}">Mahnungen</a>
+                    </li>
+                </ul>
+            </li>
             <li class="{{ 'active' if request.blueprint == 'resources' }}">
                 <a href="{{ url_for('resources.index') }}">
                     <span class="nav-icon">🏥</span>
@@ -126,6 +146,9 @@
                     <li>Behandlungsserien starten und planen</li>
                     <li>Verfügbarkeit prüfen (7 Constraints)</li>
                     <li>Ressourcen und Warteliste verwalten</li>
+                    <li>Rechnungen erstellen und verwalten</li>
+                    <li>Tarife berechnen und Mahnungen senden</li>
+                    <li>Gutsprachen und Zahlungen verwalten</li>
                 </ul>
                 <p>Was kann ich für dich tun?</p>
             </div>

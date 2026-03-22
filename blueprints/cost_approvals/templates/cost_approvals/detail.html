@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Gutsprache #{{ gutsprache.id }} - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Gutsprache #{{ gutsprache.id }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2>Gutsprache #{{ gutsprache.id }}</h2>
+    <a href="{{ url_for('cost_approvals.index') }}" class="btn btn-secondary">← Zurück</a>
+</div>
+
+<!-- Status -->
+<div class="detail-status">
+    <span class="status-badge status-{{ gutsprache.status }} status-large">{{ gutsprache.status_label }}</span>
+</div>
+
+<!-- Details -->
+<div class="detail-grid">
+    <div class="detail-card">
+        <h3>Gutsprache-Daten</h3>
+        <div class="detail-row"><span>Patient:</span> <strong>{{ gutsprache.patient.full_name if gutsprache.patient else '-' }}</strong></div>
+        <div class="detail-row"><span>Versicherer:</span> {{ gutsprache.insurance_provider.name if gutsprache.insurance_provider else '-' }}</div>
+        <div class="detail-row"><span>Arzt:</span> {{ gutsprache.doctor.name if gutsprache.doctor else '-' }}</div>
+        <div class="detail-row"><span>Behandlung:</span> {{ gutsprache.treatment_type or '-' }}</div>
+        <div class="detail-row"><span>Diagnose:</span> {{ gutsprache.diagnosis or '-' }}</div>
+    </div>
+
+    <div class="detail-card">
+        <h3>Bewilligung</h3>
+        <div class="detail-row"><span>Beantragte Sitzungen:</span> {{ gutsprache.approved_sessions or '-' }}</div>
+        <div class="detail-row"><span>Bewilligter Betrag:</span> {{ 'CHF %.2f'|format(gutsprache.approved_amount) if gutsprache.approved_amount else '-' }}</div>
+        <div class="detail-row"><span>Gültig bis:</span> {{ gutsprache.valid_until.strftime('%d.%m.%Y') if gutsprache.valid_until else '-' }}</div>
+        <div class="detail-row"><span>Erstellt:</span> {{ gutsprache.created_at.strftime('%d.%m.%Y') }}</div>
+        {% if gutsprache.sent_at %}
+        <div class="detail-row"><span>Gesendet:</span> {{ gutsprache.sent_at.strftime('%d.%m.%Y') }}</div>
+        {% endif %}
+        {% if gutsprache.answered_at %}
+        <div class="detail-row"><span>Beantwortet:</span> {{ gutsprache.answered_at.strftime('%d.%m.%Y') }}</div>
+        {% endif %}
+        {% if gutsprache.notes %}
+        <div class="detail-row"><span>Bemerkungen:</span> {{ gutsprache.notes }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Serie-Verknüpfung -->
+{% if gutsprache.series %}
+<div class="detail-section">
+    <h3>Verknüpfte Behandlungsserie</h3>
+    <div class="detail-card">
+        <div class="detail-row"><span>Serie:</span> <a href="{{ url_for('treatment.serie_detail', id=gutsprache.series_id) }}">{{ gutsprache.series.template.name if gutsprache.series.template else 'Therapie' }}</a></div>
+        <div class="detail-row"><span>Therapeut:</span> {{ gutsprache.series.therapist.display_name if gutsprache.series.therapist else '-' }}</div>
+        <div class="detail-row"><span>Status:</span> {{ gutsprache.series.status }}</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Status-Aktionen -->
+<div class="detail-section">
+    <h3>Status ändern</h3>
+    <div class="action-buttons">
+        {% if gutsprache.status == 'pending' %}
+        <form method="post" action="{{ url_for('cost_approvals.update_status', id=gutsprache.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="status" value="sent">
+            <button type="submit" class="btn btn-primary">📤 Als gesendet markieren</button>
+        </form>
+        {% endif %}
+
+        {% if gutsprache.status in ('pending', 'sent') %}
+        <form method="post" action="{{ url_for('cost_approvals.update_status', id=gutsprache.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="status" value="approved">
+            <div class="form-inline-group">
+                <input type="number" name="approved_sessions" placeholder="Bewilligte Sitzungen" class="form-input-sm">
+                <input type="number" name="approved_amount" step="0.01" placeholder="Bewilligter Betrag CHF" class="form-input-sm">
+                <button type="submit" class="btn btn-success">✅ Genehmigen</button>
+            </div>
+        </form>
+
+        <form method="post" action="{{ url_for('cost_approvals.update_status', id=gutsprache.id) }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="status" value="rejected">
+            <button type="submit" class="btn btn-danger">❌ Ablehnen</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

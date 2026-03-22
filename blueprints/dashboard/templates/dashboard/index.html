@@ -22,6 +22,26 @@
         <a href="{{ url_for('patients.index') }}" class="card-link">Alle Patienten →</a>
     </div>
 
+    <div class="dashboard-card {{ 'card-warning' if rechnungen_offen > 0 }}">
+        <div class="card-icon">💰</div>
+        <div class="card-content">
+            <div class="card-value">{{ rechnungen_offen }}</div>
+            <div class="card-label">Offene Rechnungen</div>
+        </div>
+        <a href="{{ url_for('billing.index', status='open') }}" class="card-link">Rechnungen →</a>
+    </div>
+
+    {% if rechnungen_ueberfaellig > 0 %}
+    <div class="dashboard-card card-danger">
+        <div class="card-icon">⚠️</div>
+        <div class="card-content">
+            <div class="card-value">{{ rechnungen_ueberfaellig }}</div>
+            <div class="card-label">Überfällige Mahnungen</div>
+        </div>
+        <a href="{{ url_for('billing.dunning_overview') }}" class="card-link">Mahnungen →</a>
+    </div>
+    {% endif %}
+
     <div class="dashboard-card card-highlight">
         <div class="card-icon">💬</div>
         <div class="card-content">
@@ -46,6 +66,14 @@
         <a href="{{ url_for('employees.index') }}" class="quick-action-btn">
             <span class="qa-icon">👤</span>
             <span>Mitarbeiter</span>
+        </a>
+        <a href="{{ url_for('billing.create') }}" class="quick-action-btn">
+            <span class="qa-icon">💰</span>
+            <span>Neue Rechnung</span>
+        </a>
+        <a href="{{ url_for('cost_approvals.create') }}" class="quick-action-btn">
+            <span class="qa-icon">📋</span>
+            <span>Neue Gutsprache</span>
         </a>
     </div>
 </div>

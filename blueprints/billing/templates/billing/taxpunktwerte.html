@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Taxpunktwerte - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Taxpunktwerte{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2>Taxpunktwerte</h2>
+    <a href="{{ url_for('billing.index') }}" class="btn btn-secondary">← Rechnungen</a>
+</div>
+
+<div class="form-info">
+    <p>Taxpunktwerte bestimmen den CHF-Wert eines Taxpunkts. Sie variieren nach Kanton, Tarif und Versicherer.</p>
+</div>
+
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Tarif</th>
+                <th>Kanton</th>
+                <th>Versicherer</th>
+                <th>Taxpunktwert (CHF)</th>
+                <th>Gültig ab</th>
+                <th>Gültig bis</th>
+                <th>Bemerkung</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in werte %}
+            <tr>
+                <td><strong>{{ w.tariff_type }}</strong></td>
+                <td>{{ w.canton or 'Alle' }}</td>
+                <td>{{ w.insurance_provider.name if w.insurance_provider else 'Alle' }}</td>
+                <td><strong>CHF {{ '%.4f'|format(w.value) }}</strong></td>
+                <td>{{ w.valid_from.strftime('%d.%m.%Y') if w.valid_from else '-' }}</td>
+                <td>{{ w.valid_until.strftime('%d.%m.%Y') if w.valid_until else 'Unbefristet' }}</td>
+                <td>{{ w.notes or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="empty-state">Keine Taxpunktwerte konfiguriert.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Neue Rechnung - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Neue Rechnung{% endblock %}
+
+{% block content %}
+<div class="section-header">
+    <h2>Rechnung erstellen</h2>
+    <a href="{{ url_for('billing.index') }}" class="btn btn-secondary">← Zurück</a>
+</div>
+
+<div class="form-container">
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label for="series_id">Behandlungsserie auswählen *</label>
+            <select name="series_id" id="series_id" required class="form-select">
+                <option value="">-- Serie auswählen --</option>
+                {% for serie in serien %}
+                <option value="{{ serie.id }}">
+                    {{ serie.patient.full_name if serie.patient else 'Unbekannt' }} -
+                    {{ serie.template.name if serie.template else 'Therapie' }}
+                    ({{ serie.num_completed }}/{{ serie.num_total }} Termine,
+                    {{ serie.insurance_type or 'KVG' }},
+                    {{ 'aktiv' if serie.status == 'active' else 'abgeschlossen' }})
+                </option>
+                {% endfor %}
+            </select>
+            <small class="form-hint">Die Rechnung wird automatisch aus den Terminen und Tarifen der Serie erstellt.</small>
+        </div>
+
+        <div class="form-info">
+            <h4>Automatisch ermittelt:</h4>
+            <ul>
+                <li>Taxpunkte und Taxpunktwert aus dem Tarif der Serie</li>
+                <li>Abrechnungsmodell (Tiers Garant/Payant) aus der Serie</li>
+                <li>Versicherer aus den Patientendaten</li>
+                <li>QR-Referenz wird automatisch generiert</li>
+                <li>Fälligkeit: 30 Tage ab heute</li>
+            </ul>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Rechnung erstellen</button>
+            <a href="{{ url_for('billing.index') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
