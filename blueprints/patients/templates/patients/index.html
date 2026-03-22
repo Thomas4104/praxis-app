@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Patienten - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Patienten{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="search-bar">
+        <form method="GET" action="{{ url_for('patients.index') }}">
+            <input type="text" name="q" value="{{ search }}" placeholder="Patient suchen (Name, Telefon, E-Mail)..." class="search-input">
+            <button type="submit" class="btn btn-primary">Suchen</button>
+            {% if search %}
+            <a href="{{ url_for('patients.index') }}" class="btn btn-secondary">Zurücksetzen</a>
+            {% endif %}
+        </form>
+    </div>
+    <a href="{{ url_for('patients.create') }}" class="btn btn-primary">+ Neuer Patient</a>
+</div>
+
+{% if patienten.items %}
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th class="hide-mobile">Geburtsdatum</th>
+                <th class="hide-mobile">Telefon</th>
+                <th class="hide-mobile">E-Mail</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in patienten.items %}
+            <tr onclick="window.location='{{ url_for('patients.detail', id=patient.id) }}'" class="clickable-row">
+                <td>
+                    <strong>{{ patient.last_name }}, {{ patient.first_name }}</strong>
+                    <div class="mobile-detail">
+                        {% if patient.date_of_birth %}{{ patient.date_of_birth.strftime('%d.%m.%Y') }}{% endif %}
+                        {% if patient.phone %} · {{ patient.phone }}{% endif %}
+                    </div>
+                </td>
+                <td class="hide-mobile">{{ patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else '-' }}</td>
+                <td class="hide-mobile">{{ patient.phone or patient.mobile or '-' }}</td>
+                <td class="hide-mobile">{{ patient.email or '-' }}</td>
+                <td>
+                    <a href="{{ url_for('patients.edit', id=patient.id) }}" class="btn btn-small">Bearbeiten</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if patienten.pages > 1 %}
+<div class="pagination">
+    {% if patienten.has_prev %}
+    <a href="{{ url_for('patients.index', page=patienten.prev_num, q=search) }}" class="btn btn-small">← Zurück</a>
+    {% endif %}
+    <span class="page-info">Seite {{ patienten.page }} von {{ patienten.pages }}</span>
+    {% if patienten.has_next %}
+    <a href="{{ url_for('patients.index', page=patienten.next_num, q=search) }}" class="btn btn-small">Weiter →</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <p>{% if search %}Keine Patienten gefunden für "{{ search }}"{% else %}Noch keine Patienten vorhanden{% endif %}</p>
+    <a href="{{ url_for('patients.create') }}" class="btn btn-primary">Ersten Patienten anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

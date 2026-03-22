@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Mitarbeiter - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Mitarbeiter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div></div>
+    <a href="{{ url_for('employees.create') }}" class="btn btn-primary">+ Neuer Mitarbeiter</a>
+</div>
+
+{% if mitarbeiter %}
+<div class="cards-grid">
+    {% for emp in mitarbeiter %}
+    <div class="employee-card">
+        <div class="employee-color" style="background-color: {{ emp.color_code }}"></div>
+        <div class="employee-info">
+            <h3>{{ emp.display_name }}</h3>
+            <p class="employee-role">
+                {% if emp.user.role == 'admin' %}Administrator
+                {% elif emp.user.role == 'therapist' %}Therapeut/in
+                {% elif emp.user.role == 'reception' %}Empfang
+                {% endif %}
+            </p>
+            <p class="employee-detail">Pensum: {{ emp.pensum_percent }}%</p>
+            {% if emp.qualifications %}
+            <p class="employee-detail">{{ emp.qualifications|join(', ') }}</p>
+            {% endif %}
+        </div>
+        <div class="employee-actions">
+            <a href="{{ url_for('employees.edit', id=emp.id) }}" class="btn btn-small">Bearbeiten</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>Noch keine Mitarbeiter vorhanden</p>
+    <a href="{{ url_for('employees.create') }}" class="btn btn-primary">Ersten Mitarbeiter anlegen</a>
+</div>
+{% endif %}
+{% endblock %}

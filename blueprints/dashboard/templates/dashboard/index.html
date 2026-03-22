@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - OMNIA Praxissoftware{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="dashboard-card">
+        <div class="card-icon">📅</div>
+        <div class="card-content">
+            <div class="card-value">{{ termine_heute }}</div>
+            <div class="card-label">Termine heute</div>
+        </div>
+        <a href="{{ url_for('calendar.index') }}" class="card-link">Zum Kalender →</a>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="card-icon">👥</div>
+        <div class="card-content">
+            <div class="card-value">{{ patienten_total }}</div>
+            <div class="card-label">Patienten</div>
+        </div>
+        <a href="{{ url_for('patients.index') }}" class="card-link">Alle Patienten →</a>
+    </div>
+
+    <div class="dashboard-card card-highlight">
+        <div class="card-icon">💬</div>
+        <div class="card-content">
+            <div class="card-value">KI</div>
+            <div class="card-label">Assistent bereit</div>
+        </div>
+        <a href="#" onclick="toggleChat(); return false;" class="card-link">Chat öffnen →</a>
+    </div>
+</div>
+
+<div class="dashboard-section">
+    <h2>Schnellzugriff</h2>
+    <div class="quick-actions">
+        <a href="{{ url_for('patients.create') }}" class="quick-action-btn">
+            <span class="qa-icon">➕</span>
+            <span>Neuer Patient</span>
+        </a>
+        <a href="{{ url_for('calendar.index') }}" class="quick-action-btn">
+            <span class="qa-icon">📅</span>
+            <span>Neuer Termin</span>
+        </a>
+        <a href="{{ url_for('employees.index') }}" class="quick-action-btn">
+            <span class="qa-icon">👤</span>
+            <span>Mitarbeiter</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
