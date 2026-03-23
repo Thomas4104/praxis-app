@@ -163,14 +163,29 @@
                 <span class="nav-label">HR</span>
             </a>
             {% endif %}
-            <a href="#" class="nav-item">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg>
-                <span class="nav-label">Auswertung</span>
-            </a>
+            <div class="nav-group {% if request.blueprint == 'reporting' %}open{% endif %}">
+                <a href="{{ url_for('reporting.index') }}" class="nav-item {% if request.blueprint == 'reporting' %}active{% endif %}">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span class="nav-label">Auswertung</span>
+                </a>
+                {% if request.blueprint == 'reporting' %}
+                <div class="nav-sub-items" style="padding-left: 36px;">
+                    <a href="{{ url_for('reporting.index') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.index' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Berichte</span>
+                    </a>
+                    <a href="{{ url_for('reporting.kpis') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.kpis' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Kennzahlen</span>
+                    </a>
+                    <a href="{{ url_for('reporting.scorecard') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.scorecard' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Scorecard</span>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
             <a href="{{ url_for('products.index') }}" class="nav-item {% if request.blueprint == 'products' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>

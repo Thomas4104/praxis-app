@@ -1282,3 +1282,23 @@ class Expense(db.Model):
     employee = db.relationship('Employee', backref=db.backref('expenses', lazy='dynamic'))
     approved_by = db.relationship('User', backref='approved_expenses')
     payroll_run = db.relationship('PayrollRun', backref='expenses')
+
+
+# ============================================================
+# Auswertung & Kennzahlen
+# ============================================================
+
+class SavedReport(db.Model):
+    """Gespeicherte Auswertungen (Report-Builder)"""
+    __tablename__ = 'saved_reports'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # patients, appointments, series, invoices, employees, products
+    filters_json = db.Column(db.Text)  # JSON mit Filter-Konfiguration
+    columns_json = db.Column(db.Text)  # JSON mit ausgewaehlten Spalten
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('saved_reports', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('saved_reports', lazy='dynamic'))

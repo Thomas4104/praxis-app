@@ -1,0 +1,747 @@
+{% extends "base.html" %}
+
+{% block title %}Auswertungen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<span>Auswertungen</span>
+{% endblock %}
+
+{% block page_title %}Auswertungen{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    min-height: 600px;
+}
+
+/* Linke Spalte: Gespeicherte Auswertungen */
+.saved-reports-panel {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+.saved-reports-header {
+    padding: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.saved-reports-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.saved-reports-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+.saved-report-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s;
+}
+.saved-report-item:hover { background: #f8fafc; }
+.saved-report-item.active { background: #eff6ff; border-left: 3px solid #4a90d9; }
+.saved-report-item .report-name { font-size: 13px; font-weight: 500; }
+.saved-report-item .report-meta { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+/* Rechte Spalte: Builder + Ergebnis */
+.report-builder {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Builder-Steps */
+.builder-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+.builder-step {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 16px;
+}
+.builder-step h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.step-number {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #4a90d9;
+    color: white;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.step-number.inactive { background: #cbd5e1; }
+
+/* Kategorie-Auswahl */
+.category-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.category-btn {
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: left;
+    transition: all 0.15s;
+}
+.category-btn:hover { border-color: #4a90d9; background: #f8fafc; }
+.category-btn.active { border-color: #4a90d9; background: #eff6ff; color: #4a90d9; font-weight: 600; }
+
+/* Filter */
+.filter-group {
+    margin-bottom: 10px;
+}
+.filter-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 3px;
+}
+.filter-group input, .filter-group select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.filters-container { max-height: 300px; overflow-y: auto; }
+
+/* Spalten-Checkboxen */
+.columns-list { max-height: 300px; overflow-y: auto; }
+.column-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 12px;
+}
+.column-checkbox input[type="checkbox"] { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Aktionsleiste */
+.report-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Ergebnistabelle */
+.report-result {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+.result-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.result-count { font-size: 13px; color: #64748b; }
+.result-table-wrap { overflow-x: auto; }
+.result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.result-table th {
+    padding: 8px 12px;
+    text-align: left;
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+.result-table th:hover { background: #f1f5f9; }
+.result-table th .sort-icon { font-size: 10px; margin-left: 4px; opacity: 0.3; }
+.result-table th.sorted .sort-icon { opacity: 1; color: #4a90d9; }
+.result-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.result-table tr:hover td { background: #f8fafc; }
+.result-table .totals-row td {
+    font-weight: 600;
+    background: #f0f9ff;
+    border-top: 2px solid #4a90d9;
+}
+
+/* Paginierung */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 12px;
+}
+.pagination button {
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+.pagination button.active { background: #4a90d9; color: white; border-color: #4a90d9; }
+.pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Placeholder */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #94a3b8;
+}
+.empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state h3 { margin: 0 0 8px 0; font-size: 16px; color: #64748b; }
+.empty-state p { font-size: 13px; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .report-layout { grid-template-columns: 1fr; }
+    .builder-steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .category-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-layout">
+    <!-- Linke Spalte: Gespeicherte Auswertungen -->
+    <div class="saved-reports-panel">
+        <div class="saved-reports-header">
+            <h3>Gespeicherte Auswertungen</h3>
+            <button class="btn btn-sm btn-primary" onclick="newReport()" title="Neue Auswertung">+</button>
+        </div>
+        <div class="saved-reports-list" id="savedReportsList">
+            <div class="empty-state" style="padding: 30px 16px;">
+                <p>Keine gespeicherten Auswertungen</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rechte Spalte: Builder + Ergebnis -->
+    <div class="report-builder">
+        <!-- 3-Schritte Builder -->
+        <div class="builder-steps">
+            <!-- Schritt 1: Kategorie -->
+            <div class="builder-step">
+                <h3><span class="step-number">1</span> Kategorie wählen</h3>
+                <div class="category-grid" id="categoryGrid"></div>
+            </div>
+
+            <!-- Schritt 2: Filter -->
+            <div class="builder-step">
+                <h3><span class="step-number" id="step2num">2</span> Filter definieren</h3>
+                <div class="filters-container" id="filtersContainer">
+                    <p style="font-size: 12px; color: #94a3b8;">Bitte zuerst eine Kategorie wählen.</p>
+                </div>
+            </div>
+
+            <!-- Schritt 3: Spalten -->
+            <div class="builder-step">
+                <h3><span class="step-number" id="step3num">3</span> Spalten wählen</h3>
+                <div class="columns-list" id="columnsList">
+                    <p style="font-size: 12px; color: #94a3b8;">Bitte zuerst eine Kategorie wählen.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aktionsleiste -->
+        <div class="report-actions">
+            <button class="btn btn-primary" onclick="executeReport()" id="btnRun" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Auswertung ausführen
+            </button>
+            <button class="btn btn-secondary" onclick="exportCSV()" id="btnExport" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                CSV exportieren
+            </button>
+            <button class="btn btn-secondary" onclick="saveReport()" id="btnSave" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Speichern
+            </button>
+            <input type="text" id="reportName" placeholder="Name der Auswertung..." style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px; width: 220px;" />
+        </div>
+
+        <!-- Ergebnis -->
+        <div class="report-result" id="reportResult" style="display: none;">
+            <div class="result-header">
+                <span class="result-count" id="resultCount"></span>
+                <div style="font-size: 12px; color: #94a3b8;" id="resultInfo"></div>
+            </div>
+            <div class="result-table-wrap">
+                <table class="result-table" id="resultTable">
+                    <thead id="resultHead"></thead>
+                    <tbody id="resultBody"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <div id="emptyResult">
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <h3>Auswertung erstellen</h3>
+                <p>Wählen Sie eine Kategorie, definieren Sie Filter und Spalten, und führen Sie die Auswertung aus.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    // State
+    let state = {
+        category: null,
+        filters: {},
+        columns: [],
+        allColumns: [],
+        page: 1,
+        perPage: 50,
+        sortBy: null,
+        sortDir: 'asc',
+        currentReportId: null,
+        lastResult: null
+    };
+
+    // Kategorien laden
+    fetch('/reporting/api/categories')
+        .then(r => r.json())
+        .then(cats => {
+            var grid = document.getElementById('categoryGrid');
+            grid.innerHTML = '';
+            Object.entries(cats).forEach(function(entry) {
+                var btn = document.createElement('button');
+                btn.className = 'category-btn';
+                btn.textContent = entry[1];
+                btn.dataset.key = entry[0];
+                btn.onclick = function() { selectCategory(entry[0]); };
+                grid.appendChild(btn);
+            });
+        });
+
+    // Gespeicherte Auswertungen laden
+    loadSavedReports();
+
+    function loadSavedReports() {
+        fetch('/reporting/api/saved')
+            .then(r => r.json())
+            .then(reports => {
+                var list = document.getElementById('savedReportsList');
+                if (!reports.length) {
+                    list.innerHTML = '<div style="padding:20px 16px; text-align:center; color:#94a3b8; font-size:12px;">Keine gespeicherten Auswertungen</div>';
+                    return;
+                }
+                list.innerHTML = '';
+                reports.forEach(function(r) {
+                    var div = document.createElement('div');
+                    div.className = 'saved-report-item' + (r.id === state.currentReportId ? ' active' : '');
+                    div.innerHTML = '<div class="report-name">' + escapeHtml(r.name) + '</div>' +
+                        '<div class="report-meta">' + escapeHtml(r.category_label) + ' · ' + r.created_at + '</div>';
+                    div.onclick = function() { loadReport(r); };
+                    // Kontextmenue
+                    div.oncontextmenu = function(e) {
+                        e.preventDefault();
+                        var action = prompt('Aktion wählen:\n1 = Umbenennen\n2 = Löschen');
+                        if (action === '1') {
+                            var newName = prompt('Neuer Name:', r.name);
+                            if (newName) renameReport(r.id, newName);
+                        } else if (action === '2') {
+                            if (confirm('Auswertung "' + r.name + '" wirklich löschen?')) deleteReport(r.id);
+                        }
+                    };
+                    list.appendChild(div);
+                });
+            });
+    }
+
+    window.newReport = function() {
+        state.category = null;
+        state.filters = {};
+        state.columns = [];
+        state.currentReportId = null;
+        document.getElementById('reportName').value = '';
+        document.querySelectorAll('.category-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.getElementById('filtersContainer').innerHTML = '<p style="font-size:12px;color:#94a3b8;">Bitte zuerst eine Kategorie wählen.</p>';
+        document.getElementById('columnsList').innerHTML = '<p style="font-size:12px;color:#94a3b8;">Bitte zuerst eine Kategorie wählen.</p>';
+        document.getElementById('reportResult').style.display = 'none';
+        document.getElementById('emptyResult').style.display = '';
+        document.getElementById('btnRun').disabled = true;
+        document.getElementById('btnExport').disabled = true;
+        document.getElementById('btnSave').disabled = true;
+        loadSavedReports();
+    };
+
+    window.selectCategory = function(cat) {
+        state.category = cat;
+        state.filters = {};
+        state.columns = [];
+        state.page = 1;
+
+        // Buttons aktivieren
+        document.querySelectorAll('.category-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.key === cat);
+        });
+        document.getElementById('step2num').className = 'step-number';
+        document.getElementById('step3num').className = 'step-number';
+        document.getElementById('btnRun').disabled = false;
+        document.getElementById('btnSave').disabled = false;
+
+        // Filter laden
+        fetch('/reporting/api/category/' + cat + '/filters')
+            .then(r => r.json())
+            .then(filters => {
+                var container = document.getElementById('filtersContainer');
+                container.innerHTML = '';
+                filters.forEach(function(f) {
+                    var group = document.createElement('div');
+                    group.className = 'filter-group';
+                    var label = document.createElement('label');
+                    label.textContent = f.label;
+                    group.appendChild(label);
+
+                    var input;
+                    if (f.type === 'date') {
+                        input = document.createElement('input');
+                        input.type = 'date';
+                        input.onchange = function() { state.filters[f.key] = this.value; };
+                    } else if (f.type === 'select') {
+                        input = document.createElement('select');
+                        var opt0 = document.createElement('option');
+                        opt0.value = '';
+                        opt0.textContent = '— Alle —';
+                        input.appendChild(opt0);
+                        (f.options || []).forEach(function(o) {
+                            var opt = document.createElement('option');
+                            opt.value = o.value;
+                            opt.textContent = o.label;
+                            input.appendChild(opt);
+                        });
+                        input.onchange = function() { state.filters[f.key] = this.value; };
+                    } else {
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        input.placeholder = f.label + '...';
+                        input.oninput = function() { state.filters[f.key] = this.value; };
+                    }
+                    group.appendChild(input);
+                    container.appendChild(group);
+                });
+            });
+
+        // Spalten laden
+        fetch('/reporting/api/category/' + cat + '/columns')
+            .then(r => r.json())
+            .then(columns => {
+                state.allColumns = columns;
+                var list = document.getElementById('columnsList');
+                list.innerHTML = '';
+                columns.forEach(function(c) {
+                    var div = document.createElement('div');
+                    div.className = 'column-checkbox';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = true;
+                    cb.value = c.key;
+                    cb.id = 'col_' + c.key;
+                    cb.onchange = function() { updateSelectedColumns(); };
+                    var lbl = document.createElement('label');
+                    lbl.htmlFor = 'col_' + c.key;
+                    lbl.textContent = c.label;
+                    lbl.style.cursor = 'pointer';
+                    div.appendChild(cb);
+                    div.appendChild(lbl);
+                    list.appendChild(div);
+                });
+                updateSelectedColumns();
+            });
+    };
+
+    function updateSelectedColumns() {
+        state.columns = [];
+        document.querySelectorAll('#columnsList input[type="checkbox"]:checked').forEach(function(cb) {
+            state.columns.push(cb.value);
+        });
+    }
+
+    window.executeReport = function() {
+        if (!state.category) return;
+
+        var body = {
+            category: state.category,
+            filters: state.filters,
+            columns: state.columns,
+            page: state.page,
+            per_page: state.perPage,
+            sort_by: state.sortBy,
+            sort_dir: state.sortDir
+        };
+
+        fetch('/reporting/api/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        })
+        .then(r => r.json())
+        .then(result => {
+            state.lastResult = result;
+            renderResult(result);
+            document.getElementById('btnExport').disabled = false;
+        });
+    };
+
+    function renderResult(result) {
+        document.getElementById('reportResult').style.display = '';
+        document.getElementById('emptyResult').style.display = 'none';
+        document.getElementById('resultCount').textContent = result.total_count + ' Ergebnisse';
+
+        // Kopfzeile
+        var thead = document.getElementById('resultHead');
+        thead.innerHTML = '';
+        var tr = document.createElement('tr');
+        result.headers.forEach(function(h, i) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            var colKey = result.col_keys ? result.col_keys[i] : '';
+            th.innerHTML = h + ' <span class="sort-icon">⇅</span>';
+            if (colKey === state.sortBy) {
+                th.classList.add('sorted');
+                th.querySelector('.sort-icon').textContent = state.sortDir === 'asc' ? '↑' : '↓';
+            }
+            th.onclick = function() {
+                if (state.sortBy === colKey) {
+                    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sortBy = colKey;
+                    state.sortDir = 'asc';
+                }
+                executeReport();
+            };
+            tr.appendChild(th);
+        });
+        thead.appendChild(tr);
+
+        // Datenzeilen
+        var tbody = document.getElementById('resultBody');
+        tbody.innerHTML = '';
+        result.rows.forEach(function(row) {
+            var tr = document.createElement('tr');
+            row.forEach(function(cell) {
+                var td = document.createElement('td');
+                td.textContent = (cell !== null && cell !== undefined) ? cell : '';
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        // Summenzeile
+        if (result.totals && Object.keys(result.totals).length > 0) {
+            var totalRow = document.createElement('tr');
+            totalRow.className = 'totals-row';
+            (result.col_keys || []).forEach(function(key, i) {
+                var td = document.createElement('td');
+                if (key in result.totals) {
+                    td.textContent = typeof result.totals[key] === 'number' ?
+                        result.totals[key].toLocaleString('de-CH', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : result.totals[key];
+                } else if (i === 0) {
+                    td.textContent = 'Summe';
+                }
+                totalRow.appendChild(td);
+            });
+            tbody.appendChild(totalRow);
+        }
+
+        // Paginierung
+        var pages = Math.ceil(result.total_count / state.perPage);
+        var pag = document.getElementById('pagination');
+        pag.innerHTML = '';
+        if (pages > 1) {
+            var prevBtn = document.createElement('button');
+            prevBtn.textContent = '← Zurück';
+            prevBtn.disabled = state.page <= 1;
+            prevBtn.onclick = function() { state.page--; executeReport(); };
+            pag.appendChild(prevBtn);
+
+            for (var p = 1; p <= Math.min(pages, 10); p++) {
+                var btn = document.createElement('button');
+                btn.textContent = p;
+                btn.className = p === state.page ? 'active' : '';
+                btn.onclick = (function(pg) { return function() { state.page = pg; executeReport(); }; })(p);
+                pag.appendChild(btn);
+            }
+
+            var nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Weiter →';
+            nextBtn.disabled = state.page >= pages;
+            nextBtn.onclick = function() { state.page++; executeReport(); };
+            pag.appendChild(nextBtn);
+        }
+    }
+
+    window.exportCSV = function() {
+        if (!state.category) return;
+
+        var body = {
+            category: state.category,
+            filters: state.filters,
+            columns: state.columns
+        };
+
+        fetch('/reporting/api/export', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        })
+        .then(r => r.blob())
+        .then(blob => {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'Auswertung_' + state.category + '_' + new Date().toISOString().slice(0,10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    };
+
+    window.saveReport = function() {
+        var name = document.getElementById('reportName').value.trim();
+        if (!name) {
+            alert('Bitte geben Sie einen Namen für die Auswertung ein.');
+            document.getElementById('reportName').focus();
+            return;
+        }
+        if (!state.category) {
+            alert('Bitte wählen Sie eine Kategorie.');
+            return;
+        }
+
+        var body = {
+            id: state.currentReportId,
+            name: name,
+            category: state.category,
+            filters: state.filters,
+            columns: state.columns
+        };
+
+        fetch('/reporting/api/saved', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                state.currentReportId = result.id;
+                loadSavedReports();
+                showToast('Auswertung gespeichert.');
+            } else {
+                alert(result.error || 'Fehler beim Speichern.');
+            }
+        });
+    };
+
+    function loadReport(r) {
+        state.currentReportId = r.id;
+        state.filters = r.filters || {};
+        state.columns = r.columns || [];
+        state.page = 1;
+        document.getElementById('reportName').value = r.name;
+
+        selectCategory(r.category);
+
+        // Filter-Werte setzen (mit Delay, da Filter async geladen werden)
+        setTimeout(function() {
+            Object.entries(state.filters).forEach(function(entry) {
+                var inputs = document.querySelectorAll('#filtersContainer input, #filtersContainer select');
+                // Versuche den passenden Input zu finden
+                inputs.forEach(function(inp) {
+                    // Basierend auf Position in den Filter-Gruppen
+                });
+            });
+            // Spalten setzen
+            if (state.columns.length > 0) {
+                document.querySelectorAll('#columnsList input[type="checkbox"]').forEach(function(cb) {
+                    cb.checked = state.columns.includes(cb.value);
+                });
+            }
+            executeReport();
+        }, 500);
+
+        loadSavedReports();
+    }
+
+    function renameReport(id, newName) {
+        fetch('/reporting/api/saved/' + id + '/rename', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: newName})
+        })
+        .then(r => r.json())
+        .then(function() { loadSavedReports(); });
+    }
+
+    function deleteReport(id) {
+        fetch('/reporting/api/saved/' + id, {method: 'DELETE'})
+            .then(r => r.json())
+            .then(function() {
+                if (state.currentReportId === id) newReport();
+                loadSavedReports();
+                showToast('Auswertung gelöscht.');
+            });
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showToast(msg) {
+        var container = document.getElementById('toastContainer');
+        if (!container) return;
+        var toast = document.createElement('div');
+        toast.className = 'toast toast-success';
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 3000);
+    }
+})();
+</script>
+{% endblock %}

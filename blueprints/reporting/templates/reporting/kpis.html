@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}Kennzahlen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.index') }}">Auswertungen</a>
+<span class="breadcrumb-separator">/</span>
+<span>Kennzahlen</span>
+{% endblock %}
+
+{% block page_title %}Kennzahlen{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.period-btn {
+    padding: 6px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+}
+.period-btn:hover { border-color: #4a90d9; }
+.period-btn.active { background: #4a90d9; color: white; border-color: #4a90d9; }
+.date-range-inputs {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.date-range-inputs input {
+    padding: 6px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* KPI-Karten */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.kpi-card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.kpi-card .kpi-label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+.kpi-card .kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.kpi-card .kpi-comparison {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+.kpi-trend-up { color: #16a34a; }
+.kpi-trend-down { color: #dc2626; }
+.kpi-trend-neutral { color: #94a3b8; }
+.kpi-card .kpi-prev {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+/* Charts */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+.chart-card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.chart-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 12px 0;
+}
+.chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 250px;
+}
+.chart-canvas-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+@media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Zeitraum-Auswahl -->
+<div class="kpi-controls">
+    <button class="period-btn" data-period="day" onclick="setPeriod('day', this)">Tag</button>
+    <button class="period-btn" data-period="week" onclick="setPeriod('week', this)">Woche</button>
+    <button class="period-btn active" data-period="month" onclick="setPeriod('month', this)">Monat</button>
+    <button class="period-btn" data-period="quarter" onclick="setPeriod('quarter', this)">Quartal</button>
+    <button class="period-btn" data-period="year" onclick="setPeriod('year', this)">Jahr</button>
+    <div class="date-range-inputs">
+        <input type="date" id="kpiDateFrom" />
+        <span>—</span>
+        <input type="date" id="kpiDateTo" />
+        <button class="btn btn-sm btn-primary" onclick="loadCustomRange()">Anzeigen</button>
+    </div>
+</div>
+
+<!-- KPI-Karten -->
+<div class="kpi-grid" id="kpiGrid">
+    <div style="text-align:center; padding:40px; color:#94a3b8; grid-column: 1/-1;">Lade Kennzahlen...</div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <h3>Umsatzverlauf (letzte 12 Monate)</h3>
+        <div class="chart-canvas-wrap"><canvas id="chartRevenueTrend"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3>Umsatz pro Therapeut</h3>
+        <div class="chart-canvas-wrap"><canvas id="chartRevenueTherapist"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3>Umsatz nach Versicherungstyp</h3>
+        <div class="chart-canvas-wrap"><canvas id="chartRevenueInsurance"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3>Auslastung pro Therapeut</h3>
+        <div class="chart-canvas-wrap"><canvas id="chartUtilization"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3>Neupatienten pro Monat</h3>
+        <div class="chart-canvas-wrap"><canvas id="chartNewPatients"></canvas></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var currentPeriod = 'month';
+
+    window.setPeriod = function(period, btn) {
+        currentPeriod = period;
+        document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        loadKPIs({period: period});
+        loadCharts({});
+    };
+
+    window.loadCustomRange = function() {
+        var from = document.getElementById('kpiDateFrom').value;
+        var to = document.getElementById('kpiDateTo').value;
+        if (from && to) {
+            document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+            loadKPIs({date_from: from, date_to: to});
+            loadCharts({date_from: from, date_to: to});
+        }
+    };
+
+    function loadKPIs(params) {
+        fetch('/reporting/api/kpis', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(params)
+        })
+        .then(r => r.json())
+        .then(data => renderKPIs(data));
+    }
+
+    function renderKPIs(data) {
+        var kpiDefs = [
+            {key: 'umsatz', label: 'Umsatz', format: 'chf'},
+            {key: 'offene_posten', label: 'Offene Posten', format: 'chf'},
+            {key: 'neupatienten', label: 'Neupatienten', format: 'number'},
+            {key: 'behandlungen', label: 'Behandlungen', format: 'number'},
+            {key: 'auslastung', label: 'Auslastung', format: 'pct'},
+            {key: 'no_show_rate', label: 'No-Show-Rate', format: 'pct'},
+            {key: 'absagequote', label: 'Absagequote', format: 'pct'},
+            {key: 'avg_seriendauer', label: 'Ø Seriendauer', format: 'days'},
+            {key: 'umsatz_pro_therapeut', label: 'Umsatz pro Therapeut', format: 'chf'},
+            {key: 'patienten_pro_therapeut', label: 'Patienten pro Therapeut', format: 'number'},
+            {key: 'mahnquote', label: 'Mahnquote', format: 'pct'},
+            {key: 'avg_zahlungsfrist', label: 'Ø Zahlungsfrist', format: 'days'}
+        ];
+
+        var grid = document.getElementById('kpiGrid');
+        grid.innerHTML = '';
+
+        kpiDefs.forEach(function(def) {
+            var d = data[def.key];
+            if (!d) return;
+
+            var card = document.createElement('div');
+            card.className = 'kpi-card';
+
+            var label = document.createElement('div');
+            label.className = 'kpi-label';
+            label.textContent = def.label;
+            card.appendChild(label);
+
+            var value = document.createElement('div');
+            value.className = 'kpi-value';
+            value.textContent = formatKPI(d.current, def.format);
+            card.appendChild(value);
+
+            // Vergleich
+            var cmp = document.createElement('div');
+            cmp.className = 'kpi-comparison';
+            var trendClass = d.trend === 'up' ? 'kpi-trend-up' : (d.trend === 'down' ? 'kpi-trend-down' : 'kpi-trend-neutral');
+            // Fuer No-Show und Absagequote ist "down" positiv
+            if ((def.key === 'no_show_rate' || def.key === 'absagequote' || def.key === 'mahnquote') && d.trend === 'down') {
+                trendClass = 'kpi-trend-up';
+            } else if ((def.key === 'no_show_rate' || def.key === 'absagequote' || def.key === 'mahnquote') && d.trend === 'up') {
+                trendClass = 'kpi-trend-down';
+            }
+            var arrow = d.trend === 'up' ? '↑' : (d.trend === 'down' ? '↓' : '→');
+            cmp.innerHTML = '<span class="' + trendClass + '">' + arrow + ' ' + Math.abs(d.change_pct) + '%</span>';
+            card.appendChild(cmp);
+
+            var prev = document.createElement('div');
+            prev.className = 'kpi-prev';
+            prev.textContent = 'Vorjahr: ' + formatKPI(d.previous, def.format);
+            card.appendChild(prev);
+
+            grid.appendChild(card);
+        });
+    }
+
+    function formatKPI(val, format) {
+        if (val === null || val === undefined) return '—';
+        if (format === 'chf') return 'CHF ' + Number(val).toLocaleString('de-CH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (format === 'pct') return val + ' %';
+        if (format === 'days') return val + ' Tage';
+        if (format === 'number') return Number(val).toLocaleString('de-CH');
+        return String(val);
+    }
+
+    function loadCharts(params) {
+        fetch('/reporting/api/charts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(params)
+        })
+        .then(r => r.json())
+        .then(data => {
+            drawLineChart('chartRevenueTrend', data.revenue_trend, '#4a90d9', 'CHF');
+            drawBarChart('chartRevenueTherapist', data.revenue_by_therapist, '#4a90d9');
+            drawPieChart('chartRevenueInsurance', data.revenue_by_insurance);
+            drawBarChart('chartUtilization', data.utilization_by_therapist, '#27ae60');
+            drawLineChart('chartNewPatients', data.new_patients, '#e74c3c', '');
+        });
+    }
+
+    // Canvas-Charts ohne externe Libraries
+    function drawLineChart(canvasId, data, color, prefix) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas || !data || !data.length) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = rect.height;
+        ctx.clearRect(0, 0, w, h);
+
+        var pad = {top: 20, right: 20, bottom: 40, left: 60};
+        var chartW = w - pad.left - pad.right;
+        var chartH = h - pad.top - pad.bottom;
+
+        var vals = data.map(function(d) { return d.value; });
+        var maxVal = Math.max.apply(null, vals) || 1;
+        maxVal = Math.ceil(maxVal * 1.1);
+
+        // Raster
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        for (var i = 0; i <= 4; i++) {
+            var y = pad.top + chartH - (i / 4) * chartH;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(w - pad.right, y);
+            ctx.stroke();
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            var lbl = prefix ? prefix + ' ' + Math.round(maxVal * i / 4).toLocaleString('de-CH') : Math.round(maxVal * i / 4).toLocaleString('de-CH');
+            ctx.fillText(lbl, pad.left - 6, y + 3);
+        }
+
+        // Linie
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        data.forEach(function(d, idx) {
+            var x = pad.left + (idx / (data.length - 1)) * chartW;
+            var y = pad.top + chartH - (d.value / maxVal) * chartH;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Punkte
+        data.forEach(function(d, idx) {
+            var x = pad.left + (idx / (data.length - 1)) * chartW;
+            var y = pad.top + chartH - (d.value / maxVal) * chartH;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Labels
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        var step = Math.ceil(data.length / 6);
+        data.forEach(function(d, idx) {
+            if (idx % step === 0 || idx === data.length - 1) {
+                var x = pad.left + (idx / (data.length - 1)) * chartW;
+                ctx.fillText(d.label, x, h - 8);
+            }
+        });
+    }
+
+    function drawBarChart(canvasId, data, color) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas || !data || !data.length) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = rect.height;
+        ctx.clearRect(0, 0, w, h);
+
+        var pad = {top: 20, right: 20, bottom: 50, left: 60};
+        var chartW = w - pad.left - pad.right;
+        var chartH = h - pad.top - pad.bottom;
+
+        var vals = data.map(function(d) { return d.value; });
+        var maxVal = Math.max.apply(null, vals) || 1;
+        maxVal = Math.ceil(maxVal * 1.1);
+
+        var barW = Math.min(50, (chartW / data.length) * 0.7);
+        var gap = (chartW - barW * data.length) / (data.length + 1);
+
+        // Raster
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        for (var i = 0; i <= 4; i++) {
+            var y = pad.top + chartH - (i / 4) * chartH;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(w - pad.right, y);
+            ctx.stroke();
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(Math.round(maxVal * i / 4).toLocaleString('de-CH'), pad.left - 6, y + 3);
+        }
+
+        // Balken
+        data.forEach(function(d, idx) {
+            var x = pad.left + gap + idx * (barW + gap);
+            var barH = (d.value / maxVal) * chartH;
+            var y = pad.top + chartH - barH;
+
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, barW, barH);
+
+            // Wert
+            ctx.fillStyle = '#475569';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.value.toLocaleString('de-CH'), x + barW / 2, y - 4);
+
+            // Label
+            ctx.fillStyle = '#64748b';
+            ctx.save();
+            ctx.translate(x + barW / 2, h - 5);
+            ctx.rotate(-0.4);
+            ctx.fillText(d.label, 0, 0);
+            ctx.restore();
+        });
+    }
+
+    function drawPieChart(canvasId, data) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas || !data || !data.length) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = rect.height;
+        ctx.clearRect(0, 0, w, h);
+
+        var total = data.reduce(function(s, d) { return s + d.value; }, 0);
+        if (total === 0) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Keine Daten', w / 2, h / 2);
+            return;
+        }
+
+        var cx = w * 0.35, cy = h / 2;
+        var r = Math.min(cx - 20, cy - 20);
+        var colors = ['#4a90d9', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#1abc9c'];
+
+        var startAngle = -Math.PI / 2;
+        data.forEach(function(d, idx) {
+            var slice = (d.value / total) * Math.PI * 2;
+            ctx.fillStyle = colors[idx % colors.length];
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+            ctx.closePath();
+            ctx.fill();
+
+            // Beschriftung auf dem Slice
+            var midAngle = startAngle + slice / 2;
+            var lx = cx + Math.cos(midAngle) * r * 0.6;
+            var ly = cy + Math.sin(midAngle) * r * 0.6;
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            var pct = Math.round(d.value / total * 100);
+            if (pct >= 5) ctx.fillText(pct + '%', lx, ly + 4);
+
+            startAngle += slice;
+        });
+
+        // Legende
+        var legendX = w * 0.72;
+        var legendY = 30;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        data.forEach(function(d, idx) {
+            ctx.fillStyle = colors[idx % colors.length];
+            ctx.fillRect(legendX, legendY + idx * 22, 14, 14);
+            ctx.fillStyle = '#475569';
+            ctx.fillText(d.label + ' (CHF ' + d.value.toLocaleString('de-CH') + ')', legendX + 20, legendY + idx * 22 + 11);
+        });
+    }
+
+    // Initial laden
+    loadKPIs({period: 'month'});
+    loadCharts({});
+})();
+</script>
+{% endblock %}

@@ -14,7 +14,7 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email, \
     Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock, \
     EmployeeContract, EmployeeSalary, EmployeeChild, PayrollRun, Payslip, \
-    TimeEntry, OvertimeAccount, Expense
+    TimeEntry, OvertimeAccount, Expense, SavedReport
 from config import config
 
 
@@ -61,6 +61,7 @@ def create_app(config_name=None):
     from blueprints.mailing import mailing_bp
     from blueprints.accounting import accounting_bp
     from blueprints.hr import hr_bp
+    from blueprints.reporting import reporting_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -79,6 +80,7 @@ def create_app(config_name=None):
     app.register_blueprint(mailing_bp, url_prefix='/mailing')
     app.register_blueprint(accounting_bp, url_prefix='/accounting')
     app.register_blueprint(hr_bp, url_prefix='/hr')
+    app.register_blueprint(reporting_bp, url_prefix='/reporting')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -97,6 +99,7 @@ def create_app(config_name=None):
     csrf.exempt(mailing_bp)
     csrf.exempt(accounting_bp)
     csrf.exempt(hr_bp)
+    csrf.exempt(reporting_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -2273,6 +2276,25 @@ def seed_accounting_data(org, loc_zh, loc_wt, created_users):
         is_active=True
     )
     db.session.add_all([asset1, asset2, asset3])
+
+    # === Gespeicherte Auswertungen (Demo) ===
+    saved_report1 = SavedReport(
+        organization_id=org.id,
+        user_id=created_users['admin'].id,
+        name='Aktive Patienten mit Versicherung',
+        category='patients',
+        filters_json=json.dumps({'is_active': '1'}),
+        columns_json=json.dumps(['patient_number', 'last_name', 'first_name', 'date_of_birth', 'insurance_type', 'insurance_provider', 'phone', 'email'])
+    )
+    saved_report2 = SavedReport(
+        organization_id=org.id,
+        user_id=created_users['admin'].id,
+        name='Umsatz Q1 2026',
+        category='invoices',
+        filters_json=json.dumps({'date_from': '2026-01-01', 'date_to': '2026-03-31', 'status': 'paid'}),
+        columns_json=json.dumps(['invoice_number', 'patient_name', 'amount_total', 'amount_paid', 'status', 'created_at'])
+    )
+    db.session.add_all([saved_report1, saved_report2])
 
     db.session.commit()
 
