@@ -3,6 +3,7 @@ import json
 from datetime import datetime, date, time, timedelta
 from flask import render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
+from sqlalchemy.orm import joinedload
 from models import db, Appointment, Employee, Patient, Location, Resource, \
     WorkSchedule, Absence, Holiday, TreatmentSeries, TreatmentSeriesTemplate, \
     WaitingList, ResourceBooking
@@ -226,6 +227,14 @@ def api_get_appointments():
                 query = query.filter(Appointment.employee_id.in_(emp_ids))
         except ValueError:
             pass
+
+    # Eager Loading: Patient, Employee->User und Resource in einer Query laden
+    # Verhindert N+1 Queries (vorher ~150 Queries pro Tagesansicht)
+    query = query.options(
+        joinedload(Appointment.patient),
+        joinedload(Appointment.employee).joinedload(Employee.user),
+        joinedload(Appointment.resource)
+    )
 
     appointments = query.order_by(Appointment.start_time).all()
 
@@ -738,6 +747,9 @@ def api_month_data():
     )
     if location_id:
         query = query.filter(Appointment.location_id == location_id)
+
+    # Eager Loading: Employee fuer color_code Zugriff
+    query = query.options(joinedload(Appointment.employee))
 
     appointments = query.all()
 
