@@ -91,9 +91,9 @@ MAILING_TOOLS = [
 
 
 def _get_org_id():
-    """Ermittelt die Organisation-ID (erste Organisation)"""
-    org = Organization.query.first()
-    return org.id if org else 1
+    """Ermittelt die Organisation-ID des aktuellen Benutzers"""
+    from flask_login import current_user
+    return current_user.organization_id
 
 
 def _get_sender_address(org_id):
@@ -234,7 +234,7 @@ def mailing_tool_executor(tool_name, tool_input):
         email_id = tool_input.get('email_id')
         email = Email.query.get(email_id)
 
-        if not email:
+        if not email or email.organization_id != org_id:
             return {'fehler': f'E-Mail mit ID {email_id} nicht gefunden.'}
 
         result = {

@@ -1,6 +1,7 @@
 """KI-Tools fuer den Adressen-Bereich (Versicherungen, Aerzte, Kontakte)"""
 import json
 from datetime import datetime
+from flask_login import current_user
 from models import db, InsuranceProvider, Doctor, Contact, TreatmentSeries, Patient
 
 
@@ -66,10 +67,11 @@ ADDRESS_TOOLS = [
 
 def address_tool_executor(tool_name, tool_input):
     """Fuehrt Adressen-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'aerzte_auflisten':
         fachrichtung = tool_input.get('fachrichtung', '').strip()
-        query = Doctor.query.filter_by(is_active=True)
+        query = Doctor.query.filter_by(organization_id=org_id, is_active=True)
         if fachrichtung:
             query = query.filter(Doctor.specialty.ilike(f'%{fachrichtung}%'))
         doctors = query.order_by(Doctor.last_name).all()
@@ -90,7 +92,7 @@ def address_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'arzt_details':
         doctor = Doctor.query.get(tool_input.get('arzt_id'))
-        if not doctor:
+        if not doctor or doctor.organization_id != org_id:
             return {'error': 'Arzt nicht gefunden.'}
 
         patient_count = TreatmentSeries.query.filter_by(prescribing_doctor_id=doctor.id) \
@@ -115,7 +117,7 @@ def address_tool_executor(tool_name, tool_input):
         }
 
     elif tool_name == 'versicherungen_auflisten':
-        insurances = InsuranceProvider.query.filter_by(is_active=True) \
+        insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True) \
             .order_by(InsuranceProvider.name).all()
 
         return {
@@ -133,7 +135,7 @@ def address_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'versicherung_details':
         ins = InsuranceProvider.query.get(tool_input.get('versicherung_id'))
-        if not ins:
+        if not ins or ins.organization_id != org_id:
             return {'error': 'Versicherung nicht gefunden.'}
 
         tiers_payant = []
@@ -162,7 +164,7 @@ def address_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'zuweiserstatistik':
         doctor = Doctor.query.get(tool_input.get('arzt_id'))
-        if not doctor:
+        if not doctor or doctor.organization_id != org_id:
             return {'error': 'Arzt nicht gefunden.'}
 
         patient_count = TreatmentSeries.query.filter_by(prescribing_doctor_id=doctor.id) \

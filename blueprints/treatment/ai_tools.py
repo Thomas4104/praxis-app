@@ -1,6 +1,7 @@
 """KI-Tools fuer den Behandlungsplan-Bereich"""
 import json
 from datetime import datetime, date
+from flask_login import current_user
 from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, TherapyGoal, Milestone,
                     Measurement, HealingPhase)
@@ -175,9 +176,13 @@ TREATMENT_TOOLS = [
 
 def treatment_tool_executor(tool_name, tool_input):
     """Fuehrt die Behandlungsplan-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'serien_auflisten':
         patient_id = tool_input['patient_id']
+        patient = Patient.query.get(patient_id)
+        if not patient or patient.organization_id != org_id:
+            return {'error': 'Patient nicht gefunden.'}
         query = TreatmentSeries.query.filter_by(patient_id=patient_id)
         if tool_input.get('status'):
             query = query.filter_by(status=tool_input['status'])
@@ -204,7 +209,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'serie_details':
         s = TreatmentSeries.query.get(tool_input['serie_id'])
-        if not s:
+        if not s or (s.patient and s.patient.organization_id != org_id):
             return {'error': 'Serie nicht gefunden.'}
 
         termine = []
@@ -255,8 +260,11 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'serie_erstellen':
         template = TreatmentSeriesTemplate.query.get(tool_input['template_id'])
-        if not template:
+        if not template or template.organization_id != org_id:
             return {'error': 'Serienvorlage nicht gefunden.'}
+        patient_check = Patient.query.get(tool_input['patient_id'])
+        if not patient_check or patient_check.organization_id != org_id:
+            return {'error': 'Patient nicht gefunden.'}
 
         serie = TreatmentSeries(
             patient_id=tool_input['patient_id'],
@@ -278,7 +286,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'serie_abschliessen':
         s = TreatmentSeries.query.get(tool_input['serie_id'])
-        if not s:
+        if not s or (s.patient and s.patient.organization_id != org_id):
             return {'error': 'Serie nicht gefunden.'}
         s.status = 'completed'
         s.completed_at = datetime.utcnow()
@@ -287,7 +295,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'behandlungsplan_anzeigen':
         patient = Patient.query.get(tool_input['patient_id'])
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         serien = TreatmentSeries.query.filter_by(patient_id=patient.id).all()
@@ -319,7 +327,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'ziel_erstellen':
         serie = TreatmentSeries.query.get(tool_input['serie_id'])
-        if not serie:
+        if not serie or (serie.patient and serie.patient.organization_id != org_id):
             return {'error': 'Serie nicht gefunden.'}
 
         ziel = TherapyGoal(
@@ -335,7 +343,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'ziel_aktualisieren':
         ziel = TherapyGoal.query.get(tool_input['ziel_id'])
-        if not ziel:
+        if not ziel or (ziel.patient and ziel.patient.organization_id != org_id):
             return {'error': 'Therapieziel nicht gefunden.'}
 
         if 'aktueller_wert' in tool_input:
@@ -352,7 +360,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'meilenstein_erstellen':
         serie = TreatmentSeries.query.get(tool_input['serie_id'])
-        if not serie:
+        if not serie or (serie.patient and serie.patient.organization_id != org_id):
             return {'error': 'Serie nicht gefunden.'}
 
         m = Milestone(
@@ -370,7 +378,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'messwert_erfassen':
         patient = Patient.query.get(tool_input['patient_id'])
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         typ = tool_input['typ']
@@ -398,6 +406,9 @@ def treatment_tool_executor(tool_name, tool_input):
         return {'ergebnis': f'Messwert erfasst: {typ.upper()} = {wert}', 'messung_id': m.id}
 
     elif tool_name == 'messverlauf_anzeigen':
+        patient_check = Patient.query.get(tool_input['patient_id'])
+        if not patient_check or patient_check.organization_id != org_id:
+            return {'error': 'Patient nicht gefunden.'}
         messungen = Measurement.query.filter_by(
             patient_id=tool_input['patient_id'],
             measurement_type=tool_input['typ']
@@ -419,7 +430,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'heilungsphase_setzen':
         serie = TreatmentSeries.query.get(tool_input['serie_id'])
-        if not serie:
+        if not serie or (serie.patient and serie.patient.organization_id != org_id):
             return {'error': 'Serie nicht gefunden.'}
 
         phase = tool_input['phase']
@@ -448,7 +459,7 @@ def treatment_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'soap_speichern':
         t = Appointment.query.get(tool_input['termin_id'])
-        if not t:
+        if not t or (t.patient and t.patient.organization_id != org_id):
             return {'error': 'Termin nicht gefunden.'}
 
         if 'subjektiv' in tool_input:
@@ -464,7 +475,8 @@ def treatment_tool_executor(tool_name, tool_input):
         return {'ergebnis': f'SOAP-Notes fuer Termin {t.id} gespeichert.'}
 
     elif tool_name == 'templates_auflisten':
-        templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
+        templates = TreatmentSeriesTemplate.query.filter_by(
+            organization_id=org_id, is_active=True).all()
 
         if not templates:
             return {'ergebnis': 'Keine Vorlagen gefunden.', 'anzahl': 0}

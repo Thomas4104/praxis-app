@@ -126,16 +126,13 @@ HR_TOOLS = [
 
 def hr_tool_executor(tool_name, tool_input):
     """Fuehrt HR-Tools aus"""
+    from flask_login import current_user
+    org_id = current_user.organization_id
 
     if tool_name == 'lohnabrechnung_erstellen':
         monat = tool_input['monat']
         jahr = tool_input['jahr']
-        from flask_login import current_user
         from services.payroll_service import create_payroll_run
-        try:
-            org_id = current_user.organization_id
-        except Exception:
-            org_id = 1
         run, error = create_payroll_run(org_id, jahr, monat)
         if error:
             return {'error': error}
@@ -154,7 +151,7 @@ def hr_tool_executor(tool_name, tool_input):
         monat = tool_input['monat']
         jahr = tool_input['jahr']
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         slip = Payslip.query.join(PayrollRun).filter(
@@ -187,11 +184,6 @@ def hr_tool_executor(tool_name, tool_input):
     elif tool_name == 'personalkosten_monat':
         monat = tool_input['monat']
         jahr = tool_input['jahr']
-        try:
-            from flask_login import current_user
-            org_id = current_user.organization_id
-        except Exception:
-            org_id = 1
 
         run = PayrollRun.query.filter_by(
             organization_id=org_id, year=jahr, month=monat
@@ -223,7 +215,7 @@ def hr_tool_executor(tool_name, tool_input):
     elif tool_name == 'ueberstunden_anzeigen':
         emp_id = tool_input['employee_id']
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         accounts = OvertimeAccount.query.filter_by(
@@ -253,7 +245,7 @@ def hr_tool_executor(tool_name, tool_input):
     elif tool_name == 'zeiterfassung_heute':
         emp_id = tool_input['employee_id']
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         today = date.today()
@@ -279,7 +271,7 @@ def hr_tool_executor(tool_name, tool_input):
         emp_id = tool_input['employee_id']
         status = tool_input.get('status')
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         query = Expense.query.filter_by(employee_id=emp_id)
@@ -322,7 +314,7 @@ def hr_tool_executor(tool_name, tool_input):
     elif tool_name == 'ferienanspruch':
         emp_id = tool_input['employee_id']
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         quota = AbsenceQuota.query.filter_by(
@@ -354,7 +346,7 @@ def hr_tool_executor(tool_name, tool_input):
         emp_id = tool_input['employee_id']
         jahr = tool_input['jahr']
         emp = Employee.query.get(emp_id)
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden'}
 
         slips = Payslip.query.join(PayrollRun).filter(

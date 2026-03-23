@@ -1,4 +1,5 @@
 """KI-Tools fuer den Produkte-Bereich"""
+from flask_login import current_user
 from models import db, Product
 
 
@@ -59,10 +60,12 @@ PRODUCT_TOOLS = [
 
 def product_tool_executor(tool_name, tool_input):
     """Fuehrt die Produkt-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'produkt_suchen':
         suchbegriff = tool_input['suchbegriff'].strip()
         produkte = Product.query.filter(
+            Product.organization_id == org_id,
             db.or_(
                 Product.name.ilike(f'%{suchbegriff}%'),
                 Product.article_number.ilike(f'%{suchbegriff}%')
@@ -91,7 +94,7 @@ def product_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'produkt_details':
         produkt = Product.query.get(tool_input['produkt_id'])
-        if not produkt:
+        if not produkt or produkt.organization_id != org_id:
             return {'error': 'Produkt nicht gefunden.'}
 
         return {
@@ -117,7 +120,7 @@ def product_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'lagerbestand_pruefen':
         produkt = Product.query.get(tool_input['produkt_id'])
-        if not produkt:
+        if not produkt or produkt.organization_id != org_id:
             return {'error': 'Produkt nicht gefunden.'}
 
         unter_mindestbestand = produkt.stock_quantity < produkt.min_stock if produkt.min_stock > 0 else False
@@ -135,6 +138,7 @@ def product_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'produkte_unter_mindestbestand':
         produkte = Product.query.filter(
+            Product.organization_id == org_id,
             Product.is_active == True,
             Product.min_stock > 0,
             Product.stock_quantity < Product.min_stock

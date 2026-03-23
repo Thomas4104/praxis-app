@@ -114,13 +114,14 @@ def _format_task(aufgabe):
 
 def task_tool_executor(tool_name, tool_input):
     """Fuehrt Aufgaben-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'aufgaben_auflisten':
         status = tool_input.get('status')
         prioritaet = tool_input.get('prioritaet')
         zugewiesen_an = tool_input.get('zugewiesen_an')
 
-        query = Task.query
+        query = Task.query.filter_by(organization_id=org_id)
         if status:
             query = query.filter_by(status=status)
         else:
@@ -149,7 +150,7 @@ def task_tool_executor(tool_name, tool_input):
                 pass
 
         aufgabe = Task(
-            organization_id=1,  # Wird ueber Kontext gesetzt
+            organization_id=org_id,
             title=titel,
             description=tool_input.get('beschreibung', ''),
             priority=tool_input.get('prioritaet', 'normal'),
@@ -173,7 +174,7 @@ def task_tool_executor(tool_name, tool_input):
     elif tool_name == 'aufgabe_erledigen':
         aufgabe_id = tool_input.get('aufgabe_id')
         aufgabe = Task.query.get(aufgabe_id)
-        if not aufgabe:
+        if not aufgabe or aufgabe.organization_id != org_id:
             return {'error': f'Aufgabe {aufgabe_id} nicht gefunden.'}
 
         aufgabe.status = 'completed'
@@ -185,7 +186,7 @@ def task_tool_executor(tool_name, tool_input):
         aufgabe_id = tool_input.get('aufgabe_id')
         mitarbeiter_id = tool_input.get('mitarbeiter_id')
         aufgabe = Task.query.get(aufgabe_id)
-        if not aufgabe:
+        if not aufgabe or aufgabe.organization_id != org_id:
             return {'error': f'Aufgabe {aufgabe_id} nicht gefunden.'}
 
         aufgabe.assigned_to_id = mitarbeiter_id
@@ -196,7 +197,10 @@ def task_tool_executor(tool_name, tool_input):
         return {'success': True, 'message': f'Aufgabe wurde {name} zugewiesen.'}
 
     elif tool_name == 'offene_aufgaben_anzahl':
-        count = Task.query.filter(Task.status.in_(['open', 'in_progress'])).count()
+        count = Task.query.filter(
+            Task.organization_id == org_id,
+            Task.status.in_(['open', 'in_progress'])
+        ).count()
         return {'anzahl': count}
 
     elif tool_name == 'meine_aufgaben':
@@ -206,6 +210,7 @@ def task_tool_executor(tool_name, tool_input):
             return {'error': 'Kein Benutzer angemeldet.'}
 
         aufgaben = Task.query.filter(
+            Task.organization_id == org_id,
             db.or_(Task.assigned_to_id == user_id, Task.created_by_id == user_id),
             Task.status != 'completed'
         ).order_by(Task.created_at.desc()).all()
@@ -218,7 +223,7 @@ def task_tool_executor(tool_name, tool_input):
     elif tool_name == 'fehlende_daten_pruefen':
         from services.task_generator import TaskGenerator
         try:
-            generator = TaskGenerator(1)
+            generator = TaskGenerator(org_id)
             created, removed = generator.run()
             return {
                 'success': True,

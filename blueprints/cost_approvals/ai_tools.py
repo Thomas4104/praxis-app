@@ -1,6 +1,7 @@
 """KI-Tools fuer den Gutsprachen-Bereich"""
 import json
 from datetime import datetime, date
+from flask_login import current_user
 from models import (db, CostApproval, CostApprovalItem, Patient, InsuranceProvider,
                     TreatmentSeries, Employee, Doctor)
 
@@ -86,12 +87,13 @@ COST_APPROVAL_TOOLS = [
 
 def cost_approval_tool_executor(tool_name, tool_input):
     """Fuehrt Gutsprachen-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'gutsprachen_auflisten':
         patient_id = tool_input.get('patient_id')
         status = tool_input.get('status')
 
-        query = CostApproval.query
+        query = CostApproval.query.filter_by(organization_id=org_id)
         if patient_id:
             query = query.filter_by(patient_id=patient_id)
         if status:
@@ -142,7 +144,7 @@ def cost_approval_tool_executor(tool_name, tool_input):
         next_nr = (last.id + 1) if last else 1
 
         gs = CostApproval(
-            organization_id=patient.organization_id if patient else 1,
+            organization_id=org_id,
             approval_number=f'GS-{date.today().year}-{next_nr:04d}',
             series_id=serie_id,
             patient_id=serie.patient_id,
@@ -204,7 +206,7 @@ def cost_approval_tool_executor(tool_name, tool_input):
     elif tool_name == 'gutsprache_details':
         gutsprache_id = tool_input.get('gutsprache_id')
         gs = CostApproval.query.get(gutsprache_id)
-        if not gs:
+        if not gs or gs.organization_id != org_id:
             return {'error': f'Gutsprache {gutsprache_id} nicht gefunden.'}
 
         items = [{
@@ -242,7 +244,7 @@ def cost_approval_tool_executor(tool_name, tool_input):
         gutsprache_id = tool_input.get('gutsprache_id')
         ergebnis = tool_input.get('ergebnis')
         gs = CostApproval.query.get(gutsprache_id)
-        if not gs:
+        if not gs or gs.organization_id != org_id:
             return {'error': f'Gutsprache {gutsprache_id} nicht gefunden.'}
 
         if ergebnis == 'approved':
@@ -276,7 +278,7 @@ def cost_approval_tool_executor(tool_name, tool_input):
     elif tool_name == 'gutsprache_senden':
         gutsprache_id = tool_input.get('gutsprache_id')
         gs = CostApproval.query.get(gutsprache_id)
-        if not gs:
+        if not gs or gs.organization_id != org_id:
             return {'error': f'Gutsprache {gutsprache_id} nicht gefunden.'}
 
         if gs.status not in ('draft', 'cancelled'):

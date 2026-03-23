@@ -1,6 +1,7 @@
 """KI-Tools fuer den Praxis-Bereich"""
 import json
 from datetime import datetime, date
+from flask_login import current_user
 from models import db, Organization, Location, BankAccount, Holiday, TreatmentSeriesTemplate, TaxPointValue
 
 
@@ -89,9 +90,10 @@ PRACTICE_TOOLS = [
 
 def practice_tool_executor(tool_name, tool_input):
     """Fuehrt die Praxis-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'praxis_info':
-        org = Organization.query.first()
+        org = Organization.query.get(org_id)
         if not org:
             return {'error': 'Keine Organisation gefunden.'}
 
@@ -113,7 +115,7 @@ def practice_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'standorte_auflisten':
         nur_aktive = tool_input.get('nur_aktive', True)
-        query = Location.query
+        query = Location.query.filter_by(organization_id=org_id)
         if nur_aktive:
             query = query.filter_by(is_active=True)
         standorte = query.order_by(Location.name).all()
@@ -138,12 +140,12 @@ def practice_tool_executor(tool_name, tool_input):
         standort_id = tool_input.get('standort_id')
         if standort_id:
             standort = Location.query.get(standort_id)
-            if not standort:
+            if not standort or standort.organization_id != org_id:
                 return {'error': 'Standort nicht gefunden.'}
             oh_json = standort.opening_hours_json
             quelle = f'Standort: {standort.name}'
         else:
-            org = Organization.query.first()
+            org = Organization.query.get(org_id)
             if not org:
                 return {'error': 'Keine Organisation gefunden.'}
             oh_json = org.opening_hours_json
@@ -181,6 +183,7 @@ def practice_tool_executor(tool_name, tool_input):
     elif tool_name == 'feiertage_anzeigen':
         jahr = tool_input.get('jahr', date.today().year)
         feiertage = Holiday.query.filter(
+            Holiday.organization_id == org_id,
             db.extract('year', Holiday.date) == jahr
         ).order_by(Holiday.date).all()
 
@@ -200,7 +203,7 @@ def practice_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'serienvorlagen_auflisten':
         nur_aktive = tool_input.get('nur_aktive', True)
-        query = TreatmentSeriesTemplate.query
+        query = TreatmentSeriesTemplate.query.filter_by(organization_id=org_id)
         if nur_aktive:
             query = query.filter_by(is_active=True)
         vorlagen = query.order_by(TreatmentSeriesTemplate.name).all()

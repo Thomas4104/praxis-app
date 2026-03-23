@@ -1,6 +1,7 @@
 """KI-Tools fuer den Kalender- und Terminbereich"""
 import json
 from datetime import datetime, date, timedelta, time
+from flask_login import current_user
 from models import db, Appointment, Employee, Patient, Location, Resource, \
     TreatmentSeries, TreatmentSeriesTemplate, WaitingList, WorkSchedule
 
@@ -169,6 +170,7 @@ CALENDAR_TOOLS = [
 
 def calendar_tool_executor(tool_name, tool_input):
     """Fuehrt Kalender-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'termine_anzeigen':
         datum_str = tool_input.get('datum', date.today().isoformat())
@@ -177,7 +179,8 @@ def calendar_tool_executor(tool_name, tool_input):
         except ValueError:
             target_date = date.today()
 
-        query = Appointment.query.filter(
+        query = Appointment.query.join(Patient).filter(
+            Patient.organization_id == org_id,
             Appointment.start_time >= datetime.combine(target_date, time(0, 0)),
             Appointment.start_time < datetime.combine(target_date + timedelta(days=1), time(0, 0))
         )
@@ -207,11 +210,11 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'termin_erstellen':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         employee = Employee.query.get(tool_input.get('employee_id'))
-        if not employee:
+        if not employee or employee.organization_id != org_id:
             return {'error': 'Therapeut nicht gefunden.'}
 
         try:
@@ -261,7 +264,7 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'termin_verschieben':
         appt = Appointment.query.get(tool_input.get('termin_id'))
-        if not appt:
+        if not appt or (appt.patient and appt.patient.organization_id != org_id):
             return {'error': 'Termin nicht gefunden.'}
 
         try:
@@ -301,7 +304,7 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'termin_absagen':
         appt = Appointment.query.get(tool_input.get('termin_id'))
-        if not appt:
+        if not appt or (appt.patient and appt.patient.organization_id != org_id):
             return {'error': 'Termin nicht gefunden.'}
 
         appt.status = 'cancelled'
@@ -321,7 +324,7 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'termin_status_aendern':
         appt = Appointment.query.get(tool_input.get('termin_id'))
-        if not appt:
+        if not appt or (appt.patient and appt.patient.organization_id != org_id):
             return {'error': 'Termin nicht gefunden.'}
 
         valid = ['scheduled', 'confirmed', 'appeared', 'no_show']
@@ -349,7 +352,7 @@ def calendar_tool_executor(tool_name, tool_input):
         ab = tool_input.get('ab_datum', date.today().isoformat())
 
         employee = Employee.query.get(emp_id)
-        if not employee:
+        if not employee or employee.organization_id != org_id:
             return {'error': 'Therapeut nicht gefunden.'}
 
         slots = find_available_slots(
@@ -393,7 +396,7 @@ def calendar_tool_executor(tool_name, tool_input):
         except ValueError:
             target_date = date.today()
 
-        query = Employee.query.filter_by(is_active=True)
+        query = Employee.query.filter_by(organization_id=org_id, is_active=True)
         if tool_input.get('standort_id'):
             query = query.filter_by(default_location_id=tool_input['standort_id'])
         employees = query.all()
@@ -431,15 +434,15 @@ def calendar_tool_executor(tool_name, tool_input):
         from ai.constraint_solver import find_available_slots
 
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         template = TreatmentSeriesTemplate.query.get(tool_input.get('template_id'))
-        if not template:
+        if not template or template.organization_id != org_id:
             return {'error': 'Serienvorlage nicht gefunden.'}
 
         employee = Employee.query.get(tool_input.get('therapeut_id'))
-        if not employee:
+        if not employee or employee.organization_id != org_id:
             return {'error': 'Therapeut nicht gefunden.'}
 
         slots = find_available_slots(
@@ -468,7 +471,7 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'termine_patient':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         termine = Appointment.query.filter_by(patient_id=patient.id) \
@@ -489,7 +492,7 @@ def calendar_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'warteliste_hinzufuegen':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         entry = WaitingList(

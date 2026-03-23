@@ -26,6 +26,7 @@ class ContextManager:
             f"Aktuelle Zeit: {now.strftime('%d.%m.%Y %H:%M')} ({tageszeit})",
             f"Benutzer: {user.first_name} {user.last_name}",
             f"Rolle: {user.role}",
+            f"Organization-ID: {user.organization_id}",
         ]
 
         # Mitarbeiter-Daten laden
@@ -33,6 +34,7 @@ class ContextManager:
         if employee:
             if employee.default_location:
                 context_parts.append(f"Standort: {employee.default_location.name}")
+                context_parts.append(f"Location-ID: {employee.default_location_id}")
 
             # Heutige Termine zaehlen
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

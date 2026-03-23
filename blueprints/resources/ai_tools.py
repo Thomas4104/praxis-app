@@ -1,5 +1,6 @@
 """KI-Tools fuer den Ressourcen-Bereich"""
 from datetime import datetime, timedelta, date, time
+from flask_login import current_user
 from models import db, Resource, ResourceBooking, MaintenanceRecord, Appointment, Location
 
 
@@ -92,10 +93,12 @@ def _parse_datum(datum_str):
 
 def resource_tool_executor(tool_name, tool_input):
     """Fuehrt die Ressourcen-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'ressource_suchen':
         suchbegriff = tool_input['name_oder_typ'].strip()
         ressourcen = Resource.query.filter(
+            Resource.organization_id == org_id,
             db.or_(
                 Resource.name.ilike(f'%{suchbegriff}%'),
                 Resource.resource_type.ilike(f'%{suchbegriff}%')
@@ -121,7 +124,7 @@ def resource_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'ressource_verfuegbarkeit':
         ressource = Resource.query.get(tool_input['ressource_id'])
-        if not ressource:
+        if not ressource or ressource.organization_id != org_id:
             return {'error': 'Ressource nicht gefunden.'}
 
         tag = _parse_datum(tool_input['datum'])
@@ -160,7 +163,7 @@ def resource_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'freie_raeume':
         standort = Location.query.get(tool_input['standort_id'])
-        if not standort:
+        if not standort or standort.organization_id != org_id:
             return {'error': 'Standort nicht gefunden.'}
 
         tag = _parse_datum(tool_input['datum'])
@@ -218,6 +221,7 @@ def resource_tool_executor(tool_name, tool_input):
 
         # Alle Geraete mit Wartungseintraegen laden
         geraete = Resource.query.filter(
+            Resource.organization_id == org_id,
             Resource.resource_type.in_(['device', 'Geraet', 'Fahrzeug']),
             Resource.is_active == True
         ).all()

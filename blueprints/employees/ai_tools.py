@@ -1,6 +1,7 @@
 """KI-Tools fuer den Mitarbeiter-Bereich"""
 import json
 from datetime import datetime, date, timedelta
+from flask_login import current_user
 from models import db, Employee, User, WorkSchedule, Absence, AbsenceQuota, Certificate, Location
 
 
@@ -186,10 +187,12 @@ EMPLOYEE_TOOLS = [
 
 def employee_tool_executor(tool_name, tool_input):
     """Fuehrt die Mitarbeiter-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'mitarbeiter_suchen':
         name = tool_input['name']
         employees = Employee.query.join(User).filter(
+            Employee.organization_id == org_id,
             Employee.is_active == True,
             db.or_(
                 User.first_name.ilike(f'%{name}%'),
@@ -214,7 +217,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'mitarbeiter_details':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         quals = []
@@ -250,7 +253,7 @@ def employee_tool_executor(tool_name, tool_input):
         }
 
     elif tool_name == 'mitarbeiter_auflisten':
-        query = Employee.query.filter_by(is_active=True)
+        query = Employee.query.filter_by(organization_id=org_id, is_active=True)
 
         standort_id = tool_input.get('standort_id')
         if standort_id:
@@ -276,7 +279,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'arbeitszeiten_anzeigen':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         datum_str = tool_input.get('datum')
@@ -318,7 +321,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'verfuegbarkeit_pruefen':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         try:
@@ -389,7 +392,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'absenzen_anzeigen':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         query = Absence.query.filter_by(employee_id=emp.id)
@@ -431,7 +434,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'absenz_erstellen':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         try:
@@ -478,7 +481,7 @@ def employee_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'ferientage_rest':
         emp = Employee.query.get(tool_input['employee_id'])
-        if not emp:
+        if not emp or emp.organization_id != org_id:
             return {'error': 'Mitarbeiter nicht gefunden.'}
 
         quota = AbsenceQuota.query.filter_by(
@@ -505,8 +508,11 @@ def employee_tool_executor(tool_name, tool_input):
         heute = date.today()
         standort_id = tool_input.get('standort_id')
 
-        # Alle Mitarbeiter mit Arbeitszeit heute
-        query = WorkSchedule.query.filter_by(day_of_week=heute.weekday())
+        # Alle Mitarbeiter mit Arbeitszeit heute (nur eigene Organisation)
+        query = WorkSchedule.query.join(Employee).filter(
+            Employee.organization_id == org_id,
+            WorkSchedule.day_of_week == heute.weekday()
+        )
         if standort_id:
             query = query.filter_by(location_id=standort_id)
         schedules = query.all()
@@ -559,7 +565,8 @@ def employee_tool_executor(tool_name, tool_input):
         else:
             d = date.today()
 
-        absences = Absence.query.filter(
+        absences = Absence.query.join(Employee).filter(
+            Employee.organization_id == org_id,
             Absence.start_date <= d,
             Absence.end_date >= d,
             Absence.status.in_(['approved', 'pending'])

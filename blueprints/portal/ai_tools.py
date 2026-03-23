@@ -2,6 +2,7 @@
 KI-Tools fuer das Patientenportal
 """
 from datetime import datetime
+from flask_login import current_user
 from models import db, Patient, PortalAccount, PortalMessage, OnlineBookingRequest, Task
 
 
@@ -89,13 +90,14 @@ PORTAL_TOOLS = [
 
 def portal_tool_executor(tool_name, tool_input):
     """Fuehrt Portal-KI-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'portal_aktivieren':
         patient_id = tool_input['patient_id']
         aktivieren = tool_input.get('aktivieren', True)
 
         patient = Patient.query.get(patient_id)
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': f'Patient mit ID {patient_id} nicht gefunden'}
 
         account = PortalAccount.query.filter_by(patient_id=patient_id).first()
@@ -132,9 +134,9 @@ def portal_tool_executor(tool_name, tool_input):
     elif tool_name == 'portal_buchungen_auflisten':
         status_filter = tool_input.get('status', 'alle')
 
-        query = OnlineBookingRequest.query
+        query = OnlineBookingRequest.query.join(Patient).filter(Patient.organization_id == org_id)
         if status_filter and status_filter != 'alle':
-            query = query.filter_by(status=status_filter)
+            query = query.filter(OnlineBookingRequest.status == status_filter)
 
         bookings = query.order_by(OnlineBookingRequest.created_at.desc()).limit(20).all()
 
@@ -162,6 +164,11 @@ def portal_tool_executor(tool_name, tool_input):
         if not booking:
             return {'error': f'Buchungsanfrage mit ID {request_id} nicht gefunden'}
 
+        # Org-Zugehoerigkeit ueber Patient pruefen
+        patient_check = Patient.query.get(booking.patient_id)
+        if not patient_check or patient_check.organization_id != org_id:
+            return {'error': f'Buchungsanfrage mit ID {request_id} nicht gefunden'}
+
         booking.status = 'confirmed'
         db.session.commit()
 
@@ -178,7 +185,7 @@ def portal_tool_executor(tool_name, tool_input):
         text = tool_input['text']
 
         patient = Patient.query.get(patient_id)
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': f'Patient mit ID {patient_id} nicht gefunden'}
 
         account = PortalAccount.query.filter_by(patient_id=patient_id).first()
@@ -201,14 +208,21 @@ def portal_tool_executor(tool_name, tool_input):
         }
 
     elif tool_name == 'portal_statistik':
-        total_accounts = PortalAccount.query.count()
-        active_accounts = PortalAccount.query.filter_by(is_active=True).count()
-        pending_bookings = OnlineBookingRequest.query.filter_by(status='pending').count()
-        total_bookings = OnlineBookingRequest.query.count()
-        total_messages = PortalMessage.query.count()
-        patient_messages = PortalMessage.query.filter_by(sender_type='patient').count()
-        unread_messages = PortalMessage.query.filter_by(
-            sender_type='patient'
+        # Alle Abfragen auf Patienten der eigenen Organisation einschraenken
+        total_accounts = PortalAccount.query.join(Patient).filter(Patient.organization_id == org_id).count()
+        active_accounts = PortalAccount.query.join(Patient).filter(
+            Patient.organization_id == org_id, PortalAccount.is_active == True
+        ).count()
+        pending_bookings = OnlineBookingRequest.query.join(Patient).filter(
+            Patient.organization_id == org_id, OnlineBookingRequest.status == 'pending'
+        ).count()
+        total_bookings = OnlineBookingRequest.query.join(Patient).filter(Patient.organization_id == org_id).count()
+        total_messages = PortalMessage.query.join(Patient).filter(Patient.organization_id == org_id).count()
+        patient_messages = PortalMessage.query.join(Patient).filter(
+            Patient.organization_id == org_id, PortalMessage.sender_type == 'patient'
+        ).count()
+        unread_messages = PortalMessage.query.join(Patient).filter(
+            Patient.organization_id == org_id, PortalMessage.sender_type == 'patient'
         ).filter(PortalMessage.read_at.is_(None)).count()
 
         return {

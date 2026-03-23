@@ -1,6 +1,7 @@
 """KI-Tools fuer den Patienten-Bereich"""
 import json
 from datetime import datetime, date, timedelta
+from flask_login import current_user
 from models import db, Patient, InsuranceProvider, Doctor, TreatmentSeries, \
     Appointment, PatientDocument, Employee
 
@@ -156,6 +157,7 @@ PATIENT_TOOLS = [
 
 def patient_tool_executor(tool_name, tool_input):
     """Fuehrt Patienten-Tools aus"""
+    org_id = current_user.organization_id
 
     if tool_name == 'patient_suchen':
         suchbegriff = tool_input.get('suchbegriff', '').strip()
@@ -171,12 +173,13 @@ def patient_tool_executor(tool_name, tool_input):
                                    int(date_match.group(2)),
                                    int(date_match.group(1)))
                 patients = Patient.query.filter_by(
-                    date_of_birth=search_date, is_active=True
+                    organization_id=org_id, date_of_birth=search_date, is_active=True
                 ).all()
             except ValueError:
                 patients = []
         else:
             patients = Patient.query.filter(
+                Patient.organization_id == org_id,
                 Patient.is_active == True,
                 db.or_(
                     Patient.first_name.ilike(f'%{suchbegriff}%'),
@@ -217,8 +220,6 @@ def patient_tool_executor(tool_name, tool_input):
             return {'error': 'Ungültiges Datumsformat. Bitte YYYY-MM-DD verwenden.'}
 
         # Patientennummer generieren
-        from flask_login import current_user
-        org_id = current_user.organization_id if hasattr(current_user, 'organization_id') else 1
         last_p = Patient.query.filter_by(organization_id=org_id) \
             .order_by(Patient.id.desc()).first()
         if last_p and last_p.patient_number:
@@ -253,7 +254,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'patient_details':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         # Alter berechnen
@@ -302,7 +303,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'patient_bearbeiten':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         felder = tool_input.get('felder', {})
@@ -333,7 +334,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'patient_termine':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         query = Appointment.query.filter_by(patient_id=patient.id)
@@ -355,7 +356,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'patient_serien':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         serien = TreatmentSeries.query.filter_by(patient_id=patient.id) \
@@ -378,7 +379,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'patient_deaktivieren':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         patient.is_active = False
@@ -390,7 +391,7 @@ def patient_tool_executor(tool_name, tool_input):
 
     elif tool_name == 'naechster_termin':
         patient = Patient.query.get(tool_input.get('patient_id'))
-        if not patient:
+        if not patient or patient.organization_id != org_id:
             return {'error': 'Patient nicht gefunden.'}
 
         next_appt = Appointment.query.filter_by(patient_id=patient.id) \
@@ -425,7 +426,7 @@ def patient_tool_executor(tool_name, tool_input):
             Patient.mobile,
             db.func.max(Appointment.start_time).label('letzter_termin')
         ).join(Appointment, Patient.id == Appointment.patient_id) \
-            .filter(Patient.is_active == True) \
+            .filter(Patient.organization_id == org_id, Patient.is_active == True) \
             .group_by(Patient.id) \
             .having(db.func.max(Appointment.start_time) < grenze) \
             .having(~db.exists(
@@ -453,6 +454,7 @@ def patient_tool_executor(tool_name, tool_input):
     elif tool_name == 'geburtstage_heute':
         today = date.today()
         patienten = Patient.query.filter(
+            Patient.organization_id == org_id,
             Patient.is_active == True,
             db.extract('month', Patient.date_of_birth) == today.month,
             db.extract('day', Patient.date_of_birth) == today.day
@@ -473,6 +475,7 @@ def patient_tool_executor(tool_name, tool_input):
     elif tool_name == 'arzt_suchen':
         suchbegriff = tool_input.get('suchbegriff', '').strip()
         doctors = Doctor.query.filter(
+            Doctor.organization_id == org_id,
             Doctor.is_active == True,
             db.or_(
                 Doctor.first_name.ilike(f'%{suchbegriff}%'),
@@ -498,6 +501,7 @@ def patient_tool_executor(tool_name, tool_input):
     elif tool_name == 'versicherung_suchen':
         name = tool_input.get('name', '').strip()
         insurances = InsuranceProvider.query.filter(
+            InsuranceProvider.organization_id == org_id,
             InsuranceProvider.is_active == True,
             InsuranceProvider.name.ilike(f'%{name}%')
         ).all()
