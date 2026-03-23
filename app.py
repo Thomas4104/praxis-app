@@ -213,6 +213,17 @@ def seed_demo_data():
     employees = {}
     created_users = {}
     for ud in users_data:
+        # Standard-Dashboard-Konfiguration pro Rolle
+        dashboard_defaults = {
+            'admin': json.dumps(['ki_tagesuebersicht', 'heutige_termine', 'offene_aufgaben',
+                                 'patientenverlauf', 'umsatzuebersicht', 'geburtstage',
+                                 'schnellaktionen', 'auslastung', 'offene_rechnungen',
+                                 'ungelesene_emails', 'absenzen']),
+            'therapist': json.dumps(['ki_tagesuebersicht', 'heutige_termine', 'offene_aufgaben',
+                                     'patientenverlauf', 'schnellaktionen', 'auslastung']),
+            'reception': json.dumps(['heutige_termine', 'offene_aufgaben', 'ungelesene_emails',
+                                     'schnellaktionen', 'geburtstage', 'absenzen'])
+        }
         user = User(
             organization_id=org.id,
             username=ud['username'],
@@ -220,7 +231,8 @@ def seed_demo_data():
             last_name=ud['last_name'],
             name=f"{ud['first_name']} {ud['last_name']}",
             email=ud['email'],
-            role=ud['role']
+            role=ud['role'],
+            dashboard_config_json=dashboard_defaults.get(ud['role'], dashboard_defaults['therapist'])
         )
         user.set_password(ud['password'])
         db.session.add(user)
