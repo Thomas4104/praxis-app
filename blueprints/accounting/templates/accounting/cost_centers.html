@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Kostenstellen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Kostenstellen</span>
+{% endblock %}
+
+{% block page_title %}Kostenstellen{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="document.getElementById('createCCModal').style.display='flex'">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Kostenstelle
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Kostenstellen-Auswertung -->
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0; font-size: 15px;">Deckungsbeitragsrechnung (aktuelles Jahr)</h3>
+    </div>
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Bezeichnung</th>
+                <th>Standort</th>
+                <th style="text-align: right;">Ertrag</th>
+                <th style="text-align: right;">Aufwand</th>
+                <th style="text-align: right;">Deckungsbeitrag</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cc in centers %}
+            {% set eval = evaluations.get(cc.id, {'ertrag': 0, 'aufwand': 0, 'deckungsbeitrag': 0}) %}
+            <tr>
+                <td><strong style="font-family: monospace;">{{ cc.code }}</strong></td>
+                <td>{{ cc.name }}</td>
+                <td>{{ cc.location.name if cc.location else '-' }}</td>
+                <td style="text-align: right; font-family: monospace; color: #27ae60;">CHF {{ '%.2f'|format(eval.ertrag) }}</td>
+                <td style="text-align: right; font-family: monospace; color: #e74c3c;">CHF {{ '%.2f'|format(eval.aufwand) }}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 700; color: {{ '#27ae60' if eval.deckungsbeitrag >= 0 else '#e74c3c' }};">
+                    CHF {{ '%.2f'|format(eval.deckungsbeitrag) }}
+                </td>
+                <td>
+                    {% if cc.is_active %}
+                    <span style="color: #27ae60; font-size: 12px;">Aktiv</span>
+                    {% else %}
+                    <span style="color: #95a5a6; font-size: 12px;">Inaktiv</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not centers %}
+            <tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 24px;">Keine Kostenstellen definiert.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal: Neue Kostenstelle -->
+<div id="createCCModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="padding: 24px; width: 420px; max-width: 95vw;">
+        <h3 style="margin: 0 0 16px;">Neue Kostenstelle</h3>
+        <form method="POST" action="{{ url_for('accounting.create_cost_center') }}">
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">Code</label>
+                    <input type="text" name="code" class="form-input" required placeholder="z.B. KST-01">
+                </div>
+                <div>
+                    <label class="form-label">Bezeichnung</label>
+                    <input type="text" name="name" class="form-input" required placeholder="z.B. Physiotherapie Zürich">
+                </div>
+                <div>
+                    <label class="form-label">Standort (optional)</label>
+                    <select name="location_id" class="form-input">
+                        <option value="">— Kein Standort —</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('createCCModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

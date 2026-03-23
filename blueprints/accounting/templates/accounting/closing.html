@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Abschlüsse{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Abschlüsse</span>
+{% endblock %}
+
+{% block page_title %}Abschlüsse{% endblock %}
+
+{% block content %}
+<!-- Saldo-Pruefung -->
+<div class="card" style="padding: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <strong>Saldo-Prüfung:</strong>
+        <span style="margin-left: 8px;">Soll: CHF {{ '%.2f'|format(total_debit) }} | Haben: CHF {{ '%.2f'|format(total_credit) }}</span>
+    </div>
+    {% if balance_ok %}
+    <span style="background: #27ae60; color: #fff; padding: 4px 12px; border-radius: 10px; font-size: 13px; font-weight: 600;">Ausgeglichen</span>
+    {% else %}
+    <span style="background: #e74c3c; color: #fff; padding: 4px 12px; border-radius: 10px; font-size: 13px; font-weight: 600;">Differenz: CHF {{ '%.2f'|format(total_debit - total_credit) }}</span>
+    {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+    <!-- Bilanz -->
+    <div class="card" style="padding: 16px;">
+        <h3 style="margin: 0 0 12px; font-size: 15px;">Bilanz per {{ bilanz.stichtag }}</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Aktiven -->
+            <div>
+                <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase;">Aktiven</h4>
+                {% for pos in bilanz.aktiven %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+                    <span>{{ pos.number }} {{ pos.name }}</span>
+                    <span style="font-family: monospace;">{{ '%.2f'|format(pos.balance) }}</span>
+                </div>
+                {% endfor %}
+                <div style="display: flex; justify-content: space-between; padding: 8px 0 4px; font-weight: 700; border-top: 2px solid var(--border); margin-top: 8px;">
+                    <span>Total Aktiven</span>
+                    <span style="font-family: monospace;">CHF {{ '%.2f'|format(bilanz.total_aktiven) }}</span>
+                </div>
+            </div>
+            <!-- Passiven -->
+            <div>
+                <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase;">Passiven</h4>
+                {% for pos in bilanz.passiven %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+                    <span>{{ pos.number }} {{ pos.name }}</span>
+                    <span style="font-family: monospace;">{{ '%.2f'|format(pos.balance) }}</span>
+                </div>
+                {% endfor %}
+                <div style="display: flex; justify-content: space-between; padding: 8px 0 4px; font-weight: 700; border-top: 2px solid var(--border); margin-top: 8px;">
+                    <span>Total Passiven</span>
+                    <span style="font-family: monospace;">CHF {{ '%.2f'|format(bilanz.total_passiven) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Erfolgsrechnung -->
+    <div class="card" style="padding: 16px;">
+        <h3 style="margin: 0 0 12px; font-size: 15px;">Erfolgsrechnung {{ erfolgsrechnung.von }} bis {{ erfolgsrechnung.bis }}</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Ertrag -->
+            <div>
+                <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase;">Ertrag</h4>
+                {% for pos in erfolgsrechnung.ertraege %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+                    <span>{{ pos.number }} {{ pos.name }}</span>
+                    <span style="font-family: monospace;">{{ '%.2f'|format(pos.balance) }}</span>
+                </div>
+                {% endfor %}
+                <div style="display: flex; justify-content: space-between; padding: 8px 0 4px; font-weight: 700; border-top: 2px solid var(--border); margin-top: 8px;">
+                    <span>Total Ertrag</span>
+                    <span style="font-family: monospace; color: #27ae60;">CHF {{ '%.2f'|format(erfolgsrechnung.total_ertrag) }}</span>
+                </div>
+            </div>
+            <!-- Aufwand -->
+            <div>
+                <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase;">Aufwand</h4>
+                {% for pos in erfolgsrechnung.aufwaende %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+                    <span>{{ pos.number }} {{ pos.name }}</span>
+                    <span style="font-family: monospace;">{{ '%.2f'|format(pos.balance) }}</span>
+                </div>
+                {% endfor %}
+                <div style="display: flex; justify-content: space-between; padding: 8px 0 4px; font-weight: 700; border-top: 2px solid var(--border); margin-top: 8px;">
+                    <span>Total Aufwand</span>
+                    <span style="font-family: monospace; color: #e74c3c;">CHF {{ '%.2f'|format(erfolgsrechnung.total_aufwand) }}</span>
+                </div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 16px; padding-top: 12px; border-top: 2px solid var(--border);">
+            <div style="font-size: 13px; color: var(--text-secondary);">Gewinn / Verlust</div>
+            <div style="font-size: 24px; font-weight: 700; color: {{ '#27ae60' if erfolgsrechnung.gewinn_verlust >= 0 else '#e74c3c' }};">
+                CHF {{ '%.2f'|format(erfolgsrechnung.gewinn_verlust) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Periodensperre -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+    <!-- Monatsabschluss -->
+    <div class="card" style="padding: 16px;">
+        <h3 style="margin: 0 0 12px; font-size: 15px;">Monatsabschluss</h3>
+        <form method="POST" action="{{ url_for('accounting.lock_month') }}" onsubmit="return confirm('Monat wirklich sperren? Danach sind keine Buchungen mehr in diesem Monat möglich.');">
+            <div style="display: flex; gap: 10px; align-items: end;">
+                <div>
+                    <label class="form-label" style="font-size: 12px;">Jahr</label>
+                    <input type="number" name="year" class="form-input" value="{{ current_year }}" style="width: 100px;">
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 12px;">Monat</label>
+                    <select name="month" class="form-input">
+                        {% for m in range(1, 13) %}
+                        <option value="{{ m }}">{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-secondary" style="color: #e74c3c;">Monat sperren</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Jahresabschluss -->
+    <div class="card" style="padding: 16px;">
+        <h3 style="margin: 0 0 12px; font-size: 15px;">Jahresabschluss</h3>
+        <form method="POST" action="{{ url_for('accounting.lock_year') }}" onsubmit="return confirm('Jahr wirklich sperren? Danach sind keine Buchungen mehr in diesem Jahr möglich.');">
+            <div style="display: flex; gap: 10px; align-items: end;">
+                <div>
+                    <label class="form-label" style="font-size: 12px;">Jahr</label>
+                    <input type="number" name="year" class="form-input" value="{{ current_year - 1 }}" style="width: 100px;">
+                </div>
+                <button type="submit" class="btn btn-secondary" style="color: #e74c3c;">Jahr sperren</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Gesperrte Perioden -->
+{% if locks %}
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0; font-size: 15px;">Gesperrte Perioden</h3>
+    </div>
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Periode</th>
+                <th>Gesperrt am</th>
+                <th>Gesperrt von</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lock in locks %}
+            <tr>
+                <td>
+                    {% if lock.month == 0 %}
+                    <strong>Jahr {{ lock.year }}</strong>
+                    {% else %}
+                    {{ lock.month }}/{{ lock.year }}
+                    {% endif %}
+                </td>
+                <td>{{ lock.locked_at.strftime('%d.%m.%Y %H:%M') if lock.locked_at else '-' }}</td>
+                <td>{{ lock.locked_by.first_name + ' ' + lock.locked_by.last_name if lock.locked_by else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

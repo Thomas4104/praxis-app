@@ -11,7 +11,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     TherapyGoal, Milestone, Measurement, HealingPhase, \
     SystemSetting, EmailTemplate, PrintTemplate, Permission, \
     CostApproval, CostApprovalItem, Task, TaskComment, \
-    Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email
+    Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email, \
+    Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock
 from config import config
 
 
@@ -56,6 +57,7 @@ def create_app(config_name=None):
     from blueprints.tasks import tasks_bp
     from blueprints.billing import billing_bp
     from blueprints.mailing import mailing_bp
+    from blueprints.accounting import accounting_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -72,6 +74,7 @@ def create_app(config_name=None):
     app.register_blueprint(tasks_bp, url_prefix='/tasks')
     app.register_blueprint(billing_bp, url_prefix='/billing')
     app.register_blueprint(mailing_bp, url_prefix='/mailing')
+    app.register_blueprint(accounting_bp, url_prefix='/accounting')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -88,6 +91,7 @@ def create_app(config_name=None):
     csrf.exempt(tasks_bp)
     csrf.exempt(billing_bp)
     csrf.exempt(mailing_bp)
+    csrf.exempt(accounting_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1060,6 +1064,14 @@ def seed_demo_data():
     # === Einstellungen: Demo-Daten ===
     _seed_settings_demo_data(org, patients)
 
+    # === Finanzbuchhaltung: Demo-Daten ===
+    try:
+        seed_accounting_data(org, loc_zh, loc_wt, created_users)
+    except Exception as e:
+        print(f'Fehler bei Finanzbuchhaltung-Demo-Daten: {e}')
+        import traceback
+        traceback.print_exc()
+
 
 def _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users):
     """Erstellt Demo-Daten fuer Abrechnung: Rechnungen, Zahlungen, Mahnungen"""
@@ -1767,6 +1779,287 @@ th { background: #f5f5f5; }
                 action=action,
                 is_allowed=action in empfang_rechte.get(module, [])
             ))
+
+    db.session.commit()
+
+
+def seed_accounting_data(org, loc_zh, loc_wt, created_users):
+    """Erstellt Demo-Daten fuer die Finanzbuchhaltung"""
+
+    # Pruefen ob bereits Konten vorhanden
+    if Account.query.filter_by(organization_id=org.id).first():
+        return
+
+    admin_user = created_users.get('admin')
+
+    # === Kontenplan (Schweizer KMU, Physiotherapie-spezifisch) ===
+    konten_daten = [
+        # 1xxx Aktiven
+        ('1000', 'Kasse', 'asset'),
+        ('1020', 'Bank (UBS)', 'asset'),
+        ('1021', 'Bank (ZKB)', 'asset'),
+        ('1100', 'Debitoren Patienten', 'asset'),
+        ('1101', 'Debitoren Versicherungen', 'asset'),
+        ('1170', 'Vorsteuer', 'asset'),
+        ('1200', 'Vorräte Therapiematerial', 'asset'),
+        ('1500', 'Praxiseinrichtung', 'asset'),
+        ('1510', 'Medizinische Geräte', 'asset'),
+        ('1520', 'IT/EDV', 'asset'),
+        # 2xxx Passiven
+        ('2000', 'Kreditoren', 'liability'),
+        ('2200', 'MwSt-Schuld', 'liability'),
+        ('2400', 'Langfristige Darlehen', 'liability'),
+        ('2800', 'Eigenkapital', 'equity'),
+        ('2900', 'Gewinnvortrag', 'equity'),
+        # 3xxx Betriebsertrag
+        ('3000', 'Behandlungsertrag KVG', 'income'),
+        ('3010', 'Behandlungsertrag UVG/IVG/MVG', 'income'),
+        ('3020', 'Behandlungsertrag Privat/Selbstzahler', 'income'),
+        ('3100', 'Produkteverkauf', 'income'),
+        ('3200', 'Fitnessabo-Ertrag', 'income'),
+        # 4xxx Aufwand Material
+        ('4000', 'Therapiematerial', 'expense'),
+        ('4100', 'Medizinisches Verbrauchsmaterial', 'expense'),
+        # 5xxx Personalaufwand
+        ('5000', 'Löhne', 'expense'),
+        ('5700', 'Sozialversicherungen', 'expense'),
+        ('5800', 'Übriger Personalaufwand', 'expense'),
+        # 6xxx Betriebsaufwand
+        ('6000', 'Raumaufwand (Miete)', 'expense'),
+        ('6100', 'Unterhalt und Reparaturen', 'expense'),
+        ('6200', 'Fahrzeugaufwand', 'expense'),
+        ('6300', 'Versicherungen', 'expense'),
+        ('6400', 'Energie', 'expense'),
+        ('6500', 'Verwaltungsaufwand', 'expense'),
+        ('6570', 'IT-Kosten', 'expense'),
+        ('6600', 'Werbung/Marketing', 'expense'),
+        ('6700', 'Sonstiger Betriebsaufwand', 'expense'),
+        ('6800', 'Abschreibungen', 'expense'),
+        ('6900', 'Finanzaufwand', 'expense'),
+    ]
+
+    konten = {}
+    for nummer, name, typ in konten_daten:
+        acc = Account(
+            organization_id=org.id,
+            account_number=nummer,
+            name=name,
+            account_type=typ,
+            is_active=True
+        )
+        db.session.add(acc)
+        konten[nummer] = acc
+    db.session.flush()
+
+    # === Kostenstellen ===
+    kostenstellen = [
+        ('KST-PHY-ZH', 'Physiotherapie Zürich', loc_zh.id),
+        ('KST-PHY-WT', 'Physiotherapie Winterthur', loc_wt.id),
+        ('KST-FIT', 'Fitness', None),
+        ('KST-ADM', 'Administration', None),
+    ]
+
+    cc_objects = {}
+    for code, name, loc_id in kostenstellen:
+        cc = CostCenter(
+            organization_id=org.id,
+            code=code,
+            name=name,
+            location_id=loc_id,
+            is_active=True
+        )
+        db.session.add(cc)
+        cc_objects[code] = cc
+    db.session.flush()
+
+    # === Demo-Buchungen ===
+    from datetime import date as date_cls, timedelta
+
+    buchungen = [
+        # 1: Rechnung Patient (Debitoren an Behandlungsertrag KVG)
+        {
+            'date': date_cls(2026, 3, 1), 'desc': 'Rechnung RE-2026-0001 - Müller Hans',
+            'source': 'invoice', 'lines': [
+                {'acc': '1100', 'debit': 450.00, 'credit': 0},
+                {'acc': '3000', 'debit': 0, 'credit': 450.00}
+            ]
+        },
+        # 2: Rechnung Versicherung (Debitoren an Behandlungsertrag UVG)
+        {
+            'date': date_cls(2026, 3, 3), 'desc': 'Rechnung RE-2026-0002 - Weber Anna (UVG)',
+            'source': 'invoice', 'lines': [
+                {'acc': '1101', 'debit': 720.00, 'credit': 0},
+                {'acc': '3010', 'debit': 0, 'credit': 720.00}
+            ]
+        },
+        # 3: Zahlung Patient (Bank an Debitoren)
+        {
+            'date': date_cls(2026, 3, 8), 'desc': 'Zahlungseingang Müller Hans',
+            'source': 'payment', 'lines': [
+                {'acc': '1020', 'debit': 450.00, 'credit': 0},
+                {'acc': '1100', 'debit': 0, 'credit': 450.00}
+            ]
+        },
+        # 4: Zahlung Versicherung (Bank an Debitoren)
+        {
+            'date': date_cls(2026, 3, 12), 'desc': 'Zahlungseingang CSS UVG Weber',
+            'source': 'payment', 'lines': [
+                {'acc': '1020', 'debit': 720.00, 'credit': 0},
+                {'acc': '1101', 'debit': 0, 'credit': 720.00}
+            ]
+        },
+        # 5: Miete (Raumaufwand an Bank)
+        {
+            'date': date_cls(2026, 3, 1), 'desc': 'Miete März 2026',
+            'source': 'manual', 'lines': [
+                {'acc': '6000', 'debit': 3500.00, 'credit': 0, 'cc': 'KST-PHY-ZH'},
+                {'acc': '1020', 'debit': 0, 'credit': 3500.00}
+            ]
+        },
+        # 6: Versicherung (Versicherung an Bank)
+        {
+            'date': date_cls(2026, 3, 5), 'desc': 'Betriebsversicherung Q1/2026',
+            'source': 'manual', 'lines': [
+                {'acc': '6300', 'debit': 450.00, 'credit': 0},
+                {'acc': '1020', 'debit': 0, 'credit': 450.00}
+            ]
+        },
+        # 7: Materialbestellung (Therapiematerial an Kreditoren)
+        {
+            'date': date_cls(2026, 3, 10), 'desc': 'Therapiematerial MediShop AG',
+            'source': 'creditor', 'lines': [
+                {'acc': '4000', 'debit': 258.54, 'credit': 0},
+                {'acc': '1170', 'debit': 21.46, 'credit': 0, 'vat_code': 'vorsteuer', 'vat_amount': 21.46},
+                {'acc': '2000', 'debit': 0, 'credit': 280.00}
+            ]
+        },
+        # 8: Kreditor-Zahlung (Kreditoren an Bank)
+        {
+            'date': date_cls(2026, 3, 15), 'desc': 'Zahlung MediShop AG',
+            'source': 'creditor_payment', 'lines': [
+                {'acc': '2000', 'debit': 280.00, 'credit': 0},
+                {'acc': '1020', 'debit': 0, 'credit': 280.00}
+            ]
+        },
+        # 9: Lohn (Löhne an Bank)
+        {
+            'date': date_cls(2026, 3, 25), 'desc': 'Löhne März 2026',
+            'source': 'salary', 'lines': [
+                {'acc': '5000', 'debit': 12000.00, 'credit': 0, 'cc': 'KST-ADM'},
+                {'acc': '1020', 'debit': 0, 'credit': 12000.00}
+            ]
+        },
+        # 10: MwSt-Buchung (Privatleistung mit MwSt)
+        {
+            'date': date_cls(2026, 3, 18), 'desc': 'Rechnung RE-2026-0003 - Privatbehandlung',
+            'source': 'invoice', 'lines': [
+                {'acc': '1100', 'debit': 200.00, 'credit': 0},
+                {'acc': '3020', 'debit': 0, 'credit': 185.01},
+                {'acc': '2200', 'debit': 0, 'credit': 14.99, 'vat_code': '8.1', 'vat_amount': 14.99}
+            ]
+        },
+    ]
+
+    entry_num = 1
+    for b in buchungen:
+        entry = JournalEntry(
+            organization_id=org.id,
+            entry_number=f'BU-2026-{entry_num:04d}',
+            date=b['date'],
+            description=b['desc'],
+            source=b['source'],
+            created_by_id=admin_user.id if admin_user else None
+        )
+        db.session.add(entry)
+        db.session.flush()
+
+        for line in b['lines']:
+            acc = konten.get(line['acc'])
+            if acc:
+                jel = JournalEntryLine(
+                    entry_id=entry.id,
+                    account_id=acc.id,
+                    debit=line.get('debit', 0),
+                    credit=line.get('credit', 0),
+                    vat_code=line.get('vat_code'),
+                    vat_amount=line.get('vat_amount', 0),
+                    cost_center_id=cc_objects.get(line.get('cc')).id if line.get('cc') else None,
+                    description=b['desc']
+                )
+                db.session.add(jel)
+
+        entry_num += 1
+
+    # === Kreditoren-Rechnungen ===
+    # 1: Offen
+    cred1 = CreditorInvoice(
+        organization_id=org.id,
+        creditor_name='PhysioSupply GmbH',
+        invoice_number='PS-2026-0142',
+        invoice_date=date_cls(2026, 3, 15),
+        due_date=date_cls(2026, 4, 15),
+        amount=560.00,
+        vat_amount=45.36,
+        account_id=konten['4100'].id,
+        status='open',
+        notes='Verbrauchsmaterial Q1'
+    )
+    # 2: Bezahlt
+    cred2 = CreditorInvoice(
+        organization_id=org.id,
+        creditor_name='MediShop AG',
+        invoice_number='MS-2026-0089',
+        invoice_date=date_cls(2026, 3, 5),
+        due_date=date_cls(2026, 4, 5),
+        amount=280.00,
+        vat_amount=21.46,
+        account_id=konten['4000'].id,
+        status='paid',
+        notes='Therapiematerial'
+    )
+    db.session.add_all([cred1, cred2])
+
+    # === Anlagegüter ===
+    asset1 = FixedAsset(
+        organization_id=org.id,
+        name='Ultraschallgerät Siemens',
+        category='devices',
+        acquisition_date=date_cls(2024, 1, 15),
+        acquisition_value=8000.00,
+        useful_life_years=8,
+        depreciation_method='linear',
+        current_book_value=6000.00,
+        account_id=konten['1510'].id,
+        depreciation_account_id=konten['6800'].id,
+        is_active=True
+    )
+    asset2 = FixedAsset(
+        organization_id=org.id,
+        name='Stosswellengerät Swiss DolorClast',
+        category='devices',
+        acquisition_date=date_cls(2023, 6, 1),
+        acquisition_value=12000.00,
+        useful_life_years=10,
+        depreciation_method='linear',
+        current_book_value=8800.00,
+        account_id=konten['1510'].id,
+        depreciation_account_id=konten['6800'].id,
+        is_active=True
+    )
+    asset3 = FixedAsset(
+        organization_id=org.id,
+        name='IT-Infrastruktur (Server, PCs, Tablets)',
+        category='it',
+        acquisition_date=date_cls(2025, 1, 1),
+        acquisition_value=5000.00,
+        useful_life_years=4,
+        depreciation_method='linear',
+        current_book_value=3750.00,
+        account_id=konten['1520'].id,
+        depreciation_account_id=konten['6800'].id,
+        is_active=True
+    )
+    db.session.add_all([asset1, asset2, asset3])
 
     db.session.commit()
 

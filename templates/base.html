@@ -145,6 +145,15 @@
                 <span class="nav-label">Aufgaben</span>
                 <span class="nav-badge" id="taskBadge" style="display:none"></span>
             </a>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('accounting.index') }}" class="nav-item {% if request.blueprint == 'accounting' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                <span class="nav-label">Finanzen</span>
+            </a>
+            {% endif %}
             <a href="#" class="nav-item">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>

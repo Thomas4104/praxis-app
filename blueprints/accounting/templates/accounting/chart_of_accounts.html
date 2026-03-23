@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Kontenplan{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Kontenplan</span>
+{% endblock %}
+
+{% block page_title %}Kontenplan{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="document.getElementById('createAccountModal').style.display='flex'">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neues Konto
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Suchfeld -->
+<div class="card" style="padding: 16px; margin-bottom: 20px;">
+    <form method="GET" action="{{ url_for('accounting.chart_of_accounts') }}" style="display: flex; gap: 10px;">
+        <input type="text" name="search" class="form-input" placeholder="Kontonummer oder Name suchen..." value="{{ search }}" style="flex: 1;">
+        <button type="submit" class="btn btn-primary">Suchen</button>
+        {% if search %}
+        <a href="{{ url_for('accounting.chart_of_accounts') }}" class="btn btn-secondary">Zurücksetzen</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Kontenplan -->
+{% for cat_key, cat in categories.items() %}
+{% if cat.accounts %}
+<div class="card" style="padding: 0; margin-bottom: 16px;">
+    <div style="padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="toggleCategory('cat-{{ cat_key }}')">
+        <h3 style="margin: 0; font-size: 15px;">{{ cat_key }}xxx — {{ cat.name }}</h3>
+        <svg id="cat-{{ cat_key }}-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s;">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    </div>
+    <div id="cat-{{ cat_key }}" style="display: block;">
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Konto</th>
+                    <th>Bezeichnung</th>
+                    <th style="width: 120px;">Typ</th>
+                    <th style="width: 80px;">MwSt</th>
+                    <th style="width: 130px; text-align: right;">Saldo</th>
+                    <th style="width: 100px;">Status</th>
+                    <th style="width: 140px;">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for acc in cat.accounts %}
+                <tr style="{{ 'opacity: 0.5;' if not acc.is_active }}">
+                    <td><strong style="font-family: monospace;">{{ acc.account_number }}</strong></td>
+                    <td>{{ acc.name }}</td>
+                    <td>
+                        {% if acc.account_type == 'asset' %}Aktiv
+                        {% elif acc.account_type == 'liability' %}Passiv
+                        {% elif acc.account_type == 'equity' %}Eigenkapital
+                        {% elif acc.account_type == 'income' %}Ertrag
+                        {% elif acc.account_type == 'expense' %}Aufwand
+                        {% endif %}
+                    </td>
+                    <td>{{ acc.vat_code or '-' }}</td>
+                    <td style="text-align: right; font-weight: 600; font-family: monospace;">
+                        {% set balance = account_balances.get(acc.id, 0) %}
+                        <span style="color: {{ '#e74c3c' if balance < 0 else 'var(--text-primary)' }};">
+                            CHF {{ '%.2f'|format(balance) }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if acc.is_active %}
+                        <span style="color: #27ae60; font-size: 12px;">Aktiv</span>
+                        {% else %}
+                        <span style="color: #95a5a6; font-size: 12px;">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('accounting.account_statement', id=acc.id) }}" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;">Auszug</a>
+                        <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="editAccount({{ acc.id }}, '{{ acc.name }}', '{{ acc.account_type }}', '{{ acc.vat_code or '' }}', {{ 'true' if acc.is_active else 'false' }})">Bearbeiten</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- Modal: Neues Konto -->
+<div id="createAccountModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="padding: 24px; width: 480px; max-width: 95vw;">
+        <h3 style="margin: 0 0 16px;">Neues Konto erstellen</h3>
+        <form method="POST" action="{{ url_for('accounting.create_account') }}">
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">Kontonummer</label>
+                    <input type="text" name="account_number" class="form-input" required placeholder="z.B. 1030">
+                </div>
+                <div>
+                    <label class="form-label">Bezeichnung</label>
+                    <input type="text" name="name" class="form-input" required placeholder="z.B. PostFinance">
+                </div>
+                <div>
+                    <label class="form-label">Typ</label>
+                    <select name="account_type" class="form-input">
+                        <option value="asset">Aktiv</option>
+                        <option value="liability">Passiv</option>
+                        <option value="equity">Eigenkapital</option>
+                        <option value="income">Ertrag</option>
+                        <option value="expense">Aufwand</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">MwSt-Code</label>
+                    <select name="vat_code" class="form-input">
+                        <option value="">Keine MwSt</option>
+                        <option value="8.1">Normalsatz (8.1%)</option>
+                        <option value="2.6">Reduzierter Satz (2.6%)</option>
+                        <option value="3.8">Sondersatz (3.8%)</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('createAccountModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Konto bearbeiten -->
+<div id="editAccountModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="padding: 24px; width: 480px; max-width: 95vw;">
+        <h3 style="margin: 0 0 16px;">Konto bearbeiten</h3>
+        <form id="editAccountForm" method="POST">
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">Bezeichnung</label>
+                    <input type="text" name="name" id="editName" class="form-input" required>
+                </div>
+                <div>
+                    <label class="form-label">Typ</label>
+                    <select name="account_type" id="editType" class="form-input">
+                        <option value="asset">Aktiv</option>
+                        <option value="liability">Passiv</option>
+                        <option value="equity">Eigenkapital</option>
+                        <option value="income">Ertrag</option>
+                        <option value="expense">Aufwand</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">MwSt-Code</label>
+                    <select name="vat_code" id="editVat" class="form-input">
+                        <option value="">Keine MwSt</option>
+                        <option value="8.1">Normalsatz (8.1%)</option>
+                        <option value="2.6">Reduzierter Satz (2.6%)</option>
+                        <option value="3.8">Sondersatz (3.8%)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="is_active" id="editActive">
+                        Aktiv
+                    </label>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('editAccountModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleCategory(id) {
+    var el = document.getElementById(id);
+    var icon = document.getElementById(id + '-icon');
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        el.style.display = 'none';
+        icon.style.transform = 'rotate(-90deg)';
+    }
+}
+
+function editAccount(id, name, type, vat, active) {
+    document.getElementById('editAccountForm').action = '/accounting/chart/' + id + '/edit';
+    document.getElementById('editName').value = name;
+    document.getElementById('editType').value = type;
+    document.getElementById('editVat').value = vat;
+    document.getElementById('editActive').checked = active;
+    document.getElementById('editAccountModal').style.display = 'flex';
+}
+</script>
+{% endblock %}

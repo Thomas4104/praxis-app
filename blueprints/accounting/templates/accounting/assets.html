@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Anlagenbuchhaltung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Anlagen</span>
+{% endblock %}
+
+{% block page_title %}Anlagenbuchhaltung{% endblock %}
+
+{% block page_actions %}
+<form method="POST" action="{{ url_for('accounting.depreciate') }}" style="display: inline;" onsubmit="return confirm('Abschreibungslauf jetzt durchführen?');">
+    <button type="submit" class="btn btn-secondary">Abschreibungslauf</button>
+</form>
+<button class="btn btn-primary" onclick="document.getElementById('createAssetModal').style.display='flex'">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neues Anlagegut
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Statistik -->
+<div class="stats-row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700;">{{ fixed_assets|length }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Anlagegüter</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">CHF {{ '%.2f'|format(total_acquisition) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Anschaffungswert</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #27ae60;">CHF {{ '%.2f'|format(total_book) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Buchwert</div>
+    </div>
+</div>
+
+<!-- Anlagen-Liste -->
+<div class="card" style="padding: 0;">
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Kategorie</th>
+                <th>Anschaffung</th>
+                <th style="text-align: right;">Anschaffungswert</th>
+                <th>Nutzungsdauer</th>
+                <th>Methode</th>
+                <th style="text-align: right;">Buchwert</th>
+                <th>Abschreibung %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for asset in fixed_assets %}
+            {% set abschreibung_pct = ((asset.acquisition_value - (asset.current_book_value or 0)) / asset.acquisition_value * 100) if asset.acquisition_value > 0 else 0 %}
+            <tr>
+                <td><strong>{{ asset.name }}</strong></td>
+                <td>
+                    {% if asset.category == 'furniture' %}Einrichtung
+                    {% elif asset.category == 'devices' %}Geräte
+                    {% elif asset.category == 'it' %}IT/EDV
+                    {% elif asset.category == 'vehicles' %}Fahrzeuge
+                    {% else %}{{ asset.category }}{% endif %}
+                </td>
+                <td>{{ asset.acquisition_date.strftime('%d.%m.%Y') }}</td>
+                <td style="text-align: right; font-family: monospace;">CHF {{ '%.2f'|format(asset.acquisition_value) }}</td>
+                <td>{{ asset.useful_life_years }} Jahre</td>
+                <td>{{ 'Linear' if asset.depreciation_method == 'linear' else 'Degressiv' }}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 600;">CHF {{ '%.2f'|format(asset.current_book_value or 0) }}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="flex: 1; background: var(--bg-secondary); border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div style="width: {{ abschreibung_pct }}%; height: 100%; background: var(--primary); border-radius: 4px;"></div>
+                        </div>
+                        <span style="font-size: 12px; min-width: 40px;">{{ '%.0f'|format(abschreibung_pct) }}%</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not fixed_assets %}
+            <tr><td colspan="8" style="text-align: center; color: var(--text-secondary); padding: 24px;">Keine Anlagegüter erfasst.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal: Neues Anlagegut -->
+<div id="createAssetModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="padding: 24px; width: 520px; max-width: 95vw;">
+        <h3 style="margin: 0 0 16px;">Neues Anlagegut erfassen</h3>
+        <form method="POST" action="{{ url_for('accounting.create_asset') }}">
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">Bezeichnung</label>
+                    <input type="text" name="name" class="form-input" required placeholder="z.B. Ultraschallgerät">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Kategorie</label>
+                        <select name="category" class="form-input">
+                            <option value="furniture">Einrichtung</option>
+                            <option value="devices">Medizinische Geräte</option>
+                            <option value="it">IT/EDV</option>
+                            <option value="vehicles">Fahrzeuge</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Anschaffungsdatum</label>
+                        <input type="date" name="acquisition_date" class="form-input" value="{{ today.isoformat() }}">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Anschaffungswert (CHF)</label>
+                        <input type="number" name="acquisition_value" class="form-input" step="0.01" required placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="form-label">Nutzungsdauer (Jahre)</label>
+                        <input type="number" name="useful_life_years" class="form-input" value="5" min="1">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Abschreibungsmethode</label>
+                        <select name="depreciation_method" class="form-input">
+                            <option value="linear">Linear</option>
+                            <option value="degressive">Degressiv</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Anlagekonto</label>
+                        <select name="account_id" class="form-input">
+                            <option value="">— Konto —</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Abschreibungskonto</label>
+                    <select name="depreciation_account_id" class="form-input">
+                        <option value="">— Konto —</option>
+                        {% for acc in depreciation_accounts %}
+                        <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('createAssetModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Erfassen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

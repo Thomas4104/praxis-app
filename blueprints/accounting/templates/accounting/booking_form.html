@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Buchung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.journal') }}">Journal</a>
+<span class="breadcrumb-sep">/</span>
+<span>Neue Buchung</span>
+{% endblock %}
+
+{% block page_title %}Neue Buchung{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('accounting.create_booking') }}">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Buchungskopf -->
+        <div class="card" style="padding: 20px;">
+            <h3 style="margin: 0 0 16px; font-size: 15px;">Buchungsdaten</h3>
+            <div style="display: grid; gap: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Datum</label>
+                        <input type="date" name="date" class="form-input" value="{{ today.isoformat() }}" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Beleg-Nr.</label>
+                        <input type="text" name="reference" class="form-input" value="{{ next_number }}" placeholder="Auto">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Buchungstext</label>
+                    <input type="text" name="description" class="form-input" required placeholder="Beschreibung der Buchung">
+                </div>
+            </div>
+        </div>
+
+        <!-- Optionen -->
+        <div class="card" style="padding: 20px;">
+            <h3 style="margin: 0 0 16px; font-size: 15px;">Optionen</h3>
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">MwSt-Code</label>
+                    <select name="vat_code" id="vatCode" class="form-input" onchange="calculateVat()">
+                        <option value="">Keine MwSt</option>
+                        <option value="8.1">Normalsatz (8.1%)</option>
+                        <option value="2.6">Reduzierter Satz (2.6%)</option>
+                        <option value="3.8">Sondersatz (3.8%)</option>
+                        <option value="vorsteuer">Vorsteuer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">MwSt-Betrag (CHF)</label>
+                    <input type="number" name="vat_amount" id="vatAmount" class="form-input" step="0.01" value="0">
+                </div>
+                <div>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="is_recurring" id="isRecurring" onchange="document.getElementById('recurringOptions').style.display = this.checked ? 'block' : 'none'">
+                        Wiederkehrende Buchung
+                    </label>
+                </div>
+                <div id="recurringOptions" style="display: none;">
+                    <label class="form-label">Intervall</label>
+                    <select name="recurring_interval" class="form-input">
+                        <option value="monthly">Monatlich</option>
+                        <option value="quarterly">Quartalsweise</option>
+                        <option value="yearly">Jährlich</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Einfache Buchung -->
+    <div class="card" style="padding: 20px; margin-top: 20px;" id="simpleBooking">
+        <h3 style="margin: 0 0 16px; font-size: 15px;">
+            Einfache Buchung
+            <button type="button" class="btn btn-secondary" style="float: right; font-size: 12px;" onclick="toggleCollectionBooking()">Sammelbuchung</button>
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 200px; gap: 16px; align-items: end;">
+            <div>
+                <label class="form-label">Soll-Konto</label>
+                <select name="soll_account_id" id="sollAccount" class="form-input">
+                    <option value="">— Konto wählen —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Haben-Konto</label>
+                <select name="haben_account_id" id="habenAccount" class="form-input">
+                    <option value="">— Konto wählen —</option>
+                    {% for acc in accounts %}
+                    <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Betrag (CHF)</label>
+                <input type="number" name="betrag" id="betrag" class="form-input" step="0.01" min="0.01" placeholder="0.00" onchange="calculateVat()">
+            </div>
+        </div>
+    </div>
+
+    <!-- Sammelbuchung -->
+    <div class="card" style="padding: 20px; margin-top: 20px; display: none;" id="collectionBooking">
+        <h3 style="margin: 0 0 16px; font-size: 15px;">
+            Sammelbuchung
+            <button type="button" class="btn btn-secondary" style="float: right; font-size: 12px;" onclick="toggleCollectionBooking()">Einfache Buchung</button>
+        </h3>
+        <table class="data-table" style="width: 100%;" id="linesTable">
+            <thead>
+                <tr>
+                    <th>Konto</th>
+                    <th style="width: 130px;">Soll</th>
+                    <th style="width: 130px;">Haben</th>
+                    <th style="width: 120px;">MwSt</th>
+                    <th>Kostenstelle</th>
+                    <th>Beschreibung</th>
+                    <th style="width: 50px;"></th>
+                </tr>
+            </thead>
+            <tbody id="linesBody">
+                <tr>
+                    <td>
+                        <select name="lines-0-account_id" class="form-input" style="font-size: 12px;">
+                            <option value="">— Konto —</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="number" name="lines-0-debit" class="form-input" step="0.01" value="0" style="font-size: 12px;" onchange="updateTotals()"></td>
+                    <td><input type="number" name="lines-0-credit" class="form-input" step="0.01" value="0" style="font-size: 12px;" onchange="updateTotals()"></td>
+                    <td>
+                        <select name="lines-0-vat_code" class="form-input" style="font-size: 12px;">
+                            <option value="">-</option>
+                            <option value="8.1">8.1%</option>
+                            <option value="2.6">2.6%</option>
+                            <option value="3.8">3.8%</option>
+                            <option value="vorsteuer">VSt</option>
+                        </select>
+                        <input type="hidden" name="lines-0-vat_amount" value="0">
+                    </td>
+                    <td>
+                        <select name="lines-0-cost_center_id" class="form-input" style="font-size: 12px;">
+                            <option value="">-</option>
+                            {% for cc in cost_centers %}
+                            <option value="{{ cc.id }}">{{ cc.code }} {{ cc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="text" name="lines-0-description" class="form-input" style="font-size: 12px;"></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>
+                        <select name="lines-1-account_id" class="form-input" style="font-size: 12px;">
+                            <option value="">— Konto —</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="number" name="lines-1-debit" class="form-input" step="0.01" value="0" style="font-size: 12px;" onchange="updateTotals()"></td>
+                    <td><input type="number" name="lines-1-credit" class="form-input" step="0.01" value="0" style="font-size: 12px;" onchange="updateTotals()"></td>
+                    <td>
+                        <select name="lines-1-vat_code" class="form-input" style="font-size: 12px;">
+                            <option value="">-</option>
+                            <option value="8.1">8.1%</option>
+                            <option value="2.6">2.6%</option>
+                            <option value="3.8">3.8%</option>
+                            <option value="vorsteuer">VSt</option>
+                        </select>
+                        <input type="hidden" name="lines-1-vat_amount" value="0">
+                    </td>
+                    <td>
+                        <select name="lines-1-cost_center_id" class="form-input" style="font-size: 12px;">
+                            <option value="">-</option>
+                            {% for cc in cost_centers %}
+                            <option value="{{ cc.id }}">{{ cc.code }} {{ cc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><input type="text" name="lines-1-description" class="form-input" style="font-size: 12px;"></td>
+                    <td></td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: 700;">
+                    <td>Total</td>
+                    <td id="totalDebit" style="font-family: monospace;">0.00</td>
+                    <td id="totalCredit" style="font-family: monospace;">0.00</td>
+                    <td colspan="4">
+                        <span id="balanceCheck" style="font-size: 12px;"></span>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <button type="button" class="btn btn-secondary" style="margin-top: 10px; font-size: 12px;" onclick="addLine()">+ Zeile hinzufügen</button>
+    </div>
+
+    <!-- Aktionen -->
+    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <a href="{{ url_for('accounting.journal') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Buchung erstellen</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var lineCount = 2;
+var accountOptions = '';
+{% for acc in accounts %}
+accountOptions += '<option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>';
+{% endfor %}
+
+var ccOptions = '';
+{% for cc in cost_centers %}
+ccOptions += '<option value="{{ cc.id }}">{{ cc.code }} {{ cc.name }}</option>';
+{% endfor %}
+
+function toggleCollectionBooking() {
+    var simple = document.getElementById('simpleBooking');
+    var collection = document.getElementById('collectionBooking');
+    if (simple.style.display === 'none') {
+        simple.style.display = 'block';
+        collection.style.display = 'none';
+    } else {
+        simple.style.display = 'none';
+        collection.style.display = 'block';
+    }
+}
+
+function addLine() {
+    var idx = lineCount++;
+    var row = document.createElement('tr');
+    row.innerHTML = '<td><select name="lines-' + idx + '-account_id" class="form-input" style="font-size:12px"><option value="">— Konto —</option>' + accountOptions + '</select></td>' +
+        '<td><input type="number" name="lines-' + idx + '-debit" class="form-input" step="0.01" value="0" style="font-size:12px" onchange="updateTotals()"></td>' +
+        '<td><input type="number" name="lines-' + idx + '-credit" class="form-input" step="0.01" value="0" style="font-size:12px" onchange="updateTotals()"></td>' +
+        '<td><select name="lines-' + idx + '-vat_code" class="form-input" style="font-size:12px"><option value="">-</option><option value="8.1">8.1%</option><option value="2.6">2.6%</option><option value="3.8">3.8%</option><option value="vorsteuer">VSt</option></select><input type="hidden" name="lines-' + idx + '-vat_amount" value="0"></td>' +
+        '<td><select name="lines-' + idx + '-cost_center_id" class="form-input" style="font-size:12px"><option value="">-</option>' + ccOptions + '</select></td>' +
+        '<td><input type="text" name="lines-' + idx + '-description" class="form-input" style="font-size:12px"></td>' +
+        '<td><button type="button" onclick="this.closest(\'tr\').remove(); updateTotals();" style="background:none;border:none;color:#e74c3c;cursor:pointer;font-size:16px;">&times;</button></td>';
+    document.getElementById('linesBody').appendChild(row);
+}
+
+function updateTotals() {
+    var debits = document.querySelectorAll('[name$="-debit"]');
+    var credits = document.querySelectorAll('[name$="-credit"]');
+    var totalD = 0, totalC = 0;
+    debits.forEach(function(el) { totalD += parseFloat(el.value) || 0; });
+    credits.forEach(function(el) { totalC += parseFloat(el.value) || 0; });
+    document.getElementById('totalDebit').textContent = totalD.toFixed(2);
+    document.getElementById('totalCredit').textContent = totalC.toFixed(2);
+    var check = document.getElementById('balanceCheck');
+    if (Math.abs(totalD - totalC) < 0.01) {
+        check.textContent = 'Ausgeglichen';
+        check.style.color = '#27ae60';
+    } else {
+        check.textContent = 'Differenz: ' + Math.abs(totalD - totalC).toFixed(2);
+        check.style.color = '#e74c3c';
+    }
+}
+
+function calculateVat() {
+    var betrag = parseFloat(document.getElementById('betrag').value) || 0;
+    var vatCode = document.getElementById('vatCode').value;
+    var rates = {'8.1': 0.081, '3.8': 0.038, '2.6': 0.026};
+    var rate = rates[vatCode] || 0;
+    var vatAmount = Math.round(betrag * rate / (1 + rate) * 100) / 100;
+    document.getElementById('vatAmount').value = vatAmount.toFixed(2);
+}
+</script>
+{% endblock %}

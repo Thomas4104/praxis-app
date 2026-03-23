@@ -962,3 +962,143 @@ class AuditLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref='audit_logs')
+
+
+# ============================================================
+# Finanzbuchhaltung
+# ============================================================
+
+class Account(db.Model):
+    """Kontenplan fuer doppelte Buchhaltung nach Schweizer KMU-Kontenrahmen"""
+    __tablename__ = 'accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    account_number = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    account_type = db.Column(db.String(20))  # asset, liability, equity, income, expense
+    parent_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)
+    vat_code = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('accounts', lazy='dynamic'))
+    parent_account = db.relationship('Account', remote_side='Account.id', backref='sub_accounts')
+    journal_lines = db.relationship('JournalEntryLine', backref='account', lazy='dynamic')
+
+
+class JournalEntry(db.Model):
+    """Buchungsjournal-Eintrag (Kopf)"""
+    __tablename__ = 'journal_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    entry_number = db.Column(db.String(20))
+    date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    reference = db.Column(db.String(100))
+    source = db.Column(db.String(50))  # manual, invoice, payment, salary, depreciation, storno
+    source_id = db.Column(db.Integer)
+    is_storno = db.Column(db.Boolean, default=False)
+    storno_of_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    is_recurring = db.Column(db.Boolean, default=False)
+    recurring_interval = db.Column(db.String(20))  # monthly, quarterly, yearly
+    attachment_path = db.Column(db.String(500))
+    period_locked = db.Column(db.Boolean, default=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('journal_entries', lazy='dynamic'))
+    created_by = db.relationship('User', backref='journal_entries')
+    storno_of = db.relationship('JournalEntry', remote_side='JournalEntry.id', backref='storno_entries')
+    lines = db.relationship('JournalEntryLine', backref='entry', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class JournalEntryLine(db.Model):
+    """Einzelne Buchungszeile (Soll/Haben)"""
+    __tablename__ = 'journal_entry_lines'
+    id = db.Column(db.Integer, primary_key=True)
+    entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    debit = db.Column(db.Float, default=0)
+    credit = db.Column(db.Float, default=0)
+    vat_code = db.Column(db.String(20))
+    vat_amount = db.Column(db.Float, default=0)
+    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
+    description = db.Column(db.String(500))
+
+
+class CreditorInvoice(db.Model):
+    """Kreditoren-Rechnungen (Lieferantenrechnungen)"""
+    __tablename__ = 'creditor_invoices'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=True)
+    creditor_name = db.Column(db.String(200))
+    invoice_number = db.Column(db.String(50))
+    invoice_date = db.Column(db.Date)
+    due_date = db.Column(db.Date)
+    amount = db.Column(db.Float, nullable=False)
+    vat_amount = db.Column(db.Float, default=0)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
+    status = db.Column(db.String(20), default='open')  # open, approved, paid
+    attachment_path = db.Column(db.String(500))
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    payment_journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('creditor_invoices', lazy='dynamic'))
+    contact = db.relationship('Contact', backref='creditor_invoices')
+    account = db.relationship('Account', foreign_keys=[account_id])
+    journal_entry = db.relationship('JournalEntry', foreign_keys=[journal_entry_id])
+    payment_journal_entry = db.relationship('JournalEntry', foreign_keys=[payment_journal_entry_id])
+
+
+class FixedAsset(db.Model):
+    """Anlagenbuchhaltung"""
+    __tablename__ = 'fixed_assets'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50))  # furniture, devices, it, vehicles
+    acquisition_date = db.Column(db.Date, nullable=False)
+    acquisition_value = db.Column(db.Float, nullable=False)
+    useful_life_years = db.Column(db.Integer, nullable=False)
+    depreciation_method = db.Column(db.String(20), default='linear')  # linear, degressive
+    current_book_value = db.Column(db.Float)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
+    depreciation_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('fixed_assets', lazy='dynamic'))
+    account = db.relationship('Account', foreign_keys=[account_id])
+    depreciation_account = db.relationship('Account', foreign_keys=[depreciation_account_id])
+
+
+class CostCenter(db.Model):
+    """Kostenstellen"""
+    __tablename__ = 'cost_centers'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    code = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('cost_centers', lazy='dynamic'))
+    location = db.relationship('Location', backref='cost_centers')
+
+
+class PeriodLock(db.Model):
+    """Periodensperre (Monats-/Jahresabschluss)"""
+    __tablename__ = 'period_locks'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)  # 0 = ganzes Jahr
+    locked_at = db.Column(db.DateTime)
+    locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    organization = db.relationship('Organization', backref=db.backref('period_locks', lazy='dynamic'))
+    locked_by = db.relationship('User', backref='period_locks')

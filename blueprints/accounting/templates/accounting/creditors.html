@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Kreditoren{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Kreditoren</span>
+{% endblock %}
+
+{% block page_title %}Kreditoren{% endblock %}
+
+{% block page_actions %}
+<form method="POST" action="{{ url_for('accounting.payment_run') }}" style="display: inline;" onsubmit="return confirm('Alle freigegebenen Rechnungen jetzt bezahlen?');">
+    <button type="submit" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+            <line x1="1" y1="10" x2="23" y2="10"></line>
+        </svg>
+        Zahlungslauf
+    </button>
+</form>
+<button class="btn btn-primary" onclick="document.getElementById('createCreditorModal').style.display='flex'">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Rechnung
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Statistik -->
+<div class="card" style="padding: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <span style="color: var(--text-secondary);">Total offene Kreditoren:</span>
+        <strong style="font-size: 20px; margin-left: 8px;">CHF {{ '%.2f'|format(total_open) }}</strong>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <a href="{{ url_for('accounting.creditors') }}" class="btn btn-secondary {{ 'btn-primary' if not status_filter }}" style="font-size: 12px;">Alle</a>
+        <a href="{{ url_for('accounting.creditors', status='open') }}" class="btn btn-secondary {{ 'btn-primary' if status_filter == 'open' }}" style="font-size: 12px;">Offen</a>
+        <a href="{{ url_for('accounting.creditors', status='approved') }}" class="btn btn-secondary {{ 'btn-primary' if status_filter == 'approved' }}" style="font-size: 12px;">Freigegeben</a>
+        <a href="{{ url_for('accounting.creditors', status='paid') }}" class="btn btn-secondary {{ 'btn-primary' if status_filter == 'paid' }}" style="font-size: 12px;">Bezahlt</a>
+    </div>
+</div>
+
+<!-- Kreditoren-Liste -->
+<div class="card" style="padding: 0;">
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Lieferant</th>
+                <th>Rechnungs-Nr.</th>
+                <th>Datum</th>
+                <th>Fällig</th>
+                <th style="text-align: right;">Betrag</th>
+                <th style="text-align: right;">MwSt</th>
+                <th>Status</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ci in creditor_invoices %}
+            <tr>
+                <td><strong>{{ ci.creditor_name or (ci.contact.company_name if ci.contact and ci.contact.company_name else (ci.contact.last_name if ci.contact else '-')) }}</strong></td>
+                <td><span style="font-family: monospace; font-size: 12px;">{{ ci.invoice_number }}</span></td>
+                <td>{{ ci.invoice_date.strftime('%d.%m.%Y') if ci.invoice_date else '-' }}</td>
+                <td>
+                    {% if ci.due_date %}
+                    <span style="{{ 'color: #e74c3c; font-weight: 600;' if ci.due_date < today and ci.status != 'paid' }}">
+                        {{ ci.due_date.strftime('%d.%m.%Y') }}
+                    </span>
+                    {% else %}-{% endif %}
+                </td>
+                <td style="text-align: right; font-family: monospace; font-weight: 600;">CHF {{ '%.2f'|format(ci.amount) }}</td>
+                <td style="text-align: right; font-family: monospace;">{{ '%.2f'|format(ci.vat_amount) if ci.vat_amount else '-' }}</td>
+                <td>
+                    {% if ci.status == 'open' %}
+                    <span style="background: #e67e22; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Offen</span>
+                    {% elif ci.status == 'approved' %}
+                    <span style="background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Freigegeben</span>
+                    {% elif ci.status == 'paid' %}
+                    <span style="background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Bezahlt</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if ci.status == 'open' %}
+                    <form method="POST" action="{{ url_for('accounting.approve_creditor', id=ci.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px;">Freigeben</button>
+                    </form>
+                    {% endif %}
+                    {% if ci.status in ('open', 'approved') %}
+                    <form method="POST" action="{{ url_for('accounting.pay_creditor', id=ci.id) }}" style="display: inline;" onsubmit="return confirm('Rechnung als bezahlt markieren?');">
+                        <button type="submit" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; color: #27ae60;">Bezahlen</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not creditor_invoices %}
+            <tr><td colspan="8" style="text-align: center; color: var(--text-secondary); padding: 24px;">Keine Kreditoren-Rechnungen.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal: Neue Kreditoren-Rechnung -->
+<div id="createCreditorModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="padding: 24px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto;">
+        <h3 style="margin: 0 0 16px;">Neue Lieferantenrechnung</h3>
+        <form method="POST" action="{{ url_for('accounting.create_creditor') }}">
+            <div style="display: grid; gap: 12px;">
+                <div>
+                    <label class="form-label">Lieferant (Name)</label>
+                    <input type="text" name="creditor_name" class="form-input" required placeholder="Firmenname">
+                </div>
+                <div>
+                    <label class="form-label">Kontakt (optional)</label>
+                    <select name="contact_id" class="form-input">
+                        <option value="">— Kein Kontakt —</option>
+                        {% for c in contacts %}
+                        <option value="{{ c.id }}">{{ c.company_name or '' }} {{ c.last_name or '' }} {{ c.first_name or '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Rechnungsnummer</label>
+                        <input type="text" name="invoice_number" class="form-input" required placeholder="z.B. RE-2026-001">
+                    </div>
+                    <div>
+                        <label class="form-label">Rechnungsdatum</label>
+                        <input type="date" name="invoice_date" class="form-input" value="{{ today.isoformat() }}">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Fälligkeitsdatum</label>
+                        <input type="date" name="due_date" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Aufwandkonto</label>
+                        <select name="account_id" class="form-input">
+                            <option value="">— Konto wählen —</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}">{{ acc.account_number }} {{ acc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label class="form-label">Betrag (CHF)</label>
+                        <input type="number" name="amount" class="form-input" step="0.01" required placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="form-label">MwSt-Betrag (CHF)</label>
+                        <input type="number" name="vat_amount" class="form-input" step="0.01" value="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Notizen</label>
+                    <textarea name="notes" class="form-input" rows="2"></textarea>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('createCreditorModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Erfassen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

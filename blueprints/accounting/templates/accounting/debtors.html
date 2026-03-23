@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Debitoren{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Debitoren</span>
+{% endblock %}
+
+{% block page_title %}Debitoren{% endblock %}
+
+{% block content %}
+<!-- Ageing Report -->
+<div class="stats-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #27ae60;">CHF {{ '%.2f'|format(ageing.total_0_30) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">0–30 Tage</div>
+        <div style="font-size: 12px; color: var(--text-secondary);">{{ ageing['0_30']|length }} Posten</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #e67e22;">CHF {{ '%.2f'|format(ageing.total_31_60) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">31–60 Tage</div>
+        <div style="font-size: 12px; color: var(--text-secondary);">{{ ageing['31_60']|length }} Posten</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #e74c3c;">CHF {{ '%.2f'|format(ageing.total_61_90) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">61–90 Tage</div>
+        <div style="font-size: 12px; color: var(--text-secondary);">{{ ageing['61_90']|length }} Posten</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #c0392b;">CHF {{ '%.2f'|format(ageing.total_ueber_90) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Über 90 Tage</div>
+        <div style="font-size: 12px; color: var(--text-secondary);">{{ ageing['ueber_90']|length }} Posten</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center; background: var(--bg-secondary);">
+        <div style="font-size: 24px; font-weight: 700;">CHF {{ '%.2f'|format(ageing.total) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Total offen</div>
+    </div>
+</div>
+
+<!-- Offene Posten -->
+<div class="card" style="padding: 0;">
+    <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0; font-size: 15px;">Offene Posten</h3>
+    </div>
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Rechnung</th>
+                <th>Patient</th>
+                <th>Typ</th>
+                <th style="text-align: right;">Total</th>
+                <th style="text-align: right;">Offen</th>
+                <th>Fällig</th>
+                <th>Status</th>
+                <th>Mahnstufe</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('billing.detail', id=inv.id) }}" style="font-family: monospace; font-size: 12px;">{{ inv.invoice_number }}</a>
+                </td>
+                <td>{{ inv.patient.last_name if inv.patient else '-' }}, {{ inv.patient.first_name if inv.patient else '' }}</td>
+                <td>{{ inv.billing_type or '-' }}</td>
+                <td style="text-align: right; font-family: monospace;">CHF {{ '%.2f'|format(inv.amount_total) }}</td>
+                <td style="text-align: right; font-family: monospace; font-weight: 600; color: #e74c3c;">CHF {{ '%.2f'|format(inv.amount_open) }}</td>
+                <td>{{ inv.due_date.strftime('%d.%m.%Y') if inv.due_date else '-' }}</td>
+                <td>
+                    {% if inv.status == 'overdue' %}
+                    <span style="background: #e74c3c; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Überfällig</span>
+                    {% elif inv.status == 'partially_paid' %}
+                    <span style="background: #e67e22; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Teilbezahlt</span>
+                    {% else %}
+                    <span style="background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Offen</span>
+                    {% endif %}
+                </td>
+                <td>{{ inv.dunning_level or '0' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not invoices %}
+            <tr><td colspan="8" style="text-align: center; color: var(--text-secondary); padding: 24px;">Keine offenen Debitoren.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

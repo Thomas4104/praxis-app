@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Buchungsjournal{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Buchungsjournal</span>
+{% endblock %}
+
+{% block page_title %}Buchungsjournal{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('accounting.create_booking') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Buchung
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="card" style="padding: 16px; margin-bottom: 20px;">
+    <form method="GET" action="{{ url_for('accounting.journal') }}" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: end;">
+        <div>
+            <label class="form-label" style="font-size: 12px;">Von</label>
+            <input type="date" name="von" class="form-input" value="{{ von }}">
+        </div>
+        <div>
+            <label class="form-label" style="font-size: 12px;">Bis</label>
+            <input type="date" name="bis" class="form-input" value="{{ bis }}">
+        </div>
+        <div style="flex: 1; min-width: 200px;">
+            <label class="form-label" style="font-size: 12px;">Suche</label>
+            <input type="text" name="search" class="form-input" placeholder="Beleg-Nr., Beschreibung..." value="{{ search }}">
+        </div>
+        <div>
+            <label class="form-label" style="font-size: 12px;">Konto</label>
+            <select name="konto" class="form-input">
+                <option value="">Alle Konten</option>
+                {% for acc in accounts %}
+                <option value="{{ acc.id }}" {{ 'selected' if konto == acc.id|string }}>{{ acc.account_number }} {{ acc.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filtern</button>
+    </form>
+</div>
+
+<!-- Journal -->
+<div class="card" style="padding: 0;">
+    <div style="overflow-x: auto;">
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 100px;">Datum</th>
+                    <th style="width: 120px;">Beleg-Nr.</th>
+                    <th>Beschreibung</th>
+                    <th>Soll-Konto</th>
+                    <th>Haben-Konto</th>
+                    <th style="text-align: right;">Betrag</th>
+                    <th style="width: 70px;">MwSt</th>
+                    <th style="width: 80px;">Quelle</th>
+                    <th style="width: 80px;">Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                {% set all_lines = entry.lines.all() %}
+                {% set soll_lines = [] %}
+                {% set haben_lines = [] %}
+                {% set total = namespace(val=0) %}
+                {% for line in all_lines %}
+                    {% if line.debit and line.debit > 0 %}{% if soll_lines.append(line) %}{% endif %}{% set total.val = total.val + line.debit %}{% endif %}
+                    {% if line.credit and line.credit > 0 %}{% if haben_lines.append(line) %}{% endif %}{% endif %}
+                {% endfor %}
+                <tr style="{{ 'background: #fff5f5;' if entry.is_storno }}">
+                    <td>{{ entry.date.strftime('%d.%m.%Y') }}</td>
+                    <td><span style="font-family: monospace; font-size: 12px;">{{ entry.entry_number }}</span></td>
+                    <td>
+                        {{ entry.description }}
+                        {% if entry.is_storno %}
+                        <span style="color: #e74c3c; font-size: 11px; font-weight: 600;"> [STORNO]</span>
+                        {% endif %}
+                        {% if entry.is_recurring %}
+                        <span style="color: var(--primary); font-size: 11px;"> [Wiederkehrend]</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for line in soll_lines %}
+                        <span style="font-size: 12px;">{{ line.account.account_number if line.account else '?' }} {{ line.account.name if line.account else '' }}</span>
+                        {% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for line in haben_lines %}
+                        <span style="font-size: 12px;">{{ line.account.account_number if line.account else '?' }} {{ line.account.name if line.account else '' }}</span>
+                        {% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td style="text-align: right; font-weight: 600; font-family: monospace;">CHF {{ '%.2f'|format(total.val) }}</td>
+                    <td>
+                        {% set vat_total = namespace(val=0) %}
+                        {% for line in entry.lines %}
+                            {% if line.vat_amount %}{% set vat_total.val = vat_total.val + line.vat_amount %}{% endif %}
+                        {% endfor %}
+                        {% if vat_total.val != 0 %}
+                        <span style="font-size: 12px;">{{ '%.2f'|format(vat_total.val) }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if entry.source == 'manual' %}
+                        <span style="background: var(--primary); color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Manuell</span>
+                        {% elif entry.source == 'invoice' %}
+                        <span style="background: #27ae60; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Rechnung</span>
+                        {% elif entry.source == 'payment' %}
+                        <span style="background: #2ecc71; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Zahlung</span>
+                        {% elif entry.source == 'storno' %}
+                        <span style="background: #e74c3c; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Storno</span>
+                        {% elif entry.source == 'depreciation' %}
+                        <span style="background: #95a5a6; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">AfA</span>
+                        {% elif entry.source == 'creditor' %}
+                        <span style="background: #e67e22; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Kreditor</span>
+                        {% elif entry.source == 'salary' %}
+                        <span style="background: #8e44ad; color: #fff; padding: 2px 6px; border-radius: 8px; font-size: 10px;">Lohn</span>
+                        {% else %}
+                        <span style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 8px; font-size: 10px;">{{ entry.source or '-' }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not entry.is_storno %}
+                        <form method="POST" action="{{ url_for('accounting.storno_booking', id=entry.id) }}" style="display: inline;" onsubmit="return confirm('Buchung wirklich stornieren?');">
+                            <button type="submit" class="btn btn-secondary" style="font-size: 10px; padding: 3px 6px; color: #e74c3c;">Storno</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not entries %}
+                <tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 24px;">Keine Buchungen im gewählten Zeitraum.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
