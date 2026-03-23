@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Personalakte - {{ user.first_name }} {{ user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ user.first_name }} {{ user.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}Personalakte: {{ user.first_name }} {{ user.last_name }}{% endblock %}
+
+{% block content %}
+<!-- Mitarbeiter-Info -->
+<div class="card" style="margin-bottom:24px; display:flex; align-items:center; gap:20px; padding:20px;">
+    <div style="width:60px; height:60px; border-radius:50%; background:{{ employee.color_code or '#4a90d9' }}; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.4em; font-weight:700;">
+        {{ user.first_name[0] }}{{ user.last_name[0] }}
+    </div>
+    <div style="flex:1;">
+        <h2 style="margin:0;">{{ user.first_name }} {{ user.last_name }}</h2>
+        <div style="color:var(--text-secondary);">
+            {{ employee.employee_number }} · {{ employee.pensum_percent }}% ·
+            {{ employee.employment_model or 'Festanstellung' }} ·
+            <span class="status-badge {% if employee.is_active %}status-approved{% else %}status-draft{% endif %}">
+                {{ 'Aktiv' if employee.is_active else 'Inaktiv' }}
+            </span>
+        </div>
+    </div>
+    <a href="{{ url_for('employees.detail', id=employee.id) }}" class="btn btn-outline">Zum Mitarbeiterprofil</a>
+</div>
+
+<!-- Tabs -->
+<div class="card" style="padding:0; margin-bottom:24px;">
+    <div style="display:flex; border-bottom:1px solid var(--border); overflow-x:auto;">
+        <a href="?tab=contract" class="tab-btn {% if tab == 'contract' %}active{% endif %}">Vertragsdaten</a>
+        <a href="?tab=salary" class="tab-btn {% if tab == 'salary' %}active{% endif %}">Lohndaten</a>
+        <a href="?tab=documents" class="tab-btn {% if tab == 'documents' %}active{% endif %}">Dokumente</a>
+        <a href="?tab=history" class="tab-btn {% if tab == 'history' %}active{% endif %}">Historie</a>
+    </div>
+
+    <div style="padding:24px;">
+        <!-- Tab: Vertragsdaten -->
+        {% if tab == 'contract' %}
+        <form method="POST" action="{{ url_for('hr.save_contract', employee_id=employee.id) }}">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+                <div class="form-group">
+                    <label>Vertragsart</label>
+                    <select name="contract_type" class="form-control">
+                        <option value="permanent" {% if contract and contract.contract_type == 'permanent' %}selected{% endif %}>Unbefristet</option>
+                        <option value="temporary" {% if contract and contract.contract_type == 'temporary' %}selected{% endif %}>Befristet</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Eintrittsdatum</label>
+                    <input type="date" name="start_date" class="form-control"
+                           value="{{ contract.start_date.strftime('%Y-%m-%d') if contract and contract.start_date else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Austrittsdatum (falls befristet)</label>
+                    <input type="date" name="end_date" class="form-control"
+                           value="{{ contract.end_date.strftime('%Y-%m-%d') if contract and contract.end_date else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Probezeit bis</label>
+                    <input type="date" name="probation_end" class="form-control"
+                           value="{{ contract.probation_end.strftime('%Y-%m-%d') if contract and contract.probation_end else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Kündigungsfrist (Monate)</label>
+                    <input type="number" name="notice_period_months" class="form-control" min="1"
+                           value="{{ contract.notice_period_months if contract else 1 }}">
+                </div>
+                <div class="form-group">
+                    <label>Pensum (%)</label>
+                    <input type="number" name="pensum_percent" class="form-control" min="1" max="100"
+                           value="{{ contract.pensum_percent if contract else employee.pensum_percent }}">
+                </div>
+                <div class="form-group">
+                    <label>Ferien pro Jahr (Tage)</label>
+                    <input type="number" name="vacation_days" class="form-control" min="0"
+                           value="{{ contract.vacation_days if contract else 20 }}">
+                </div>
+            </div>
+
+            {% if absence_quota %}
+            <div style="margin-top:16px; padding:16px; background:var(--bg-secondary); border-radius:8px;">
+                <strong>Ferienanspruch {{ today.year }}:</strong>
+                {{ absence_quota.total_days }} Tage total ·
+                {{ absence_quota.used_days }} bezogen ·
+                <strong>{{ absence_quota.total_days - absence_quota.used_days + absence_quota.carryover_days }} Tage Rest</strong>
+                {% if absence_quota.carryover_days > 0 %}
+                · (inkl. {{ absence_quota.carryover_days }} Übertrag)
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div style="margin-top:20px;">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+
+        <!-- Tab: Lohndaten -->
+        {% elif tab == 'salary' %}
+        <form method="POST" action="{{ url_for('hr.save_salary', employee_id=employee.id) }}">
+            <h3 style="margin:0 0 16px 0;">Lohndaten</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+                <div class="form-group">
+                    <label>Lohnart</label>
+                    <select name="salary_type" class="form-control" id="salaryType" onchange="toggleHourly()">
+                        <option value="monthly" {% if salary and salary.salary_type == 'monthly' %}selected{% endif %}>Monatslohn</option>
+                        <option value="hourly" {% if salary and salary.salary_type == 'hourly' %}selected{% endif %}>Stundenlohn</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Bruttolohn (CHF/Monat)</label>
+                    <input type="number" name="amount" class="form-control" step="0.01" min="0"
+                           value="{{ salary.amount if salary else '' }}">
+                </div>
+                <div class="form-group" id="hourlyRateGroup" style="{% if not salary or salary.salary_type != 'hourly' %}display:none{% endif %}">
+                    <label>Stundensatz (CHF)</label>
+                    <input type="number" name="hourly_rate" class="form-control" step="0.01"
+                           value="{{ salary.hourly_rate if salary and salary.hourly_rate else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Gültig ab</label>
+                    <input type="date" name="valid_from" class="form-control"
+                           value="{{ salary.valid_from.strftime('%Y-%m-%d') if salary and salary.valid_from else '' }}">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" name="thirteenth_month"
+                               {% if salary and salary.thirteenth_month %}checked{% endif %}>
+                        13. Monatslohn
+                    </label>
+                </div>
+            </div>
+
+            <h4 style="margin:24px 0 12px 0;">Bankverbindung & AHV</h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+                <div class="form-group">
+                    <label>IBAN</label>
+                    <input type="text" name="iban" class="form-control" placeholder="CH..."
+                           value="{{ salary.iban if salary else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>AHV-Nummer</label>
+                    <input type="text" name="ahv_number" class="form-control" placeholder="756.XXXX.XXXX.XX"
+                           value="{{ salary.ahv_number if salary else '' }}">
+                </div>
+            </div>
+
+            <h4 style="margin:24px 0 12px 0;">Quellensteuer</h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" name="withholding_tax" id="whtCheck"
+                               {% if salary and salary.withholding_tax %}checked{% endif %}
+                               onchange="document.getElementById('whtFields').style.display=this.checked?'grid':'none'">
+                        Quellensteuer-pflichtig
+                    </label>
+                </div>
+            </div>
+            <div id="whtFields" style="display:{% if salary and salary.withholding_tax %}grid{% else %}none{% endif %}; grid-template-columns: 1fr 1fr; gap:16px; margin-top:8px;">
+                <div class="form-group">
+                    <label>Tarif-Code</label>
+                    <input type="text" name="withholding_tax_code" class="form-control"
+                           value="{{ salary.withholding_tax_code if salary else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Kanton</label>
+                    <input type="text" name="withholding_tax_canton" class="form-control" maxlength="2"
+                           value="{{ salary.withholding_tax_canton if salary else '' }}">
+                </div>
+            </div>
+
+            <h4 style="margin:24px 0 12px 0;">Sozialversicherungs-Beitragssätze</h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+                <div class="form-group">
+                    <label>BVG-Beitragssatz AN (%)</label>
+                    <input type="number" name="bvg_rate" class="form-control" step="0.1"
+                           value="{{ salary.bvg_rate if salary else 7.0 }}">
+                </div>
+                <div class="form-group">
+                    <label>NBUV-Satz AN (%)</label>
+                    <input type="number" name="nbuv_rate" class="form-control" step="0.1"
+                           value="{{ salary.nbuv_rate if salary else 1.5 }}">
+                </div>
+                <div class="form-group">
+                    <label>KTG-Satz AN (%)</label>
+                    <input type="number" name="ktg_rate" class="form-control" step="0.1"
+                           value="{{ salary.ktg_rate if salary else 0.5 }}">
+                </div>
+            </div>
+            <div style="padding:12px; background:var(--bg-secondary); border-radius:8px; margin-top:8px; font-size:0.9em; color:var(--text-secondary);">
+                <strong>Hinweis:</strong> AHV/IV/EO (5.3%) und ALV (1.1%) sind gesetzlich festgelegt und werden automatisch berechnet.
+            </div>
+
+            <div style="margin-top:20px;">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+
+        <!-- Kinderzulagen -->
+        <div style="margin-top:32px;">
+            <h3 style="margin:0 0 16px 0;">Kinderzulagen</h3>
+            {% if children %}
+            <table class="data-table" style="margin-bottom:16px;">
+                <thead>
+                    <tr><th>Name</th><th>Geburtsdatum</th><th>Zulage-Typ</th><th style="text-align:right;">Betrag/Mt</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for child in children %}
+                    <tr>
+                        <td>{{ child.first_name }} {{ child.last_name }}</td>
+                        <td>{{ child.date_of_birth.strftime('%d.%m.%Y') if child.date_of_birth else '-' }}</td>
+                        <td>{{ 'Kinderzulage' if child.allowance_type == 'child' else 'Ausbildungszulage' }}</td>
+                        <td style="text-align:right;">CHF {{ '{:.2f}'.format(child.allowance_amount) }}</td>
+                        <td style="text-align:right;">
+                            <form method="POST" action="{{ url_for('hr.delete_child', employee_id=employee.id, child_id=child.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Kind entfernen?')">Entfernen</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            <details style="border:1px solid var(--border); border-radius:8px; padding:16px;">
+                <summary style="cursor:pointer; font-weight:600;">Kind hinzufügen</summary>
+                <form method="POST" action="{{ url_for('hr.save_child', employee_id=employee.id) }}" style="margin-top:16px;">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                        <div class="form-group">
+                            <label>Vorname</label>
+                            <input type="text" name="first_name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nachname</label>
+                            <input type="text" name="last_name" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Geburtsdatum</label>
+                            <input type="date" name="date_of_birth" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Zulage-Typ</label>
+                            <select name="allowance_type" class="form-control">
+                                <option value="child">Kinderzulage (CHF 200/Mt)</option>
+                                <option value="education">Ausbildungszulage (CHF 250/Mt)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Betrag (CHF/Mt)</label>
+                            <input type="number" name="allowance_amount" class="form-control" step="0.01" value="200">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-top:12px;">Hinzufügen</button>
+                </form>
+            </details>
+        </div>
+
+        <script>
+        function toggleHourly() {
+            var t = document.getElementById('salaryType').value;
+            document.getElementById('hourlyRateGroup').style.display = t === 'hourly' ? '' : 'none';
+        }
+        </script>
+
+        <!-- Tab: Dokumente -->
+        {% elif tab == 'documents' %}
+        <h3 style="margin:0 0 16px 0;">Dokumente</h3>
+
+        {% if contracts %}
+        <div style="margin-bottom:20px;">
+            <h4>Arbeitsverträge</h4>
+            {% for c in contracts %}
+            <div style="padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; align-items:center; gap:12px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <div style="flex:1;">
+                    <div style="font-weight:600;">{{ 'Unbefristeter' if c.contract_type == 'permanent' else 'Befristeter' }} Arbeitsvertrag</div>
+                    <div style="color:var(--text-secondary); font-size:0.9em;">
+                        Ab {{ c.start_date.strftime('%d.%m.%Y') if c.start_date else '-' }}
+                        {% if c.end_date %} bis {{ c.end_date.strftime('%d.%m.%Y') }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if payslips %}
+        <div style="margin-bottom:20px;">
+            <h4>Lohnabrechnungen</h4>
+            {% for slip in payslips %}
+            <a href="{{ url_for('hr.payslip_detail', payslip_id=slip.id) }}" style="padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--text-primary);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <div style="flex:1;">
+                    <div style="font-weight:600;">Lohnabrechnung {{ '%02d' % slip.payroll_run.month }}/{{ slip.payroll_run.year }}</div>
+                    <div style="color:var(--text-secondary); font-size:0.9em;">Netto: CHF {{ '{:,.2f}'.format(slip.net_salary).replace(',', "'") }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="padding:20px; background:var(--bg-secondary); border-radius:8px; text-align:center; color:var(--text-secondary);">
+            Dokumenten-Upload wird in einer späteren Version verfügbar sein.
+        </div>
+
+        <!-- Tab: Historie -->
+        {% elif tab == 'history' %}
+        <h3 style="margin:0 0 16px 0;">Lohn- und Vertragshistorie</h3>
+
+        {% if salary_history|length > 1 %}
+        <h4>Lohnänderungen</h4>
+        <table class="data-table" style="margin-bottom:24px;">
+            <thead>
+                <tr><th>Gültig ab</th><th>Gültig bis</th><th>Lohnart</th><th style="text-align:right;">Betrag</th><th>13. ML</th></tr>
+            </thead>
+            <tbody>
+                {% for s in salary_history %}
+                <tr {% if loop.first %}style="font-weight:600; background:var(--bg-secondary);"{% endif %}>
+                    <td>{{ s.valid_from.strftime('%d.%m.%Y') if s.valid_from else '-' }}</td>
+                    <td>{{ s.valid_to.strftime('%d.%m.%Y') if s.valid_to else 'aktuell' }}</td>
+                    <td>{{ 'Monatslohn' if s.salary_type == 'monthly' else 'Stundenlohn' }}</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(s.amount).replace(',', "'") }}</td>
+                    <td>{{ 'Ja' if s.thirteenth_month else 'Nein' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-secondary);">Keine Lohnänderungen vorhanden.</p>
+        {% endif %}
+
+        {% if contracts|length > 1 %}
+        <h4>Vertragsänderungen</h4>
+        <table class="data-table">
+            <thead>
+                <tr><th>Typ</th><th>Start</th><th>Ende</th><th>Pensum</th><th>Ferien</th></tr>
+            </thead>
+            <tbody>
+                {% for c in contracts %}
+                <tr>
+                    <td>{{ 'Unbefristet' if c.contract_type == 'permanent' else 'Befristet' }}</td>
+                    <td>{{ c.start_date.strftime('%d.%m.%Y') if c.start_date else '-' }}</td>
+                    <td>{{ c.end_date.strftime('%d.%m.%Y') if c.end_date else '-' }}</td>
+                    <td>{{ c.pensum_percent }}%</td>
+                    <td>{{ c.vacation_days }} Tage</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .tab-btn { padding:12px 20px; text-decoration:none; color:var(--text-secondary); border-bottom:3px solid transparent; font-weight:500; white-space:nowrap; }
+    .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+    .tab-btn:hover { color:var(--primary); }
+    .form-group { margin-bottom:12px; }
+    .form-group label { display:block; font-weight:500; margin-bottom:4px; font-size:0.9em; }
+    .form-control { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:0.95em; box-sizing:border-box; }
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-draft { background:#f0f0f0; color:#666; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; }
+    .btn-sm { padding:4px 12px; font-size:0.85em; }
+    .btn-danger { background:#e74c3c; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+    .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:8px 16px; border-radius:6px; text-decoration:none; font-size:0.9em; }
+    .btn-outline:hover { border-color:var(--primary); color:var(--primary); }
+</style>
+{% endblock %}

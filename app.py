@@ -12,7 +12,9 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     SystemSetting, EmailTemplate, PrintTemplate, Permission, \
     CostApproval, CostApprovalItem, Task, TaskComment, \
     Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email, \
-    Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock
+    Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock, \
+    EmployeeContract, EmployeeSalary, EmployeeChild, PayrollRun, Payslip, \
+    TimeEntry, OvertimeAccount, Expense
 from config import config
 
 
@@ -58,6 +60,7 @@ def create_app(config_name=None):
     from blueprints.billing import billing_bp
     from blueprints.mailing import mailing_bp
     from blueprints.accounting import accounting_bp
+    from blueprints.hr import hr_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -75,6 +78,7 @@ def create_app(config_name=None):
     app.register_blueprint(billing_bp, url_prefix='/billing')
     app.register_blueprint(mailing_bp, url_prefix='/mailing')
     app.register_blueprint(accounting_bp, url_prefix='/accounting')
+    app.register_blueprint(hr_bp, url_prefix='/hr')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -92,6 +96,7 @@ def create_app(config_name=None):
     csrf.exempt(billing_bp)
     csrf.exempt(mailing_bp)
     csrf.exempt(accounting_bp)
+    csrf.exempt(hr_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1072,6 +1077,14 @@ def seed_demo_data():
         import traceback
         traceback.print_exc()
 
+    # === HR & Lohnbuchhaltung: Demo-Daten ===
+    try:
+        _seed_hr_demo_data(org, employees, created_users)
+    except Exception as e:
+        print(f'Fehler bei HR-Demo-Daten: {e}')
+        import traceback
+        traceback.print_exc()
+
 
 def _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users):
     """Erstellt Demo-Daten fuer Abrechnung: Rechnungen, Zahlungen, Mahnungen"""
@@ -1779,6 +1792,193 @@ th { background: #f5f5f5; }
                 action=action,
                 is_allowed=action in empfang_rechte.get(module, [])
             ))
+
+    db.session.commit()
+
+
+def _seed_hr_demo_data(org, employees, created_users):
+    """Erstellt Demo-Daten fuer HR und Lohnbuchhaltung"""
+    today = date.today()
+
+    admin_emp = employees['admin']
+    thomas_emp = employees['thomas']
+    sarah_emp = employees['sarah']
+    lisa_emp = employees['lisa']
+
+    # === Arbeitsvertraege ===
+    contracts_data = [
+        (admin_emp, 'permanent', date(2024, 1, 1), None, date(2024, 4, 1), 3, 100, 25),
+        (thomas_emp, 'permanent', date(2024, 3, 1), None, date(2024, 6, 1), 2, 100, 20),
+        (sarah_emp, 'permanent', date(2024, 4, 15), None, date(2024, 7, 15), 2, 100, 20),
+        (lisa_emp, 'permanent', date(2024, 6, 1), None, date(2024, 9, 1), 1, 80, 16),
+    ]
+    for emp, ctype, start, end, probation, notice, pensum, vacation in contracts_data:
+        db.session.add(EmployeeContract(
+            employee_id=emp.id,
+            contract_type=ctype,
+            start_date=start,
+            end_date=end,
+            probation_end=probation,
+            notice_period_months=notice,
+            pensum_percent=pensum,
+            vacation_days=vacation
+        ))
+
+    # === Lohndaten ===
+    salaries_data = [
+        (admin_emp, 'monthly', 10000, None, True, 'CH9300762011623852957', '756.1234.5678.10', 7.0, 1.5, 0.5, date(2024, 1, 1)),
+        (thomas_emp, 'monthly', 7500, None, True, 'CH5800791123000889012', '756.2345.6789.11', 7.0, 1.5, 0.5, date(2024, 3, 1)),
+        (sarah_emp, 'monthly', 7200, None, True, 'CH3600700110002069411', '756.3456.7890.12', 7.0, 1.5, 0.5, date(2024, 4, 15)),
+        (lisa_emp, 'monthly', 4800, None, False, 'CH4431999123000889999', '756.4567.8901.13', 7.0, 1.5, 0.5, date(2024, 6, 1)),
+    ]
+    for emp, stype, amount, hourly, thirteenth, iban, ahv, bvg, nbuv, ktg, valid_from in salaries_data:
+        db.session.add(EmployeeSalary(
+            employee_id=emp.id,
+            salary_type=stype,
+            amount=amount,
+            hourly_rate=hourly,
+            thirteenth_month=thirteenth,
+            iban=iban,
+            ahv_number=ahv,
+            bvg_rate=bvg,
+            nbuv_rate=nbuv,
+            ktg_rate=ktg,
+            valid_from=valid_from
+        ))
+
+    # === Kinder (Thomas Meier hat 1 Kind) ===
+    db.session.add(EmployeeChild(
+        employee_id=thomas_emp.id,
+        first_name='Luca',
+        last_name='Meier',
+        date_of_birth=date(2020, 5, 12),
+        allowance_type='child',
+        allowance_amount=200.0
+    ))
+
+    db.session.flush()
+
+    # === Lohnlauf Februar 2026 (ausbezahlt) ===
+    from services.payroll_service import calculate_payslip, MONTH_NAMES
+    run = PayrollRun(
+        organization_id=org.id,
+        year=2026,
+        month=2,
+        status='paid',
+        paid_at=datetime(2026, 2, 25, 14, 0)
+    )
+    db.session.add(run)
+    db.session.flush()
+
+    total_gross = 0
+    total_net = 0
+    total_employer = 0
+
+    for emp in [admin_emp, thomas_emp, sarah_emp, lisa_emp]:
+        data = calculate_payslip(emp, 2, 2026)
+        if not data:
+            continue
+
+        slip = Payslip(
+            payroll_run_id=run.id,
+            employee_id=emp.id,
+            gross_salary=data['gross_salary'],
+            thirteenth_month=data['thirteenth_month'],
+            child_allowance=data['child_allowance'],
+            bonuses=data['bonuses'],
+            expenses_total=data['expenses_total'],
+            overtime_payout=data['overtime_payout'],
+            gross_total=data['gross_total'],
+            ahv_iv_eo=data['ahv_iv_eo'],
+            alv=data['alv'],
+            alv2=data.get('alv2', 0),
+            bvg=data['bvg'],
+            nbuv=data['nbuv'],
+            ktg=data['ktg'],
+            withholding_tax=data['withholding_tax'],
+            deductions_total=data['deductions_total'],
+            net_salary=data['net_salary'],
+            employer_ahv_iv_eo=data['employer_ahv_iv_eo'],
+            employer_alv=data['employer_alv'],
+            employer_bvg=data['employer_bvg'],
+            employer_uvg=data['employer_uvg'],
+            employer_ktg=data['employer_ktg'],
+            employer_fak=data['employer_fak'],
+            employer_vk=data['employer_vk'],
+            employer_total=data['employer_total'],
+            details_json=str(data)
+        )
+        db.session.add(slip)
+        total_gross += data['gross_total']
+        total_net += data['net_salary']
+        total_employer += data['employer_total']
+
+    run.total_gross = round(total_gross, 2)
+    run.total_net = round(total_net, 2)
+    run.total_employer_contributions = round(total_employer, 2)
+
+    # === Zeiterfassungs-Eintraege (letzte Woche, Thomas Meier) ===
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    for i in range(5):
+        d = last_monday + timedelta(days=i)
+        worked = 510 if i < 4 else 480  # 8:30h oder 8:00h
+        db.session.add(TimeEntry(
+            employee_id=thomas_emp.id,
+            date=d,
+            clock_in=time(7, 45),
+            clock_out=time(17, 15) if i < 4 else time(16, 45),
+            break_minutes=60,
+            worked_minutes=worked,
+            entry_type='clock'
+        ))
+
+    # === Ueberstundenkonto Thomas Meier (+12h kumuliert) ===
+    db.session.add(OvertimeAccount(
+        employee_id=thomas_emp.id,
+        year=2026,
+        month=2,
+        target_minutes=10080,  # 168h (21 Arbeitstage x 8h)
+        actual_minutes=10800,  # 180h
+        overtime_minutes=720,  # +12h
+        cumulative_overtime=720
+    ))
+
+    # === Spesen ===
+    # 1. Genehmigt (Sarah)
+    db.session.add(Expense(
+        employee_id=sarah_emp.id,
+        date=today - timedelta(days=10),
+        description='Zugfahrt Winterthur-Bern, Weiterbildung Sportphysiotherapie',
+        category='travel',
+        amount=68.40,
+        vat_amount=5.54,
+        status='approved',
+        approved_by_id=created_users['admin'].id,
+        approved_at=datetime.now() - timedelta(days=8)
+    ))
+    # 2. Eingereicht (Thomas Meier)
+    db.session.add(Expense(
+        employee_id=thomas_emp.id,
+        date=today - timedelta(days=3),
+        description='Fachliteratur: Manuelle Therapie Update 2026',
+        category='training',
+        amount=89.00,
+        vat_amount=7.21,
+        status='submitted'
+    ))
+    # 3. Ausbezahlt (Lisa)
+    db.session.add(Expense(
+        employee_id=lisa_emp.id,
+        date=today - timedelta(days=20),
+        description='Büromaterial: Druckerpapier, Ordner',
+        category='material',
+        amount=45.50,
+        vat_amount=3.69,
+        status='paid',
+        approved_by_id=created_users['admin'].id,
+        approved_at=datetime.now() - timedelta(days=18),
+        paid_via='separate'
+    ))
 
     db.session.commit()
 

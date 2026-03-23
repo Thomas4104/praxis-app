@@ -14,6 +14,7 @@ from ai.agents.aufgaben_agent import AufgabenAgent
 from ai.agents.abrechnungs_agent import AbrechnungsAgent
 from ai.agents.kommunikations_agent import KommunikationsAgent
 from ai.agents.finanz_agent import FinanzAgent
+from ai.agents.hr_agent import HRAgent
 
 
 class Coordinator:
@@ -32,7 +33,8 @@ class Coordinator:
             'aufgaben': AufgabenAgent(),
             'abrechnung': AbrechnungsAgent(),
             'kommunikation': KommunikationsAgent(),
-            'finanzen': FinanzAgent()
+            'finanzen': FinanzAgent(),
+            'hr': HRAgent()
         }
 
     def register_agent(self, name, agent):

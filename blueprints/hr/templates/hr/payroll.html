@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Lohnlauf{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<span>Lohnlauf</span>
+{% endblock %}
+
+{% block page_title %}Lohnlauf{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('hr.payroll_create') }}" class="btn btn-primary">+ Neuer Lohnlauf</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    {% if runs %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Monat/Jahr</th>
+                <th>Status</th>
+                <th style="text-align:right;">Brutto Total</th>
+                <th style="text-align:right;">Abzüge</th>
+                <th style="text-align:right;">Netto Total</th>
+                <th style="text-align:right;">AG-Beiträge</th>
+                <th style="text-align:right;">Freigegeben</th>
+                <th style="text-align:right;">Ausbezahlt</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+            <tr>
+                <td style="font-weight:600;">{{ '%02d' % run.month }}/{{ run.year }}</td>
+                <td>
+                    <span class="status-badge status-{{ run.status }}">
+                        {% if run.status == 'draft' %}Entwurf
+                        {% elif run.status == 'calculated' %}Berechnet
+                        {% elif run.status == 'approved' %}Freigegeben
+                        {% elif run.status == 'paid' %}Ausbezahlt
+                        {% endif %}
+                    </span>
+                </td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_gross).replace(',', "'") }}</td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_gross - run.total_net).replace(',', "'") }}</td>
+                <td style="text-align:right; font-weight:600;">CHF {{ '{:,.2f}'.format(run.total_net).replace(',', "'") }}</td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_employer_contributions).replace(',', "'") }}</td>
+                <td style="text-align:right; font-size:0.9em; color:var(--text-secondary);">
+                    {{ run.approved_at.strftime('%d.%m.%Y') if run.approved_at else '-' }}
+                </td>
+                <td style="text-align:right; font-size:0.9em; color:var(--text-secondary);">
+                    {{ run.paid_at.strftime('%d.%m.%Y') if run.paid_at else '-' }}
+                </td>
+                <td style="text-align:right;">
+                    <a href="{{ url_for('hr.payroll_detail', run_id=run.id) }}" class="btn btn-sm">Details</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:40px; text-align:center; color:var(--text-secondary);">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:12px;">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+        <p>Noch keine Lohnläufe vorhanden.</p>
+        <a href="{{ url_for('hr.payroll_create') }}" class="btn btn-primary">Ersten Lohnlauf erstellen</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-draft { background:#f0f0f0; color:#666; }
+    .status-calculated { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-paid { background:#cce5ff; color:#004085; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; text-transform:uppercase; }
+    .btn-sm { padding:4px 12px; font-size:0.85em; }
+</style>
+{% endblock %}

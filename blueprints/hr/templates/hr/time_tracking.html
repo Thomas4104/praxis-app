@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Zeiterfassung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<span>Zeiterfassung</span>
+{% endblock %}
+
+{% block page_title %}Zeiterfassung{% endblock %}
+
+{% block content %}
+<!-- Mitarbeiter-Auswahl -->
+<div class="card" style="margin-bottom:24px;">
+    <form method="GET" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <label style="font-weight:600;">Mitarbeiter:</label>
+        <select name="employee_id" class="form-control" style="width:auto; min-width:200px;" onchange="this.form.submit()">
+            <option value="">-- Auswählen --</option>
+            {% for emp in employees %}
+            <option value="{{ emp.id }}" {% if employee and emp.id == employee.id %}selected{% endif %}>
+                {{ emp.user.first_name }} {{ emp.user.last_name }} ({{ emp.pensum_percent }}%)
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+{% if employee %}
+<!-- Stempeluhr -->
+<div class="card" style="margin-bottom:24px; text-align:center; padding:30px;">
+    <h3 style="margin:0 0 16px 0;">Stempeluhr</h3>
+    <div style="font-size:2em; font-weight:700; margin-bottom:16px;" id="currentTime"></div>
+
+    {% if today_entry and not today_entry.clock_out %}
+    <div style="margin-bottom:16px; color:var(--text-secondary);">
+        Eingestempelt seit {{ today_entry.clock_in.strftime('%H:%M') }} Uhr
+        <div id="runningTime" style="font-size:1.5em; font-weight:600; color:var(--primary); margin-top:8px;"></div>
+    </div>
+    <form method="POST" action="{{ url_for('hr.clock_in_out') }}">
+        <input type="hidden" name="employee_id" value="{{ employee.id }}">
+        <button type="submit" class="btn btn-danger" style="padding:16px 40px; font-size:1.1em; border-radius:50px;">
+            Ausstempeln
+        </button>
+    </form>
+    {% else %}
+    <div style="margin-bottom:16px; color:var(--text-secondary);">
+        {% if today_entry %}
+        Heute gearbeitet: {{ '%d:%02d' % (today_entry.worked_minutes // 60, today_entry.worked_minutes % 60) }} h
+        {% else %}
+        Heute noch nicht eingestempelt
+        {% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('hr.clock_in_out') }}">
+        <input type="hidden" name="employee_id" value="{{ employee.id }}">
+        <button type="submit" class="btn btn-primary" style="padding:16px 40px; font-size:1.1em; border-radius:50px;">
+            Einstempeln
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Wochenübersicht -->
+<div class="card" style="margin-bottom:24px;">
+    <h3 style="margin:0 0 16px 0;">
+        Woche {{ week_start.strftime('%d.%m.') }} - {{ week_end.strftime('%d.%m.%Y') }}
+    </h3>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tag</th>
+                    <th>Datum</th>
+                    <th>Zeiten</th>
+                    <th style="text-align:right;">Soll</th>
+                    <th style="text-align:right;">Ist</th>
+                    <th style="text-align:right;">Differenz</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in week_days %}
+                <tr {% if day.date == today %}style="background:var(--bg-secondary); font-weight:600;"{% endif %}>
+                    <td>{{ day.name }}</td>
+                    <td>{{ day.date.strftime('%d.%m.%Y') }}</td>
+                    <td>
+                        {% for e in day.entries %}
+                        {{ e.clock_in.strftime('%H:%M') if e.clock_in else '-' }} -
+                        {{ e.clock_out.strftime('%H:%M') if e.clock_out else '...' }}
+                        {% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                        {% if not day.entries %}<span style="color:var(--text-secondary);">-</span>{% endif %}
+                    </td>
+                    <td style="text-align:right;">{{ '%d:%02d' % (day.target_minutes // 60, day.target_minutes % 60) }}</td>
+                    <td style="text-align:right;">{{ '%d:%02d' % (day.total_minutes // 60, day.total_minutes % 60) }}</td>
+                    <td style="text-align:right; color:{% if day.diff_minutes > 0 %}#3498db{% elif day.diff_minutes < 0 %}#e74c3c{% else %}var(--text-secondary){% endif %};">
+                        {% if day.diff_minutes > 0 %}+{% endif %}{{ '%d:%02d' % (day.diff_minutes // 60 if day.diff_minutes >= 0 else -((-day.diff_minutes) // 60), abs(day.diff_minutes) % 60) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                {% set total_target = week_days|sum(attribute='target_minutes') %}
+                {% set total_actual = week_days|sum(attribute='total_minutes') %}
+                {% set total_diff = total_actual - total_target %}
+                <tr style="font-weight:700; border-top:2px solid var(--border);">
+                    <td colspan="3">Woche Total</td>
+                    <td style="text-align:right;">{{ '%d:%02d' % (total_target // 60, total_target % 60) }}</td>
+                    <td style="text-align:right;">{{ '%d:%02d' % (total_actual // 60, total_actual % 60) }}</td>
+                    <td style="text-align:right; color:{% if total_diff > 0 %}#3498db{% elif total_diff < 0 %}#e74c3c{% else %}var(--text-secondary){% endif %};">
+                        {% if total_diff > 0 %}+{% endif %}{{ '%d:%02d' % (total_diff // 60 if total_diff >= 0 else -((-total_diff) // 60), abs(total_diff) % 60) }}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    {% if overtime %}
+    <div style="margin-top:16px; padding:16px; background:var(--bg-secondary); border-radius:8px;">
+        <strong>Überstundenkonto (kumuliert):</strong>
+        <span style="font-size:1.1em; font-weight:700; color:{% if overtime.cumulative_overtime > 0 %}#3498db{% elif overtime.cumulative_overtime < 0 %}#e74c3c{% else %}var(--text-primary){% endif %};">
+            {% if overtime.cumulative_overtime > 0 %}+{% endif %}{{ '%d:%02d' % (overtime.cumulative_overtime // 60 if overtime.cumulative_overtime >= 0 else -((-overtime.cumulative_overtime) // 60), abs(overtime.cumulative_overtime) % 60) }} h
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Manuelle Erfassung -->
+<div class="card">
+    <h3 style="margin:0 0 16px 0;">Manuelle Zeiterfassung</h3>
+    <form method="POST" action="{{ url_for('hr.time_manual') }}">
+        <input type="hidden" name="employee_id" value="{{ employee.id }}">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:12px;">
+            <div class="form-group">
+                <label>Datum</label>
+                <input type="date" name="date" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="form-group">
+                <label>Einstempeln</label>
+                <input type="time" name="clock_in" class="form-control" value="08:00" required>
+            </div>
+            <div class="form-group">
+                <label>Ausstempeln</label>
+                <input type="time" name="clock_out" class="form-control" value="17:00" required>
+            </div>
+            <div class="form-group">
+                <label>Pause (Min.)</label>
+                <input type="number" name="break_minutes" class="form-control" value="60" min="0">
+            </div>
+            <div class="form-group">
+                <label>Bemerkung</label>
+                <input type="text" name="notes" class="form-control" placeholder="Optional">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:12px;">Speichern</button>
+    </form>
+</div>
+{% else %}
+<div class="card" style="padding:40px; text-align:center; color:var(--text-secondary);">
+    Bitte wählen Sie einen Mitarbeiter aus.
+</div>
+{% endif %}
+
+<style>
+    .form-group { margin-bottom:8px; }
+    .form-group label { display:block; font-weight:500; margin-bottom:4px; font-size:0.9em; }
+    .form-control { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:0.95em; box-sizing:border-box; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; }
+    .btn-danger { background:#e74c3c; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+</style>
+
+<script>
+// Aktuelle Uhrzeit anzeigen
+function updateClock() {
+    var now = new Date();
+    var el = document.getElementById('currentTime');
+    if (el) el.textContent = now.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Laufende Arbeitszeit
+{% if today_entry and not today_entry.clock_out %}
+function updateRunning() {
+    var start = new Date();
+    start.setHours({{ today_entry.clock_in.hour }}, {{ today_entry.clock_in.minute }}, 0);
+    var diff = Math.floor((new Date() - start) / 60000);
+    var h = Math.floor(diff / 60);
+    var m = diff % 60;
+    var el = document.getElementById('runningTime');
+    if (el) el.textContent = h + ':' + (m < 10 ? '0' : '') + m + ' h';
+}
+updateRunning();
+setInterval(updateRunning, 60000);
+{% endif %}
+</script>
+{% endblock %}

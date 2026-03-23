@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}HR-Übersicht{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>HR</span>
+{% endblock %}
+
+{% block page_title %}HR-Übersicht{% endblock %}
+
+{% block content %}
+<div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+    <div class="card stat-card" style="padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:var(--primary);">{{ active_employees }}</div>
+        <div style="color:var(--text-secondary); font-size:0.9em;">Aktive Mitarbeiter</div>
+        <div style="color:var(--text-secondary); font-size:0.8em;">({{ total_employees }} total)</div>
+    </div>
+    <div class="card stat-card" style="padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:var(--primary);">CHF {{ '{:,.0f}'.format(monthly_costs).replace(',', "'") }}</div>
+        <div style="color:var(--text-secondary); font-size:0.9em;">Personalkosten (Monat)</div>
+    </div>
+    <div class="card stat-card" style="padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:{% if pending_absences > 0 %}#e67e22{% else %}var(--primary){% endif %};">{{ pending_absences }}</div>
+        <div style="color:var(--text-secondary); font-size:0.9em;">Offene Ferienanträge</div>
+    </div>
+    <div class="card stat-card" style="padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:{% if expiring_certs > 0 %}#e74c3c{% else %}var(--primary){% endif %};">{{ expiring_certs }}</div>
+        <div style="color:var(--text-secondary); font-size:0.9em;">Ablaufende Zertifikate</div>
+    </div>
+    <div class="card stat-card" style="padding:20px; text-align:center;">
+        <div style="font-size:2em; font-weight:700; color:{% if pending_expenses > 0 %}#e67e22{% else %}var(--primary){% endif %};">{{ pending_expenses }}</div>
+        <div style="color:var(--text-secondary); font-size:0.9em;">Offene Spesen</div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="card" style="padding:0; margin-bottom:24px;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:0;">
+        <a href="{{ url_for('hr.index') }}" style="padding:20px; text-align:center; text-decoration:none; color:var(--text-primary); border-bottom:3px solid var(--primary); background:var(--bg-secondary);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px;">
+                <rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect>
+            </svg>
+            <div style="font-weight:600;">Übersicht</div>
+        </a>
+        <a href="{{ url_for('hr.payroll') }}" style="padding:20px; text-align:center; text-decoration:none; color:var(--text-secondary); border-bottom:3px solid transparent;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px;">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <div style="font-weight:600;">Lohnlauf</div>
+        </a>
+        <a href="{{ url_for('hr.time_tracking') }}" style="padding:20px; text-align:center; text-decoration:none; color:var(--text-secondary); border-bottom:3px solid transparent;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <div style="font-weight:600;">Zeiterfassung</div>
+        </a>
+        <a href="{{ url_for('hr.expenses') }}" style="padding:20px; text-align:center; text-decoration:none; color:var(--text-secondary); border-bottom:3px solid transparent;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px;">
+                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                <line x1="2" y1="10" x2="22" y2="10"></line>
+            </svg>
+            <div style="font-weight:600;">Spesen</div>
+        </a>
+    </div>
+</div>
+
+<!-- Personalakten-Schnellzugriff -->
+<div class="card" style="margin-bottom:24px;">
+    <h3 style="margin:0 0 16px 0;">Personalakten</h3>
+    <div id="personnelList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:12px;">
+        <div style="color:var(--text-secondary); padding:20px; text-align:center;">Lade Mitarbeiterdaten...</div>
+    </div>
+</div>
+
+<!-- Letzte Lohnlaeufe -->
+{% if recent_runs %}
+<div class="card">
+    <h3 style="margin:0 0 16px 0;">Letzte Lohnläufe</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Monat</th>
+                <th>Status</th>
+                <th style="text-align:right;">Brutto Total</th>
+                <th style="text-align:right;">Netto Total</th>
+                <th style="text-align:right;">AG-Beiträge</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in recent_runs %}
+            <tr>
+                <td>{{ '%02d' % run.month }}/{{ run.year }}</td>
+                <td>
+                    <span class="status-badge status-{{ run.status }}">
+                        {% if run.status == 'draft' %}Entwurf
+                        {% elif run.status == 'calculated' %}Berechnet
+                        {% elif run.status == 'approved' %}Freigegeben
+                        {% elif run.status == 'paid' %}Ausbezahlt
+                        {% endif %}
+                    </span>
+                </td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_gross).replace(',', "'") }}</td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_net).replace(',', "'") }}</td>
+                <td style="text-align:right;">CHF {{ '{:,.2f}'.format(run.total_employer_contributions).replace(',', "'") }}</td>
+                <td style="text-align:right;">
+                    <a href="{{ url_for('hr.payroll_detail', run_id=run.id) }}" class="btn btn-sm">Details</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<style>
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-draft { background:#f0f0f0; color:#666; }
+    .status-calculated { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-paid { background:#cce5ff; color:#004085; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; text-transform:uppercase; }
+    .btn-sm { padding:4px 12px; font-size:0.85em; }
+    .personnel-card { display:block; padding:16px; border:1px solid var(--border); border-radius:8px; text-decoration:none; color:var(--text-primary); transition:all 0.2s; }
+    .personnel-card:hover { border-color:var(--primary); box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+</style>
+
+<script>
+fetch('{{ url_for("hr.api_personnel_list") }}')
+    .then(r => r.json())
+    .then(data => {
+        var container = document.getElementById('personnelList');
+        if (!data.length) {
+            container.innerHTML = '<div style="color:var(--text-secondary); padding:20px; text-align:center;">Keine Mitarbeiter mit Lohndaten gefunden.</div>';
+            return;
+        }
+        container.innerHTML = data.map(emp =>
+            '<a href="/hr/personnel/' + emp.id + '" class="personnel-card">' +
+            '<div style="font-weight:600;">' + emp.name + '</div>' +
+            '<div style="color:var(--text-secondary); font-size:0.9em;">' +
+            emp.pensum + '% · CHF ' + emp.salary.toLocaleString('de-CH') +
+            (emp.salary_type === 'hourly' ? '/h' : '/Mt') +
+            '</div></a>'
+        ).join('');
+    });
+</script>
+{% endblock %}

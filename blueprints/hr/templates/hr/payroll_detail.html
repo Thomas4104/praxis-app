@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Lohnlauf {{ month_name }} {{ run.year }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.payroll') }}">Lohnlauf</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ month_name }} {{ run.year }}</span>
+{% endblock %}
+
+{% block page_title %}Lohnlauf {{ month_name }} {{ run.year }}{% endblock %}
+
+{% block page_actions %}
+{% if run.status == 'calculated' %}
+<form method="POST" action="{{ url_for('hr.payroll_approve', run_id=run.id) }}" style="display:inline;">
+    <button type="submit" class="btn btn-primary" onclick="return confirm('Lohnlauf freigeben?')">Freigeben</button>
+</form>
+<form method="POST" action="{{ url_for('hr.payroll_recalculate', run_id=run.id) }}" style="display:inline;">
+    <button type="submit" class="btn btn-outline">Neu berechnen</button>
+</form>
+{% elif run.status == 'approved' %}
+<form method="POST" action="{{ url_for('hr.payroll_pay', run_id=run.id) }}" style="display:inline;">
+    <button type="submit" class="btn btn-primary" onclick="return confirm('Lohnlauf als ausbezahlt markieren und in Buchhaltung buchen?')">Auszahlen & Buchen</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Zusammenfassung -->
+<div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
+    <div class="card" style="padding:16px; text-align:center;">
+        <div style="color:var(--text-secondary); font-size:0.85em;">Status</div>
+        <div style="margin-top:4px;">
+            <span class="status-badge status-{{ run.status }}">
+                {% if run.status == 'draft' %}Entwurf
+                {% elif run.status == 'calculated' %}Berechnet
+                {% elif run.status == 'approved' %}Freigegeben
+                {% elif run.status == 'paid' %}Ausbezahlt
+                {% endif %}
+            </span>
+        </div>
+    </div>
+    <div class="card" style="padding:16px; text-align:center;">
+        <div style="color:var(--text-secondary); font-size:0.85em;">Brutto Total</div>
+        <div style="font-size:1.3em; font-weight:700;">CHF {{ '{:,.2f}'.format(run.total_gross).replace(',', "'") }}</div>
+    </div>
+    <div class="card" style="padding:16px; text-align:center;">
+        <div style="color:var(--text-secondary); font-size:0.85em;">Abzüge Total</div>
+        <div style="font-size:1.3em; font-weight:700; color:#e74c3c;">CHF {{ '{:,.2f}'.format(run.total_gross - run.total_net).replace(',', "'") }}</div>
+    </div>
+    <div class="card" style="padding:16px; text-align:center;">
+        <div style="color:var(--text-secondary); font-size:0.85em;">Netto Total</div>
+        <div style="font-size:1.3em; font-weight:700; color:#27ae60;">CHF {{ '{:,.2f}'.format(run.total_net).replace(',', "'") }}</div>
+    </div>
+    <div class="card" style="padding:16px; text-align:center;">
+        <div style="color:var(--text-secondary); font-size:0.85em;">AG-Beiträge</div>
+        <div style="font-size:1.3em; font-weight:700;">CHF {{ '{:,.2f}'.format(run.total_employer_contributions).replace(',', "'") }}</div>
+    </div>
+</div>
+
+<!-- Lohnabrechnungen -->
+<div class="card">
+    <h3 style="margin:0 0 16px 0;">Lohnabrechnungen ({{ payslips|length }} Mitarbeiter)</h3>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Mitarbeiter</th>
+                    <th style="text-align:right;">Grundlohn</th>
+                    <th style="text-align:right;">13. ML</th>
+                    <th style="text-align:right;">Zulagen</th>
+                    <th style="text-align:right;">Brutto</th>
+                    <th style="text-align:right;">AHV/IV/EO</th>
+                    <th style="text-align:right;">ALV</th>
+                    <th style="text-align:right;">BVG</th>
+                    <th style="text-align:right;">NBUV</th>
+                    <th style="text-align:right;">Abzüge</th>
+                    <th style="text-align:right; font-weight:700;">Netto</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for slip in payslips %}
+                <tr>
+                    <td style="font-weight:600;">{{ slip.employee.user.first_name }} {{ slip.employee.user.last_name }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.gross_salary).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.thirteenth_month).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.child_allowance).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.gross_total).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(slip.ahv_iv_eo).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(slip.alv).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(slip.bvg).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(slip.nbuv).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c; font-weight:600;">-{{ '{:,.2f}'.format(slip.deductions_total).replace(',', "'") }}</td>
+                    <td style="text-align:right; font-weight:700; color:#27ae60;">{{ '{:,.2f}'.format(slip.net_salary).replace(',', "'") }}</td>
+                    <td style="text-align:right;">
+                        <a href="{{ url_for('hr.payslip_detail', payslip_id=slip.id) }}" class="btn btn-sm">Detail</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700; border-top:2px solid var(--border);">
+                    <td>Total</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='gross_salary')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='thirteenth_month')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='child_allowance')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(run.total_gross).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(payslips|sum(attribute='ahv_iv_eo')).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(payslips|sum(attribute='alv')).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(payslips|sum(attribute='bvg')).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(payslips|sum(attribute='nbuv')).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#e74c3c;">-{{ '{:,.2f}'.format(run.total_gross - run.total_net).replace(',', "'") }}</td>
+                    <td style="text-align:right; color:#27ae60;">{{ '{:,.2f}'.format(run.total_net).replace(',', "'") }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- AG-Beitraege Zusammenfassung -->
+<div class="card" style="margin-top:24px;">
+    <h3 style="margin:0 0 16px 0;">Arbeitgeber-Beiträge</h3>
+    <div style="overflow-x:auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Mitarbeiter</th>
+                    <th style="text-align:right;">AHV/IV/EO</th>
+                    <th style="text-align:right;">ALV</th>
+                    <th style="text-align:right;">BVG</th>
+                    <th style="text-align:right;">UVG</th>
+                    <th style="text-align:right;">KTG</th>
+                    <th style="text-align:right;">FAK</th>
+                    <th style="text-align:right; font-weight:700;">Total AG</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for slip in payslips %}
+                <tr>
+                    <td>{{ slip.employee.user.first_name }} {{ slip.employee.user.last_name }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_ahv_iv_eo).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_alv).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_bvg).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_uvg).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_ktg).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(slip.employer_fak).replace(',', "'") }}</td>
+                    <td style="text-align:right; font-weight:700;">{{ '{:,.2f}'.format(slip.employer_total).replace(',', "'") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight:700; border-top:2px solid var(--border);">
+                    <td>Total</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_ahv_iv_eo')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_alv')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_bvg')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_uvg')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_ktg')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(payslips|sum(attribute='employer_fak')).replace(',', "'") }}</td>
+                    <td style="text-align:right;">{{ '{:,.2f}'.format(run.total_employer_contributions).replace(',', "'") }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<style>
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-draft { background:#f0f0f0; color:#666; }
+    .status-calculated { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-paid { background:#cce5ff; color:#004085; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; font-size:0.9em; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.8em; text-transform:uppercase; }
+    .btn-sm { padding:4px 12px; font-size:0.85em; }
+    .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text-primary); padding:8px 16px; border-radius:6px; text-decoration:none; cursor:pointer; }
+</style>
+{% endblock %}

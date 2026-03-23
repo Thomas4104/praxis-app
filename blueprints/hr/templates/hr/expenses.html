@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Spesen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<span>Spesen</span>
+{% endblock %}
+
+{% block page_title %}Spesen{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="card" style="margin-bottom:24px;">
+    <form method="GET" class="filter-bar" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="form-group" style="margin:0;">
+            <label style="font-size:0.85em;">Mitarbeiter</label>
+            <select name="employee_id" class="form-control" style="min-width:180px;">
+                <option value="">Alle</option>
+                {% for emp in employees %}
+                <option value="{{ emp.id }}" {% if employee_id == emp.id %}selected{% endif %}>
+                    {{ emp.user.first_name }} {{ emp.user.last_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+            <label style="font-size:0.85em;">Status</label>
+            <select name="status" class="form-control" style="min-width:140px;">
+                <option value="">Alle</option>
+                <option value="submitted" {% if status_filter == 'submitted' %}selected{% endif %}>Eingereicht</option>
+                <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Genehmigt</option>
+                <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Abgelehnt</option>
+                <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Ausbezahlt</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filtern</button>
+    </form>
+</div>
+
+<!-- Neue Spese -->
+<div class="card" style="margin-bottom:24px;">
+    <details>
+        <summary style="cursor:pointer; font-weight:600; font-size:1.05em;">+ Neue Spese einreichen</summary>
+        <form method="POST" action="{{ url_for('hr.expense_create') }}" style="margin-top:16px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                <div class="form-group">
+                    <label>Mitarbeiter</label>
+                    <select name="employee_id" class="form-control" required>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if current_user.employee and emp.id == current_user.employee.id %}selected{% endif %}>
+                            {{ emp.user.first_name }} {{ emp.user.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Datum</label>
+                    <input type="date" name="date" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Kategorie</label>
+                    <select name="category" class="form-control">
+                        <option value="travel">Reise</option>
+                        <option value="meals">Verpflegung</option>
+                        <option value="material">Material</option>
+                        <option value="training">Weiterbildung</option>
+                        <option value="other">Sonstiges</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Betrag (CHF)</label>
+                    <input type="number" name="amount" class="form-control" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label>MwSt-Betrag (CHF)</label>
+                    <input type="number" name="vat_amount" class="form-control" step="0.01" min="0" value="0">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Beschreibung</label>
+                    <input type="text" name="description" class="form-control" placeholder="z.B. Zugfahrt Zürich-Bern" required>
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Bemerkung</label>
+                    <input type="text" name="notes" class="form-control" placeholder="Optional">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:12px;">Einreichen</button>
+        </form>
+    </details>
+</div>
+
+<!-- Spesenliste -->
+<div class="card">
+    {% if expenses %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Mitarbeiter</th>
+                <th>Beschreibung</th>
+                <th>Kategorie</th>
+                <th style="text-align:right;">Betrag</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exp in expenses %}
+            <tr>
+                <td>{{ exp.date.strftime('%d.%m.%Y') }}</td>
+                <td>{{ exp.employee.user.first_name }} {{ exp.employee.user.last_name }}</td>
+                <td>{{ exp.description }}</td>
+                <td>
+                    {% if exp.category == 'travel' %}Reise
+                    {% elif exp.category == 'meals' %}Verpflegung
+                    {% elif exp.category == 'material' %}Material
+                    {% elif exp.category == 'training' %}Weiterbildung
+                    {% else %}Sonstiges
+                    {% endif %}
+                </td>
+                <td style="text-align:right; font-weight:600;">CHF {{ '{:.2f}'.format(exp.amount) }}</td>
+                <td>
+                    <span class="status-badge status-{{ exp.status }}">
+                        {% if exp.status == 'submitted' %}Eingereicht
+                        {% elif exp.status == 'approved' %}Genehmigt
+                        {% elif exp.status == 'rejected' %}Abgelehnt
+                        {% elif exp.status == 'paid' %}Ausbezahlt
+                        {% endif %}
+                    </span>
+                </td>
+                <td style="text-align:right;">
+                    {% if exp.status == 'submitted' and current_user.role == 'admin' %}
+                    <form method="POST" action="{{ url_for('hr.expense_approve', expense_id=exp.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-success" title="Genehmigen">&#10003;</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('hr.expense_reject', expense_id=exp.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-danger" title="Ablehnen">&#10007;</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:40px; text-align:center; color:var(--text-secondary);">
+        Keine Spesen gefunden.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .form-group { margin-bottom:8px; }
+    .form-group label { display:block; font-weight:500; margin-bottom:4px; font-size:0.9em; }
+    .form-control { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:0.95em; box-sizing:border-box; }
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-submitted { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-rejected { background:#f8d7da; color:#721c24; }
+    .status-paid { background:#cce5ff; color:#004085; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; text-transform:uppercase; }
+    .btn-sm { padding:4px 10px; font-size:0.85em; border:none; border-radius:6px; cursor:pointer; }
+    .btn-success { background:#27ae60; color:#fff; }
+    .btn-danger { background:#e74c3c; color:#fff; }
+</style>
+{% endblock %}

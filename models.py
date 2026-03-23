@@ -1102,3 +1102,183 @@ class PeriodLock(db.Model):
 
     organization = db.relationship('Organization', backref=db.backref('period_locks', lazy='dynamic'))
     locked_by = db.relationship('User', backref='period_locks')
+
+
+# ============================================================
+# HR & Lohnbuchhaltung
+# ============================================================
+
+class EmployeeContract(db.Model):
+    """Arbeitsvertraege der Mitarbeiter"""
+    __tablename__ = 'employee_contracts'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    contract_type = db.Column(db.String(20), default='permanent')  # permanent, temporary
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date)
+    probation_end = db.Column(db.Date)
+    notice_period_months = db.Column(db.Integer, default=1)
+    pensum_percent = db.Column(db.Integer, default=100)
+    vacation_days = db.Column(db.Integer, default=20)
+    document_path = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('contracts', lazy='dynamic'))
+
+
+class EmployeeSalary(db.Model):
+    """Lohndaten mit Historie"""
+    __tablename__ = 'employee_salaries'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    salary_type = db.Column(db.String(20), default='monthly')  # monthly, hourly
+    amount = db.Column(db.Float, nullable=False)
+    hourly_rate = db.Column(db.Float)
+    thirteenth_month = db.Column(db.Boolean, default=True)
+    iban = db.Column(db.String(34))
+    ahv_number = db.Column(db.String(20))
+    withholding_tax = db.Column(db.Boolean, default=False)
+    withholding_tax_code = db.Column(db.String(10))
+    withholding_tax_canton = db.Column(db.String(5))
+    bvg_rate = db.Column(db.Float, default=7.0)  # BVG-Beitragssatz in %
+    nbuv_rate = db.Column(db.Float, default=1.5)  # NBUV-Satz in %
+    ktg_rate = db.Column(db.Float, default=0.5)  # KTG-Satz in %
+    valid_from = db.Column(db.Date, nullable=False)
+    valid_to = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('salaries', lazy='dynamic'))
+
+
+class EmployeeChild(db.Model):
+    """Kinder der Mitarbeiter fuer Kinderzulagen"""
+    __tablename__ = 'employee_children'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    first_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100))
+    date_of_birth = db.Column(db.Date)
+    allowance_type = db.Column(db.String(20), default='child')  # child (200/Mt), education (250/Mt)
+    allowance_amount = db.Column(db.Float, default=200.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('children', lazy='dynamic'))
+
+
+class PayrollRun(db.Model):
+    """Lohnlauf (monatlich)"""
+    __tablename__ = 'payroll_runs'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='draft')  # draft, calculated, approved, paid
+    total_gross = db.Column(db.Float, default=0)
+    total_net = db.Column(db.Float, default=0)
+    total_employer_contributions = db.Column(db.Float, default=0)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    approved_at = db.Column(db.DateTime)
+    paid_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('payroll_runs', lazy='dynamic'))
+    approved_by = db.relationship('User', backref='approved_payroll_runs')
+    journal_entry = db.relationship('JournalEntry', backref='payroll_run')
+    payslips = db.relationship('Payslip', backref='payroll_run', lazy='dynamic')
+
+
+class Payslip(db.Model):
+    """Lohnabrechnung pro Mitarbeiter pro Monat"""
+    __tablename__ = 'payslips'
+    id = db.Column(db.Integer, primary_key=True)
+    payroll_run_id = db.Column(db.Integer, db.ForeignKey('payroll_runs.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    # Bruttolohn-Komponenten
+    gross_salary = db.Column(db.Float, default=0)
+    thirteenth_month = db.Column(db.Float, default=0)
+    child_allowance = db.Column(db.Float, default=0)
+    bonuses = db.Column(db.Float, default=0)
+    expenses_total = db.Column(db.Float, default=0)
+    overtime_payout = db.Column(db.Float, default=0)
+    gross_total = db.Column(db.Float, default=0)
+    # Arbeitnehmer-Abzuege
+    ahv_iv_eo = db.Column(db.Float, default=0)
+    alv = db.Column(db.Float, default=0)
+    alv2 = db.Column(db.Float, default=0)
+    bvg = db.Column(db.Float, default=0)
+    nbuv = db.Column(db.Float, default=0)
+    ktg = db.Column(db.Float, default=0)
+    withholding_tax = db.Column(db.Float, default=0)
+    deductions_total = db.Column(db.Float, default=0)
+    net_salary = db.Column(db.Float, default=0)
+    # Arbeitgeber-Beitraege
+    employer_ahv_iv_eo = db.Column(db.Float, default=0)
+    employer_alv = db.Column(db.Float, default=0)
+    employer_bvg = db.Column(db.Float, default=0)
+    employer_uvg = db.Column(db.Float, default=0)
+    employer_ktg = db.Column(db.Float, default=0)
+    employer_fak = db.Column(db.Float, default=0)  # Familienzulagen-Beitrag
+    employer_vk = db.Column(db.Float, default=0)  # Verwaltungskosten AHV
+    employer_total = db.Column(db.Float, default=0)
+    # Details
+    pdf_path = db.Column(db.String(500))
+    details_json = db.Column(db.Text)
+
+    employee = db.relationship('Employee', backref=db.backref('payslips', lazy='dynamic'))
+
+
+class TimeEntry(db.Model):
+    """Zeiterfassungs-Eintraege"""
+    __tablename__ = 'time_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    clock_in = db.Column(db.Time)
+    clock_out = db.Column(db.Time)
+    break_minutes = db.Column(db.Integer, default=0)
+    worked_minutes = db.Column(db.Integer, default=0)
+    entry_type = db.Column(db.String(20), default='manual')  # manual, clock, auto_calendar
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('time_entries', lazy='dynamic'))
+
+
+class OvertimeAccount(db.Model):
+    """Ueberstundenkonto pro Mitarbeiter pro Monat"""
+    __tablename__ = 'overtime_accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    target_minutes = db.Column(db.Integer, default=0)  # Soll
+    actual_minutes = db.Column(db.Integer, default=0)  # Ist
+    overtime_minutes = db.Column(db.Integer, default=0)  # Differenz
+    cumulative_overtime = db.Column(db.Integer, default=0)  # Kumuliert
+
+    employee = db.relationship('Employee', backref=db.backref('overtime_accounts', lazy='dynamic'))
+
+
+class Expense(db.Model):
+    """Spesen der Mitarbeiter"""
+    __tablename__ = 'expenses'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.String(500), nullable=False)
+    category = db.Column(db.String(50))  # travel, meals, material, training, other
+    amount = db.Column(db.Float, nullable=False)
+    vat_amount = db.Column(db.Float, default=0)
+    receipt_path = db.Column(db.String(500))
+    status = db.Column(db.String(20), default='submitted')  # submitted, approved, rejected, paid
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    approved_at = db.Column(db.DateTime)
+    paid_via = db.Column(db.String(20))  # payroll, separate
+    payroll_run_id = db.Column(db.Integer, db.ForeignKey('payroll_runs.id'), nullable=True)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('expenses', lazy='dynamic'))
+    approved_by = db.relationship('User', backref='approved_expenses')
+    payroll_run = db.relationship('PayrollRun', backref='expenses')

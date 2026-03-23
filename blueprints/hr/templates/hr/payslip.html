@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Lohnabrechnung {{ month_name }} {{ run.year }} - {{ user.first_name }} {{ user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.payroll') }}">Lohnlauf</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.payroll_detail', run_id=run.id) }}">{{ month_name }} {{ run.year }}</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ user.first_name }} {{ user.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}Lohnabrechnung {{ month_name }} {{ run.year }}{% endblock %}
+
+{% block content %}
+<div class="payslip-container" style="max-width:800px; margin:0 auto;">
+    <!-- Header -->
+    <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+            <div>
+                <h2 style="margin:0;">{{ user.first_name }} {{ user.last_name }}</h2>
+                <div style="color:var(--text-secondary);">
+                    {{ employee.employee_number }} · {{ employee.pensum_percent }}%
+                    {% if salary and salary.ahv_number %} · AHV: {{ salary.ahv_number }}{% endif %}
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:1.2em; font-weight:700;">{{ month_name }} {{ run.year }}</div>
+                <span class="status-badge status-{{ run.status }}">
+                    {% if run.status == 'draft' %}Entwurf
+                    {% elif run.status == 'calculated' %}Berechnet
+                    {% elif run.status == 'approved' %}Freigegeben
+                    {% elif run.status == 'paid' %}Ausbezahlt
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bruttolohn -->
+    <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 16px 0; color:var(--primary);">Bruttolohn</h3>
+        <table class="payslip-table">
+            <tbody>
+                <tr>
+                    <td>Grundlohn ({{ 'Monatslohn' if salary and salary.salary_type == 'monthly' else 'Stundenlohn' }})</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.gross_salary).replace(',', "'") }}</td>
+                </tr>
+                {% if payslip.thirteenth_month > 0 %}
+                <tr>
+                    <td>13. Monatslohn (1/12)</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.thirteenth_month).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+                {% if payslip.child_allowance > 0 %}
+                <tr>
+                    <td>Kinderzulagen</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.child_allowance).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+                {% if payslip.bonuses > 0 %}
+                <tr>
+                    <td>Prämien/Boni</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.bonuses).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+                {% if payslip.expenses_total > 0 %}
+                <tr>
+                    <td>Spesen</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.expenses_total).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+                {% if payslip.overtime_payout > 0 %}
+                <tr>
+                    <td>Überstunden-Auszahlung</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.overtime_payout).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td><strong>Bruttolohn Total</strong></td>
+                    <td style="text-align:right;"><strong>CHF {{ '{:,.2f}'.format(payslip.gross_total).replace(',', "'") }}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Abzuege -->
+    <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin:0 0 16px 0; color:#e74c3c;">Abzüge Arbeitnehmer</h3>
+        <table class="payslip-table">
+            <tbody>
+                <tr>
+                    <td>AHV/IV/EO (5.3%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.ahv_iv_eo).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>ALV (1.1%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.alv).replace(',', "'") }}</td>
+                </tr>
+                {% if payslip.alv2 > 0 %}
+                <tr>
+                    <td>ALV2 Solidaritätsbeitrag (0.5%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.alv2).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td>BVG ({{ salary.bvg_rate if salary else 7.0 }}%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.bvg).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>NBUV ({{ salary.nbuv_rate if salary else 1.5 }}%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.nbuv).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>KTG ({{ salary.ktg_rate if salary else 0.5 }}%)</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.ktg).replace(',', "'") }}</td>
+                </tr>
+                {% if payslip.withholding_tax > 0 %}
+                <tr>
+                    <td>Quellensteuer</td>
+                    <td style="text-align:right; color:#e74c3c;">- CHF {{ '{:,.2f}'.format(payslip.withholding_tax).replace(',', "'") }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td><strong>Total Abzüge</strong></td>
+                    <td style="text-align:right; color:#e74c3c;"><strong>- CHF {{ '{:,.2f}'.format(payslip.deductions_total).replace(',', "'") }}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Nettolohn -->
+    <div class="card" style="margin-bottom:24px; background:var(--bg-secondary);">
+        <table class="payslip-table">
+            <tbody>
+                <tr>
+                    <td style="font-size:1.2em;"><strong>Nettolohn</strong></td>
+                    <td style="text-align:right; font-size:1.4em; font-weight:700; color:#27ae60;">
+                        CHF {{ '{:,.2f}'.format(payslip.net_salary).replace(',', "'") }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        {% if salary and salary.iban %}
+        <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border); color:var(--text-secondary); font-size:0.9em;">
+            Auszahlung auf: {{ salary.iban }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- AG-Beitraege -->
+    <div class="card">
+        <h3 style="margin:0 0 16px 0; color:var(--text-secondary);">Arbeitgeber-Beiträge (nicht auf Lohnabrechnung)</h3>
+        <table class="payslip-table">
+            <tbody>
+                <tr>
+                    <td>AHV/IV/EO (5.3%)</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_ahv_iv_eo).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>ALV (1.1%)</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_alv).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>BVG</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_bvg).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>UVG (Berufsunfall)</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_uvg).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>KTG</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_ktg).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>FAK (Familienzulagen)</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_fak).replace(',', "'") }}</td>
+                </tr>
+                <tr>
+                    <td>Verwaltungskosten AHV</td>
+                    <td style="text-align:right;">CHF {{ '{:,.2f}'.format(payslip.employer_vk).replace(',', "'") }}</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td><strong>Total AG-Beiträge</strong></td>
+                    <td style="text-align:right;"><strong>CHF {{ '{:,.2f}'.format(payslip.employer_total).replace(',', "'") }}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<style>
+    .payslip-table { width:100%; border-collapse:collapse; }
+    .payslip-table td { padding:8px 0; border-bottom:1px solid var(--border); }
+    .payslip-table .total-row td { border-top:2px solid var(--text-primary); border-bottom:none; padding-top:12px; }
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; }
+    .status-draft { background:#f0f0f0; color:#666; }
+    .status-calculated { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-paid { background:#cce5ff; color:#004085; }
+</style>
+{% endblock %}
