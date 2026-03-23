@@ -742,6 +742,28 @@ class AISettings(db.Model):
 
 
 # ============================================================
+# Warteliste
+# ============================================================
+
+class WaitingList(db.Model):
+    __tablename__ = 'waiting_list'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
+    template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))
+    preferred_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
+    preferred_days_json = db.Column(db.Text)  # [0,1,2] = Mo,Di,Mi
+    preferred_times_json = db.Column(db.Text)  # ["08:00-12:00", "14:00-17:00"]
+    priority = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='waiting')  # waiting, contacted, scheduled, cancelled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('waiting_list_entries', lazy='dynamic'))
+    template = db.relationship('TreatmentSeriesTemplate', backref='waiting_list_entries')
+    preferred_employee = db.relationship('Employee', backref='waiting_list_entries')
+
+
+# ============================================================
 # Audit
 # ============================================================
 

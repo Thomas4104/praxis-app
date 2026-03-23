@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Kalender - Monatsansicht{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('calendar.index') }}">Kalender</a>
+<span class="breadcrumb-separator">/</span>
+<span>Monatsansicht</span>
+{% endblock %}
+
+{% block page_title %}Kalender — Monatsansicht{% endblock %}
+
+{% block page_actions %}
+<div class="calendar-header-controls">
+    <div class="view-switcher">
+        <a href="{{ url_for('calendar.index', date=current_date.isoformat()) }}" class="view-btn">Tag</a>
+        <a href="{{ url_for('calendar.week', date=current_date.isoformat()) }}" class="view-btn">Woche</a>
+        <a href="{{ url_for('calendar.month', date=current_date.isoformat()) }}" class="view-btn active">Monat</a>
+    </div>
+    <div class="date-navigation">
+        <button class="btn btn-icon" id="prevMonth" title="Vorheriger Monat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="todayBtn">Heute</button>
+        <span class="month-label" id="monthLabel"></span>
+        <button class="btn btn-icon" id="nextMonth" title="Nächster Monat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+    </div>
+    <div class="location-filter">
+        <select id="locationFilter" class="form-select form-select-sm">
+            {% for loc in locations %}
+            <option value="{{ loc.id }}" {% if loc.id == current_location_id %}selected{% endif %}>{{ loc.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="calendar-container" id="calendarContainer">
+    <div class="calendar-month-grid" id="calendarMonthGrid">
+        <div class="month-header">
+            <div class="month-day-header">Mo</div>
+            <div class="month-day-header">Di</div>
+            <div class="month-day-header">Mi</div>
+            <div class="month-day-header">Do</div>
+            <div class="month-day-header">Fr</div>
+            <div class="month-day-header weekend">Sa</div>
+            <div class="month-day-header weekend">So</div>
+        </div>
+        <div class="month-body" id="monthBody">
+            <!-- Wird via JS befuellt -->
+        </div>
+    </div>
+</div>
+
+<script>
+    window.CALENDAR_CONFIG = {
+        currentDate: '{{ current_date.isoformat() }}',
+        locationId: {{ current_location_id or 'null' }},
+        viewType: 'month'
+    };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}

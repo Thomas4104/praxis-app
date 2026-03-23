@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Kalender - Tagesansicht{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<span>Kalender</span>
+{% endblock %}
+
+{% block page_title %}Kalender{% endblock %}
+
+{% block page_actions %}
+<div class="calendar-header-controls">
+    <div class="view-switcher">
+        <a href="{{ url_for('calendar.index', date=current_date.isoformat()) }}" class="view-btn active">Tag</a>
+        <a href="{{ url_for('calendar.week', date=current_date.isoformat()) }}" class="view-btn">Woche</a>
+        <a href="{{ url_for('calendar.month', date=current_date.isoformat()) }}" class="view-btn">Monat</a>
+    </div>
+    <div class="date-navigation">
+        <button class="btn btn-icon" id="prevDay" title="Vorheriger Tag">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="todayBtn">Heute</button>
+        <input type="date" id="datePicker" value="{{ current_date.isoformat() }}" class="date-picker-input">
+        <button class="btn btn-icon" id="nextDay" title="Nächster Tag">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+    </div>
+    <div class="location-filter">
+        <select id="locationFilter" class="form-select form-select-sm">
+            {% for loc in locations %}
+            <option value="{{ loc.id }}" {% if loc.id == current_location_id %}selected{% endif %}>{{ loc.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="calendar-container" id="calendarContainer">
+    <!-- Therapeuten-Filter -->
+    <div class="therapist-filters" id="therapistFilters">
+        {% for emp in employees %}
+        <label class="therapist-filter-item">
+            <input type="checkbox" value="{{ emp.id }}" checked data-color="{{ emp.color_code or '#4a90d9' }}">
+            <span class="therapist-color-dot" style="background: {{ emp.color_code or '#4a90d9' }}"></span>
+            <span class="therapist-name">{{ emp.user.first_name }} {{ emp.user.last_name }}</span>
+        </label>
+        {% endfor %}
+    </div>
+
+    <!-- Feiertags-Banner -->
+    <div class="holiday-banner" id="holidayBanner" style="display: none;"></div>
+
+    <!-- Kalender-Grid -->
+    <div class="calendar-day-grid" id="calendarDayGrid">
+        <!-- Zeitachse links -->
+        <div class="time-column" id="timeColumn">
+            <!-- Wird via JS befuellt -->
+        </div>
+        <!-- Therapeuten-Spalten -->
+        <div class="therapist-columns" id="therapistColumns">
+            <!-- Wird via JS befuellt -->
+        </div>
+    </div>
+</div>
+
+<!-- Quick-Add Modal -->
+<div class="modal-overlay" id="quickAddModal" style="display: none;">
+    <div class="modal-content modal-md">
+        <div class="modal-header">
+            <h3>Neuer Termin</h3>
+            <button class="modal-close" id="quickAddClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Patient</label>
+                <div class="patient-search-wrapper">
+                    <input type="text" id="qaPatientSearch" class="form-control" placeholder="Name, Geburtsdatum oder Patientennummer..." autocomplete="off">
+                    <div class="patient-search-results" id="qaPatientResults"></div>
+                </div>
+                <input type="hidden" id="qaPatientId">
+                <div id="qaPatientDisplay" class="selected-patient" style="display:none;"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Therapeut</label>
+                    <select id="qaEmployeeId" class="form-control">
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Datum / Uhrzeit</label>
+                    <input type="datetime-local" id="qaStartTime" class="form-control">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Dauer</label>
+                    <select id="qaDuration" class="form-control">
+                        <option value="15">15 Min.</option>
+                        <option value="20">20 Min.</option>
+                        <option value="25">25 Min.</option>
+                        <option value="30" selected>30 Min.</option>
+                        <option value="45">45 Min.</option>
+                        <option value="60">60 Min.</option>
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Terminart</label>
+                    <select id="qaType" class="form-control">
+                        <option value="treatment">Behandlung</option>
+                        <option value="initial">Ersttermin</option>
+                        <option value="group">Gruppentherapie</option>
+                        <option value="admin">Admin/Blocker</option>
+                        <option value="domicile">Domizil</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Serie (optional)</label>
+                    <select id="qaSeries" class="form-control">
+                        <option value="">— Keine Serie —</option>
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Raum</label>
+                    <select id="qaRoom" class="form-control">
+                        <option value="">— Kein Raum —</option>
+                        {% for room in rooms %}
+                        <option value="{{ room.id }}">{{ room.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Notiz</label>
+                <textarea id="qaNotes" class="form-control" rows="2" placeholder="Optionale Notiz..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="quickAddCancel">Abbrechen</button>
+            <button class="btn btn-primary" id="quickAddSave">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Termin-Detail Modal -->
+<div class="modal-overlay" id="appointmentDetailModal" style="display: none;">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3 id="detailTitle">Termin-Details</h3>
+            <button class="modal-close" id="detailClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="detail-grid">
+                <div class="detail-main">
+                    <div class="detail-info-row">
+                        <span class="detail-label">Patient:</span>
+                        <span id="detailPatient" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row">
+                        <span class="detail-label">Datum / Zeit:</span>
+                        <span id="detailDateTime" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row">
+                        <span class="detail-label">Therapeut:</span>
+                        <span id="detailEmployee" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row">
+                        <span class="detail-label">Terminart:</span>
+                        <span id="detailType" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row">
+                        <span class="detail-label">Status:</span>
+                        <span id="detailStatus" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row" id="detailSeriesRow" style="display: none;">
+                        <span class="detail-label">Serie:</span>
+                        <span id="detailSeries" class="detail-value"></span>
+                    </div>
+                    <div class="detail-info-row">
+                        <span class="detail-label">Notizen:</span>
+                        <textarea id="detailNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="detail-soap">
+                    <h4>SOAP-Dokumentation</h4>
+                    <div class="form-group">
+                        <label>S — Subjektiv</label>
+                        <textarea id="detailSoapS" class="form-control" rows="2" placeholder="Beschwerden des Patienten..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>O — Objektiv</label>
+                        <textarea id="detailSoapO" class="form-control" rows="2" placeholder="Klinische Befunde..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>A — Assessment</label>
+                        <textarea id="detailSoapA" class="form-control" rows="2" placeholder="Beurteilung..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>P — Plan</label>
+                        <textarea id="detailSoapP" class="form-control" rows="2" placeholder="Weiteres Vorgehen..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div class="detail-actions-left">
+                <select id="detailStatusSelect" class="form-control form-control-sm">
+                    <option value="scheduled">Geplant</option>
+                    <option value="confirmed">Bestätigt</option>
+                    <option value="appeared">Erschienen</option>
+                    <option value="no_show">Nicht erschienen</option>
+                </select>
+                <button class="btn btn-sm btn-secondary" id="detailStatusBtn">Status ändern</button>
+            </div>
+            <div class="detail-actions-right">
+                <button class="btn btn-danger btn-sm" id="detailCancelBtn">Absagen</button>
+                <button class="btn btn-secondary" id="detailCloseBtn">Schliessen</button>
+                <button class="btn btn-primary" id="detailSaveBtn">Speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Absage-Modal -->
+<div class="modal-overlay" id="cancelModal" style="display: none;">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>Termin absagen</h3>
+            <button class="modal-close" id="cancelClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Grund</label>
+                <select id="cancelReason" class="form-control">
+                    <option value="Patient">Patient hat abgesagt</option>
+                    <option value="Praxis">Praxis hat abgesagt</option>
+                    <option value="Sonstiges">Sonstiges</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="cancelChargeFee"> Stornogebühr berechnen
+                </label>
+            </div>
+            <div class="form-group" id="cancelFeeGroup" style="display: none;">
+                <label>Betrag (CHF)</label>
+                <input type="number" id="cancelFeeAmount" class="form-control" value="30" step="0.05">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelAbort">Abbrechen</button>
+            <button class="btn btn-danger" id="cancelConfirm">Absagen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Daten an JS uebergeben
+    window.CALENDAR_CONFIG = {
+        currentDate: '{{ current_date.isoformat() }}',
+        locationId: {{ current_location_id or 'null' }},
+        viewType: 'day',
+        employees: [
+            {% for emp in employees %}
+            {
+                id: {{ emp.id }},
+                name: '{{ emp.user.first_name }} {{ emp.user.last_name }}',
+                color: '{{ emp.color_code or "#4a90d9" }}'
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
+    };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}

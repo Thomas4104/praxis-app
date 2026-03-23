@@ -7,7 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
-    Certificate, AbsenceQuota, Absence, PatientDocument, Contact
+    Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList
 from config import config
 
 
@@ -45,6 +45,7 @@ def create_app(config_name=None):
     from blueprints.employees import employees_bp
     from blueprints.patients import patients_bp
     from blueprints.addresses import addresses_bp
+    from blueprints.calendar import calendar_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -54,6 +55,7 @@ def create_app(config_name=None):
     app.register_blueprint(employees_bp, url_prefix='/employees')
     app.register_blueprint(patients_bp, url_prefix='/patients')
     app.register_blueprint(addresses_bp, url_prefix='/addresses')
+    app.register_blueprint(calendar_bp, url_prefix='/calendar')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -63,6 +65,7 @@ def create_app(config_name=None):
     csrf.exempt(employees_bp)
     csrf.exempt(patients_bp)
     csrf.exempt(addresses_bp)
+    csrf.exempt(calendar_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -793,6 +796,97 @@ def seed_demo_data():
             'terminvorschlaege': True,
             'proaktive_hinweise': False
         })
+    ))
+
+    # === Abgesagte Termine ===
+    # Termin 1: Patient hat abgesagt (gestern)
+    cancel_date = today - timedelta(days=1)
+    if cancel_date.weekday() < 5:  # Nur an Werktagen
+        cancel_start = datetime.combine(cancel_date, time(14, 0))
+        cancel_end = cancel_start + timedelta(minutes=30)
+        appt_cancelled1 = Appointment(
+            patient_id=patients[5].id,
+            employee_id=thomas_emp.id,
+            location_id=loc_zh.id,
+            start_time=cancel_start,
+            end_time=cancel_end,
+            duration_minutes=30,
+            status='cancelled',
+            appointment_type='treatment',
+            title='Physiotherapie',
+            cancellation_reason='Patient hat telefonisch abgesagt (Grippe)',
+            cancellation_fee=0
+        )
+        db.session.add(appt_cancelled1)
+
+    # Termin 2: Praxis hat abgesagt (vorgestern), mit Stornogebuehr
+    cancel_date2 = today - timedelta(days=2)
+    if cancel_date2.weekday() < 5:
+        cancel_start2 = datetime.combine(cancel_date2, time(10, 30))
+        cancel_end2 = cancel_start2 + timedelta(minutes=30)
+        appt_cancelled2 = Appointment(
+            patient_id=patients[8].id,
+            employee_id=sarah_emp.id,
+            location_id=loc_wt.id,
+            start_time=cancel_start2,
+            end_time=cancel_end2,
+            duration_minutes=30,
+            status='cancelled',
+            appointment_type='treatment',
+            title='Physiotherapie',
+            cancellation_reason='Patient hat weniger als 24h vorher abgesagt',
+            cancellation_fee=30.00
+        )
+        db.session.add(appt_cancelled2)
+
+    # === No-Show Termin ===
+    noshow_date = today - timedelta(days=3)
+    if noshow_date.weekday() < 5:
+        noshow_start = datetime.combine(noshow_date, time(9, 0))
+        noshow_end = noshow_start + timedelta(minutes=30)
+        appt_noshow = Appointment(
+            patient_id=patients[13].id,
+            employee_id=thomas_emp.id,
+            location_id=loc_zh.id,
+            start_time=noshow_start,
+            end_time=noshow_end,
+            duration_minutes=30,
+            status='no_show',
+            appointment_type='treatment',
+            title='Physiotherapie',
+            notes='Patient nicht erschienen, telefonisch nicht erreichbar'
+        )
+        db.session.add(appt_noshow)
+
+    # === Warteliste ===
+    db.session.add(WaitingList(
+        patient_id=patients[10].id,
+        template_id=tpl_physio_kvg.id,
+        preferred_employee_id=thomas_emp.id,
+        preferred_days_json=json.dumps([0, 2, 4]),  # Mo, Mi, Fr
+        preferred_times_json=json.dumps(['08:00-12:00']),
+        priority=2,
+        notes='Patient moechte moeglichst frueh morgens',
+        status='waiting'
+    ))
+    db.session.add(WaitingList(
+        patient_id=patients[11].id,
+        template_id=tpl_manuell.id,
+        preferred_employee_id=sarah_emp.id,
+        preferred_days_json=json.dumps([1, 3]),  # Di, Do
+        preferred_times_json=json.dumps(['14:00-17:00']),
+        priority=1,
+        notes='Wartet auf Folgeverordnung vom Arzt',
+        status='waiting'
+    ))
+    db.session.add(WaitingList(
+        patient_id=patients[13].id,
+        template_id=tpl_physio_kvg.id,
+        preferred_days_json=json.dumps([0, 1, 2, 3, 4]),
+        preferred_times_json=json.dumps(['08:00-12:00', '13:00-17:00']),
+        priority=0,
+        notes='Flexible Zeiten, kein bevorzugter Therapeut',
+        status='waiting'
     ))
 
     db.session.commit()

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Serienplanung{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('calendar.index') }}">Kalender</a>
+<span class="breadcrumb-separator">/</span>
+<span>Serienplanung</span>
+{% endblock %}
+
+{% block page_title %}Behandlungsserie planen{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <!-- Schritt-Anzeige -->
+    <div class="wizard-steps">
+        <div class="wizard-step active" data-step="1"><span class="step-number">1</span><span class="step-label">Patient</span></div>
+        <div class="wizard-step" data-step="2"><span class="step-number">2</span><span class="step-label">Vorlage</span></div>
+        <div class="wizard-step" data-step="3"><span class="step-number">3</span><span class="step-label">Therapeut</span></div>
+        <div class="wizard-step" data-step="4"><span class="step-number">4</span><span class="step-label">Verordnung</span></div>
+        <div class="wizard-step" data-step="5"><span class="step-number">5</span><span class="step-label">Versicherung</span></div>
+        <div class="wizard-step" data-step="6"><span class="step-number">6</span><span class="step-label">Termine</span></div>
+        <div class="wizard-step" data-step="7"><span class="step-number">7</span><span class="step-label">Bestätigen</span></div>
+    </div>
+
+    <!-- Schritt 1: Patient -->
+    <div class="wizard-panel" id="step1">
+        <h3>Patient auswählen</h3>
+        <div class="form-group">
+            <label>Patient suchen</label>
+            <div class="patient-search-wrapper">
+                <input type="text" id="wizPatientSearch" class="form-control form-control-lg" placeholder="Name, Geburtsdatum oder Patientennummer..." autocomplete="off">
+                <div class="patient-search-results" id="wizPatientResults"></div>
+            </div>
+            <input type="hidden" id="wizPatientId">
+            <div id="wizPatientDisplay" class="selected-patient-card" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Schritt 2: Vorlage -->
+    <div class="wizard-panel" id="step2" style="display:none;">
+        <h3>Serienvorlage wählen</h3>
+        <div class="template-cards">
+            {% for tpl in templates %}
+            <div class="template-card" data-template-id="{{ tpl.id }}" data-num="{{ tpl.num_appointments }}" data-duration="{{ tpl.duration_minutes }}" data-interval="{{ tpl.min_interval_days }}">
+                <h4>{{ tpl.name }}</h4>
+                <div class="template-details">
+                    <span>{{ tpl.num_appointments }} Termine</span>
+                    <span>{{ tpl.duration_minutes }} Min.</span>
+                    <span>Mind. {{ tpl.min_interval_days }} Tag(e) Abstand</span>
+                </div>
+                {% if tpl.tariff_type %}
+                <span class="template-tariff">{{ tpl.tariff_type }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <input type="hidden" id="wizTemplateId">
+    </div>
+
+    <!-- Schritt 3: Therapeut -->
+    <div class="wizard-panel" id="step3" style="display:none;">
+        <h3>Therapeut wählen</h3>
+        <div class="employee-cards">
+            {% for emp in employees %}
+            {% if emp.user.role == 'therapist' or emp.user.role == 'admin' %}
+            <div class="employee-card" data-employee-id="{{ emp.id }}">
+                <span class="employee-avatar" style="background: {{ emp.color_code or '#4a90d9' }}">
+                    {{ emp.user.first_name[0] }}{{ emp.user.last_name[0] }}
+                </span>
+                <span class="employee-name">{{ emp.user.first_name }} {{ emp.user.last_name }}</span>
+                <span class="employee-location">{{ emp.default_location.name if emp.default_location else '' }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <input type="hidden" id="wizEmployeeId">
+    </div>
+
+    <!-- Schritt 4: Verordnung -->
+    <div class="wizard-panel" id="step4" style="display:none;">
+        <h3>Verordnungsdaten</h3>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label>Verordnungsdatum</label>
+                <input type="date" id="wizPrescriptionDate" class="form-control">
+            </div>
+            <div class="form-group form-group-half">
+                <label>Art</label>
+                <select id="wizPrescriptionType" class="form-control">
+                    <option value="Erstverordnung">Erstverordnung</option>
+                    <option value="Folgeverordnung">Folgeverordnung</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Zuweisender Arzt</label>
+            <input type="text" id="wizDoctorSearch" class="form-control" placeholder="Arzt suchen..." autocomplete="off">
+            <input type="hidden" id="wizDoctorId">
+        </div>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label>Diagnosecode</label>
+                <input type="text" id="wizDiagnosisCode" class="form-control" placeholder="z.B. M54.5">
+            </div>
+            <div class="form-group form-group-half">
+                <label>Diagnosetext</label>
+                <input type="text" id="wizDiagnosisText" class="form-control" placeholder="z.B. Kreuzschmerz">
+            </div>
+        </div>
+    </div>
+
+    <!-- Schritt 5: Versicherung -->
+    <div class="wizard-panel" id="step5" style="display:none;">
+        <h3>Versicherung bestätigen</h3>
+        <div class="insurance-info" id="wizInsuranceInfo">
+            <p>Versicherungsdaten werden aus dem Patientenprofil geladen...</p>
+        </div>
+        <div class="form-row">
+            <div class="form-group form-group-half">
+                <label>Versicherungsart</label>
+                <select id="wizInsuranceType" class="form-control">
+                    <option value="KVG">KVG (Grundversicherung)</option>
+                    <option value="UVG">UVG (Unfallversicherung)</option>
+                    <option value="IVG">IVG (Invalidenversicherung)</option>
+                    <option value="MVG">MVG (Militärversicherung)</option>
+                    <option value="Privat">Privat / Selbstzahler</option>
+                </select>
+            </div>
+            <div class="form-group form-group-half">
+                <label>Abrechnungsmodell</label>
+                <select id="wizBillingModel" class="form-control">
+                    <option value="tiers_garant">Tiers Garant (Patient zahlt)</option>
+                    <option value="tiers_payant">Tiers Payant (Versicherung zahlt)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schritt 6: Termine planen -->
+    <div class="wizard-panel" id="step6" style="display:none;">
+        <h3>Termine planen</h3>
+        <div class="plan-mode-toggle">
+            <button class="btn btn-primary" id="wizAutoBtn">Automatisch planen (KI)</button>
+            <button class="btn btn-secondary" id="wizManualBtn">Manuell planen</button>
+        </div>
+        <div class="form-row" id="wizPreferences">
+            <div class="form-group form-group-half">
+                <label>Bevorzugte Wochentage</label>
+                <div class="day-checkboxes">
+                    <label><input type="checkbox" name="wizDays" value="0" checked> Mo</label>
+                    <label><input type="checkbox" name="wizDays" value="1" checked> Di</label>
+                    <label><input type="checkbox" name="wizDays" value="2" checked> Mi</label>
+                    <label><input type="checkbox" name="wizDays" value="3" checked> Do</label>
+                    <label><input type="checkbox" name="wizDays" value="4" checked> Fr</label>
+                </div>
+            </div>
+            <div class="form-group form-group-half">
+                <label>Bevorzugte Zeiten</label>
+                <div class="time-checkboxes">
+                    <label><input type="checkbox" name="wizTimes" value="morning" checked> Morgen (08-12)</label>
+                    <label><input type="checkbox" name="wizTimes" value="afternoon" checked> Nachmittag (13-17)</label>
+                </div>
+            </div>
+        </div>
+        <div id="wizSlotsContainer" class="slots-container" style="display:none;">
+            <div class="slots-loading" id="wizSlotsLoading" style="display:none;">
+                <div class="spinner"></div>
+                <span>Termine werden berechnet...</span>
+            </div>
+            <div id="wizSlotsList" class="slots-list"></div>
+        </div>
+    </div>
+
+    <!-- Schritt 7: Zusammenfassung -->
+    <div class="wizard-panel" id="step7" style="display:none;">
+        <h3>Zusammenfassung</h3>
+        <div class="summary-card" id="wizSummary"></div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="wizard-nav">
+        <button class="btn btn-secondary" id="wizPrev" style="display:none;">Zurück</button>
+        <button class="btn btn-primary" id="wizNext">Weiter</button>
+        <button class="btn btn-success" id="wizConfirm" style="display:none;">Serie erstellen</button>
+    </div>
+</div>
+
+<script>
+    window.CALENDAR_CONFIG = {
+        viewType: 'serie_planen',
+        employees: [
+            {% for emp in employees %}
+            {
+                id: {{ emp.id }},
+                name: '{{ emp.user.first_name }} {{ emp.user.last_name }}',
+                color: '{{ emp.color_code or "#4a90d9" }}',
+                locationId: {{ emp.default_location_id or 'null' }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ],
+        templates: [
+            {% for tpl in templates %}
+            {
+                id: {{ tpl.id }},
+                name: '{{ tpl.name }}',
+                numAppointments: {{ tpl.num_appointments }},
+                durationMinutes: {{ tpl.duration_minutes }},
+                minIntervalDays: {{ tpl.min_interval_days }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
+    };
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}
