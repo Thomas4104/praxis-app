@@ -21,6 +21,7 @@
     let selectedAppointment = null;
     let dragState = null;
     let resizeState = null;
+    let appointmentMap = {}; // id -> appointment object for event delegation
 
     // ==========================================================
     // Initialisierung
@@ -107,8 +108,44 @@
 
                 body.appendChild(row);
             }
+            // Event Delegation fuer Appointment-Blocks
+            setupAppointmentDelegation(body);
+
             col.appendChild(body);
             container.appendChild(col);
+        });
+    }
+
+    // Zentrale Event-Delegation fuer Appointment-Blocks auf einem Container
+    function setupAppointmentDelegation(container) {
+        container.addEventListener('click', function(e) {
+            var block = e.target.closest('.appointment-block');
+            if (!block) return;
+            if (e.target.classList.contains('resize-handle')) return;
+            var appt = appointmentMap[block.dataset.appointmentId];
+            if (appt) openDetailModal(appt);
+        });
+
+        container.addEventListener('dragstart', function(e) {
+            var block = e.target.closest('.appointment-block');
+            if (!block) return;
+            var appt = appointmentMap[block.dataset.appointmentId];
+            if (!appt) return;
+            dragState = {
+                appointmentId: appt.id,
+                employeeId: appt.employee_id,
+                offsetMinutes: 0
+            };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', appt.id);
+            setTimeout(function() { block.classList.add('dragging'); }, 0);
+        });
+
+        container.addEventListener('dragend', function(e) {
+            var block = e.target.closest('.appointment-block');
+            if (block) block.classList.remove('dragging');
+            document.querySelectorAll('.drop-indicator').forEach(function(el) { el.remove(); });
+            dragState = null;
         });
     }
 
@@ -148,8 +185,10 @@
     function renderDayAppointments() {
         // Bestehende Bloecke entfernen
         document.querySelectorAll('.appointment-block').forEach(function(el) { el.remove(); });
+        appointmentMap = {};
 
         appointments.forEach(function(appt) {
+            appointmentMap[appt.id] = appt;
             var body = document.querySelector('.therapist-column-body[data-employee-id="' + appt.employee_id + '"]');
             if (!body) return;
 
@@ -186,31 +225,7 @@
                 '<div class="appt-type">' + escapeHtml(appt.title || getTypeLabel(appt.appointment_type)) + '</div>' +
                 '<div class="resize-handle"></div>';
 
-            // Klick
-            block.addEventListener('click', function(e) {
-                if (e.target.classList.contains('resize-handle')) return;
-                openDetailModal(appt);
-            });
-
-            // Drag Start
-            block.addEventListener('dragstart', function(e) {
-                dragState = {
-                    appointmentId: appt.id,
-                    employeeId: appt.employee_id,
-                    offsetMinutes: 0
-                };
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', appt.id);
-                setTimeout(function() { block.classList.add('dragging'); }, 0);
-            });
-
-            block.addEventListener('dragend', function() {
-                block.classList.remove('dragging');
-                document.querySelectorAll('.drop-indicator').forEach(function(el) { el.remove(); });
-                dragState = null;
-            });
-
-            // Resize
+            // Resize (bleibt per-element wegen spezifischem State)
             var resizeHandle = block.querySelector('.resize-handle');
             resizeHandle.addEventListener('mousedown', function(e) {
                 e.preventDefault();
@@ -821,6 +836,9 @@
                 body.appendChild(row);
             }
 
+            // Event Delegation fuer Appointment-Blocks
+            setupAppointmentDelegation(body);
+
             col.appendChild(body);
             container.appendChild(col);
         }
@@ -850,8 +868,10 @@
 
     function renderWeekAppointments() {
         document.querySelectorAll('.appointment-block').forEach(function(el) { el.remove(); });
+        appointmentMap = {};
 
         appointments.forEach(function(appt) {
+            appointmentMap[appt.id] = appt;
             var startDt = new Date(appt.start_time);
             var dayStr = formatDate(startDt);
             var body = document.querySelector('.week-day-body[data-date="' + dayStr + '"]');
@@ -879,24 +899,7 @@
                 '<div class="appt-time">' + formatTime(startDt) + ' – ' + formatTime(endDt) + '</div>' +
                 '<div class="resize-handle"></div>';
 
-            block.addEventListener('click', function(e) {
-                if (e.target.classList.contains('resize-handle')) return;
-                openDetailModal(appt);
-            });
-
-            block.addEventListener('dragstart', function(e) {
-                dragState = { appointmentId: appt.id, employeeId: appt.employee_id };
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', appt.id);
-                setTimeout(function() { block.classList.add('dragging'); }, 0);
-            });
-
-            block.addEventListener('dragend', function() {
-                block.classList.remove('dragging');
-                document.querySelectorAll('.drop-indicator').forEach(function(el) { el.remove(); });
-                dragState = null;
-            });
-
+            // Resize (bleibt per-element wegen spezifischem State)
             var resizeHandle = block.querySelector('.resize-handle');
             resizeHandle.addEventListener('mousedown', function(e) {
                 e.preventDefault();

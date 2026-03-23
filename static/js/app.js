@@ -6,6 +6,14 @@
  * Fetch-Wrapper der automatisch den CSRF-Token mitsendet.
  * Verwenden fuer alle POST/PUT/DELETE AJAX-Requests.
  */
+// Standard-Error-Handler fuer fetch-Aufrufe
+function handleFetchError(error) {
+    console.error('Fehler:', error);
+    if (typeof showToast === 'function') {
+        showToast('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'error');
+    }
+}
+
 function fetchWithCSRF(url, options) {
     options = options || {};
     options.headers = options.headers || {};
@@ -17,7 +25,7 @@ function fetchWithCSRF(url, options) {
         options.headers['X-CSRFToken'] = tokenMeta.getAttribute('content');
     }
     options.credentials = options.credentials || 'same-origin';
-    return fetch(url, options);
+    return fetch(url, options).catch(handleFetchError);
 }
 
 document.addEventListener('DOMContentLoaded', function () {
