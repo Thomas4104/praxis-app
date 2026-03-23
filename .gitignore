@@ -8,6 +8,7 @@ instance/
 .DS_Store
 venv/
 .venv/
+uploads/
 dist/
 build/
 *.egg-info/
