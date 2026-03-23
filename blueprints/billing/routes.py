@@ -14,6 +14,7 @@ from services.billing_service import (
 )
 from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
+from utils.auth import check_org, get_org_id
 
 
 # ============================================================
@@ -231,6 +232,7 @@ def create():
 def detail(id):
     """Rechnungsdetail-Ansicht"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     items = InvoiceItem.query.filter_by(invoice_id=id).order_by(InvoiceItem.position).all()
     payments = Payment.query.filter_by(invoice_id=id).order_by(Payment.payment_date.desc()).all()
     dunnings = DunningRecord.query.filter_by(invoice_id=id).order_by(DunningRecord.dunning_date.desc()).all()
@@ -252,6 +254,7 @@ def detail(id):
 def check_invoice(id):
     """Rechnung pruefen (Entwurf -> Geprueft)"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     if invoice.status != 'draft':
         flash('Nur Entwürfe können geprüft werden.', 'error')
         return redirect(url_for('billing.detail', id=id))
@@ -267,6 +270,7 @@ def check_invoice(id):
 def send_invoice(id):
     """Rechnung senden (Geprueft -> Gesendet)"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     if invoice.status not in ('draft', 'checked'):
         flash('Diese Rechnung kann nicht gesendet werden.', 'error')
         return redirect(url_for('billing.detail', id=id))
@@ -290,6 +294,7 @@ def send_invoice(id):
 def cancel_invoice(id):
     """Rechnung stornieren"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     if invoice.status == 'cancelled':
         flash('Rechnung ist bereits storniert.', 'error')
         return redirect(url_for('billing.detail', id=id))
@@ -305,6 +310,7 @@ def cancel_invoice(id):
 def add_payment(id):
     """Zahlung erfassen"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
 
     amount = request.form.get('amount', type=float)
     payment_date = request.form.get('payment_date', '')
@@ -337,6 +343,8 @@ def add_payment(id):
 @login_required
 def send_dunning(id):
     """Mahnung senden"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     org_id = current_user.organization_id
     record, error = process_dunning(id, org_id)
     if error:
@@ -350,6 +358,8 @@ def send_dunning(id):
 @login_required
 def generate_pdf(id):
     """PDF generieren und herunterladen"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     pdf_path, error = generate_invoice_pdf(id)
     if error:
         flash(f'Fehler bei PDF-Erstellung: {error}', 'error')
@@ -363,6 +373,7 @@ def generate_pdf(id):
 def send_tp_copy(id):
     """TP-Kopie an Patient senden (bei Tiers Payant)"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     if invoice.billing_model != 'tiers_payant':
         flash('TP-Kopie nur bei Tiers Payant möglich.', 'error')
         return redirect(url_for('billing.detail', id=id))
@@ -479,6 +490,7 @@ def api_calculate_series(series_id):
 def api_invoice_detail(id):
     """Rechnungsdetails als JSON"""
     invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
     items = InvoiceItem.query.filter_by(invoice_id=id).order_by(InvoiceItem.position).all()
     payments = Payment.query.filter_by(invoice_id=id).order_by(Payment.payment_date.desc()).all()
 

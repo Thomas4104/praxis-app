@@ -4,6 +4,7 @@ from flask import render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from blueprints.tasks import tasks_bp
 from models import db, Task, TaskComment, Patient, User, Employee
+from utils.auth import check_org, get_org_id
 
 
 @tasks_bp.route('/')
@@ -112,6 +113,7 @@ def create():
 def complete(id):
     """Aufgabe als erledigt markieren"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     aufgabe.status = 'completed'
     aufgabe.completed_at = datetime.utcnow()
     db.session.commit()
@@ -123,6 +125,7 @@ def complete(id):
 def reopen(id):
     """Aufgabe wieder oeffnen"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     aufgabe.status = 'open'
     aufgabe.completed_at = None
     db.session.commit()
@@ -134,6 +137,7 @@ def reopen(id):
 def assign(id):
     """Aufgabe zuweisen"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     data = request.get_json()
     aufgabe.assigned_to_id = data.get('assigned_to_id')
     db.session.commit()
@@ -149,6 +153,7 @@ def assign(id):
 def change_priority(id):
     """Prioritaet aendern"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     data = request.get_json()
     aufgabe.priority = data.get('priority', 'normal')
     db.session.commit()
@@ -160,6 +165,7 @@ def change_priority(id):
 def add_comment(id):
     """Kommentar hinzufuegen"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     data = request.get_json()
     comment_text = data.get('comment', '').strip()
     if not comment_text:
@@ -188,6 +194,7 @@ def add_comment(id):
 def detail_api(id):
     """Aufgabe-Details als JSON"""
     aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
     comments = [{
         'id': c.id,
         'user': f'{c.user.first_name} {c.user.last_name}' if c.user else 'System',

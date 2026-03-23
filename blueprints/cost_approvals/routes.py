@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from blueprints.cost_approvals import cost_approvals_bp
 from models import (db, CostApproval, CostApprovalItem, Patient, InsuranceProvider,
                     Doctor, Employee, TreatmentSeries, TreatmentSeriesTemplate)
+from utils.auth import check_org, get_org_id
 
 
 @cost_approvals_bp.route('/')
@@ -167,6 +168,7 @@ def create():
 def detail(id):
     """Gutsprache-Detail"""
     gutsprache = CostApproval.query.get_or_404(id)
+    check_org(gutsprache)
     items = gutsprache.items.all()
     return render_template('cost_approvals/detail.html',
                            gutsprache=gutsprache,
@@ -178,6 +180,7 @@ def detail(id):
 def send_approval(id):
     """Gutsprache senden (draft -> sent)"""
     gutsprache = CostApproval.query.get_or_404(id)
+    check_org(gutsprache)
     if gutsprache.status not in ('draft', 'cancelled'):
         return jsonify({'error': 'Gutsprache kann in diesem Status nicht gesendet werden.'}), 400
 
@@ -192,6 +195,7 @@ def send_approval(id):
 def record_response(id):
     """Antwort erfassen"""
     gutsprache = CostApproval.query.get_or_404(id)
+    check_org(gutsprache)
     data = request.get_json()
 
     result = data.get('result')  # approved, partially_approved, rejected
@@ -231,6 +235,7 @@ def record_response(id):
 def cancel_approval(id):
     """Gutsprache stornieren"""
     gutsprache = CostApproval.query.get_or_404(id)
+    check_org(gutsprache)
     gutsprache.status = 'cancelled'
     db.session.commit()
     return jsonify({'success': True, 'message': 'Gutsprache wurde storniert.'})
@@ -241,6 +246,7 @@ def cancel_approval(id):
 def resend_approval(id):
     """Gutsprache erneut senden"""
     gutsprache = CostApproval.query.get_or_404(id)
+    check_org(gutsprache)
     if gutsprache.status not in ('rejected', 'cancelled'):
         return jsonify({'error': 'Gutsprache kann nicht erneut gesendet werden.'}), 400
 
@@ -259,6 +265,8 @@ def resend_approval(id):
 @login_required
 def patient_series(patient_id):
     """Aktive Serien eines Patienten laden"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     serien = TreatmentSeries.query.filter_by(
         patient_id=patient_id, status='active'
     ).all()
@@ -284,6 +292,7 @@ def patient_series(patient_id):
 def patient_insurance(patient_id):
     """Versicherung eines Patienten laden"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     result = {
         'insurance_provider_id': patient.insurance_provider_id,
         'insurance_type': patient.insurance_type,

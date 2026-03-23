@@ -7,6 +7,7 @@ from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, Location, InsuranceProvider,
                     TherapyGoal, Milestone, Measurement, HealingPhase)
 from blueprints.treatment import treatment_bp
+from utils.auth import check_org, get_org_id
 
 
 # ============================================================
@@ -24,13 +25,19 @@ def index():
 @login_required
 def api_serien():
     """API: Serien auflisten mit Filtern"""
+    org_id = get_org_id()
     status = request.args.get('status', '')
     therapeut_id = request.args.get('therapeut_id', '', type=str)
     patient_id = request.args.get('patient_id', '', type=str)
     standort_id = request.args.get('standort_id', '', type=str)
     suche = request.args.get('suche', '').strip()
 
-    query = TreatmentSeries.query
+    # Nur Serien von Patienten der eigenen Organisation
+    query = TreatmentSeries.query.filter(
+        TreatmentSeries.patient_id.in_(
+            db.session.query(Patient.id).filter_by(organization_id=org_id)
+        )
+    )
 
     if status:
         query = query.filter(TreatmentSeries.status == status)
@@ -89,11 +96,13 @@ def api_serien():
 @login_required
 def serie_detail(serie_id):
     """Serie-Detail mit Drei-Spalten-Layout"""
+    org_id = get_org_id()
     serie = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(serie.patient)
     termine = Appointment.query.filter_by(series_id=serie_id).order_by(Appointment.start_time).all()
 
-    therapeuten = Employee.query.filter_by(is_active=True).all()
-    standorte = Location.query.all()
+    therapeuten = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    standorte = Location.query.filter_by(organization_id=org_id).all()
 
     return render_template('treatment/serie_detail.html',
                            serie=serie, termine=termine,
@@ -104,6 +113,8 @@ def serie_detail(serie_id):
 @login_required
 def api_serie_termine(serie_id):
     """API: Termine einer Serie"""
+    serie = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(serie.patient)
     termine = Appointment.query.filter_by(series_id=serie_id).order_by(Appointment.start_time).all()
 
     ergebnis = []
@@ -128,6 +139,7 @@ def api_serie_termine(serie_id):
 def api_termin_detail(termin_id):
     """API: Termin-Details inkl. SOAP-Notes"""
     t = Appointment.query.get_or_404(termin_id)
+    check_org(t.patient)
 
     return jsonify({
         'id': t.id,
@@ -151,6 +163,7 @@ def api_termin_detail(termin_id):
 def api_soap_speichern(termin_id):
     """API: SOAP-Notes speichern"""
     t = Appointment.query.get_or_404(termin_id)
+    check_org(t.patient)
     data = request.get_json()
 
     if 'soap_subjective' in data:
@@ -173,6 +186,7 @@ def api_soap_speichern(termin_id):
 def api_serie_status(serie_id):
     """API: Serie-Status aendern (abschliessen/abbrechen)"""
     serie = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(serie.patient)
     data = request.get_json()
     neuer_status = data.get('status')
 
@@ -196,6 +210,7 @@ def api_serie_status(serie_id):
 def treatment_plan(patient_id):
     """Behandlungsplan fuer einen Patienten"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     serien = TreatmentSeries.query.filter_by(patient_id=patient_id).order_by(TreatmentSeries.created_at.desc()).all()
     ziele = TherapyGoal.query.filter_by(patient_id=patient_id).order_by(TherapyGoal.created_at).all()
     meilensteine = Milestone.query.filter_by(patient_id=patient_id).order_by(Milestone.sort_order).all()
@@ -214,6 +229,8 @@ def treatment_plan(patient_id):
 @login_required
 def api_ziele(patient_id):
     """API: Therapieziele eines Patienten"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     ziele = TherapyGoal.query.filter_by(patient_id=patient_id).order_by(TherapyGoal.created_at).all()
 
     return jsonify([{
@@ -232,6 +249,8 @@ def api_ziele(patient_id):
 def api_ziel_erstellen():
     """API: Neues Therapieziel erstellen"""
     data = request.get_json()
+    patient = Patient.query.get_or_404(data['patient_id'])
+    check_org(patient)
     ziel = TherapyGoal(
         series_id=data.get('series_id'),
         patient_id=data['patient_id'],
@@ -251,6 +270,7 @@ def api_ziel_erstellen():
 def api_ziel_aktualisieren(ziel_id):
     """API: Therapieziel aktualisieren"""
     ziel = TherapyGoal.query.get_or_404(ziel_id)
+    check_org(ziel.patient)
     data = request.get_json()
 
     if 'beschreibung' in data:
@@ -273,6 +293,7 @@ def api_ziel_aktualisieren(ziel_id):
 def api_ziel_loeschen(ziel_id):
     """API: Therapieziel loeschen"""
     ziel = TherapyGoal.query.get_or_404(ziel_id)
+    check_org(ziel.patient)
     db.session.delete(ziel)
     db.session.commit()
     return jsonify({'success': True})
@@ -286,6 +307,8 @@ def api_ziel_loeschen(ziel_id):
 @login_required
 def api_meilensteine(patient_id):
     """API: Meilensteine eines Patienten"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     meilensteine = Milestone.query.filter_by(patient_id=patient_id).order_by(Milestone.sort_order).all()
 
     return jsonify([{
@@ -307,6 +330,8 @@ def api_meilensteine(patient_id):
 def api_meilenstein_erstellen():
     """API: Neuen Meilenstein erstellen"""
     data = request.get_json()
+    patient = Patient.query.get_or_404(data['patient_id'])
+    check_org(patient)
     m = Milestone(
         series_id=data.get('series_id'),
         patient_id=data['patient_id'],
@@ -327,6 +352,7 @@ def api_meilenstein_erstellen():
 def api_meilenstein_aktualisieren(meilenstein_id):
     """API: Meilenstein aktualisieren"""
     m = Milestone.query.get_or_404(meilenstein_id)
+    check_org(m.patient)
     data = request.get_json()
 
     if 'name' in data:
@@ -351,6 +377,7 @@ def api_meilenstein_aktualisieren(meilenstein_id):
 def api_meilenstein_loeschen(meilenstein_id):
     """API: Meilenstein loeschen"""
     m = Milestone.query.get_or_404(meilenstein_id)
+    check_org(m.patient)
     db.session.delete(m)
     db.session.commit()
     return jsonify({'success': True})
@@ -364,6 +391,8 @@ def api_meilenstein_loeschen(meilenstein_id):
 @login_required
 def api_messungen(patient_id):
     """API: Messungen eines Patienten"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     typ = request.args.get('typ', '')
     query = Measurement.query.filter_by(patient_id=patient_id)
     if typ:
@@ -390,6 +419,8 @@ def api_messungen(patient_id):
 def api_messung_erstellen():
     """API: Neue Messung erfassen"""
     data = request.get_json()
+    patient = Patient.query.get_or_404(data['patient_id'])
+    check_org(patient)
 
     # Messwert als JSON
     werte = data.get('werte', {})
@@ -425,6 +456,8 @@ def api_messung_erstellen():
 @login_required
 def api_heilungsphasen(serie_id):
     """API: Heilungsphasen einer Serie"""
+    serie = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(serie.patient)
     phasen = HealingPhase.query.filter_by(series_id=serie_id).order_by(HealingPhase.start_date).all()
 
     return jsonify([{
@@ -443,6 +476,10 @@ def api_heilungsphase_setzen():
     data = request.get_json()
     serie_id = data['serie_id']
     phase_type = data['phase_type']
+
+    # IDOR-Schutz: Pruefen ob Serie zur Organisation gehoert
+    serie_check = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(serie_check.patient)
 
     # Bestehende aktive Phase abschliessen (Phase ohne end_date)
     aktive_phasen = HealingPhase.query.filter_by(series_id=serie_id, end_date=None).all()
@@ -475,8 +512,9 @@ def api_heilungsphase_setzen():
 @login_required
 def api_filter_optionen():
     """API: Optionen fuer Filter (Therapeuten, Standorte)"""
-    therapeuten = Employee.query.filter_by(is_active=True).all()
-    standorte = Location.query.all()
+    org_id = get_org_id()
+    therapeuten = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    standorte = Location.query.filter_by(organization_id=org_id).all()
 
     return jsonify({
         'therapeuten': [

@@ -7,6 +7,7 @@ from blueprints.mailing import mailing_bp
 from models import (db, Email, EmailAttachment, EmailFolder, EmailTemplate,
                      Patient, TreatmentSeries, Invoice, Organization,
                      CostApproval, Appointment, SystemSetting)
+from utils.auth import check_org, get_org_id
 
 
 # ============================================================
@@ -91,6 +92,7 @@ def index():
 def detail(email_id):
     """E-Mail-Detailansicht"""
     email = Email.query.get_or_404(email_id)
+    check_org(email)
 
     # Als gelesen markieren
     if not email.read_at:
@@ -151,6 +153,7 @@ def compose():
     if draft_id:
         draft = Email.query.get(draft_id)
         if draft:
+            check_org(draft)
             to_address = draft.to_address or ''
             subject = draft.subject or ''
             body = draft.body_html or ''
@@ -162,6 +165,7 @@ def compose():
     if reply_to:
         original = Email.query.get(reply_to)
         if original:
+            check_org(original)
             to_address = original.from_address or ''
             subject = f'Re: {original.subject}' if not (original.subject or '').startswith('Re:') else original.subject
             body = f'<br><br><hr><p><strong>Von:</strong> {original.from_address}<br><strong>Datum:</strong> {original.created_at.strftime("%d.%m.%Y %H:%M")}<br><strong>Betreff:</strong> {original.subject}</p>{original.body_html or original.body_text or ""}'
@@ -170,6 +174,7 @@ def compose():
     if forward_id:
         original = Email.query.get(forward_id)
         if original:
+            check_org(original)
             subject = f'Fwd: {original.subject}' if not (original.subject or '').startswith('Fwd:') else original.subject
             body = f'<br><br><hr><p><strong>Weitergeleitete Nachricht</strong><br><strong>Von:</strong> {original.from_address}<br><strong>Datum:</strong> {original.created_at.strftime("%d.%m.%Y %H:%M")}<br><strong>Betreff:</strong> {original.subject}</p>{original.body_html or original.body_text or ""}'
 
@@ -329,6 +334,7 @@ def save_draft():
         email = Email.query.get(draft_id)
         if not email:
             return jsonify({'success': False, 'message': 'Entwurf nicht gefunden.'}), 404
+        check_org(email)
     else:
         email = Email(organization_id=org_id, folder='drafts', status='draft')
         db.session.add(email)
@@ -462,6 +468,7 @@ def create_folder():
 def rename_folder(folder_id):
     """Ordner umbenennen"""
     folder = EmailFolder.query.get_or_404(folder_id)
+    check_org(folder)
     data = request.get_json()
     name = data.get('name', '').strip()
 
@@ -479,6 +486,7 @@ def rename_folder(folder_id):
 def delete_folder(folder_id):
     """Ordner loeschen (E-Mails in Posteingang verschieben)"""
     folder = EmailFolder.query.get_or_404(folder_id)
+    check_org(folder)
 
     # E-Mails in Posteingang verschieben
     Email.query.filter_by(
@@ -501,6 +509,7 @@ def delete_folder(folder_id):
 def get_template(template_id):
     """Vorlage laden und Platzhalter ersetzen"""
     template = EmailTemplate.query.get_or_404(template_id)
+    check_org(template)
     patient_id = request.args.get('patient_id', None, type=int)
 
     subject = template.subject or ''
