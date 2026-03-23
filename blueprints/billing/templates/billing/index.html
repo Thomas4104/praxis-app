@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Abrechnung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Abrechnung</span>
+{% endblock %}
+
+{% block page_title %}Abrechnungsübersicht{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('billing.zahlungen') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+        <line x1="1" y1="10" x2="23" y2="10"></line>
+    </svg>
+    Zahlungen
+</a>
+<a href="{{ url_for('billing.mahnungen') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+    </svg>
+    Mahnungen
+</a>
+<a href="{{ url_for('billing.create') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Abrechnung
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Statistik-Karten -->
+<div class="stats-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">CHF {{ '%.2f'|format(stats.total_offen) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Offene Beträge</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if stats.total_ueberfaellig > 0 else 'var(--text-secondary)' }};">CHF {{ '%.2f'|format(stats.total_ueberfaellig) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Überfällig</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700;">{{ stats.count_offen }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Offene Rechnungen</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if stats.count_ueberfaellig > 0 else 'var(--text-secondary)' }};">{{ stats.count_ueberfaellig }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Überfällige</div>
+    </div>
+</div>
+
+<div class="card">
+    <!-- Tabs -->
+    <div class="tabs" style="display: flex; border-bottom: 2px solid var(--border); margin-bottom: 0; padding: 0 16px;">
+        <a href="{{ url_for('billing.index', tab='alle') }}" class="tab-item {% if tab == 'alle' %}active{% endif %}" style="padding: 12px 16px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; {% if tab == 'alle' %}color: var(--primary); border-bottom-color: var(--primary); font-weight: 600;{% endif %}">Alle</a>
+        <a href="{{ url_for('billing.index', tab='offen') }}" class="tab-item {% if tab == 'offen' %}active{% endif %}" style="padding: 12px 16px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; {% if tab == 'offen' %}color: var(--primary); border-bottom-color: var(--primary); font-weight: 600;{% endif %}">Offen</a>
+        <a href="{{ url_for('billing.index', tab='gesendet') }}" class="tab-item {% if tab == 'gesendet' %}active{% endif %}" style="padding: 12px 16px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; {% if tab == 'gesendet' %}color: var(--primary); border-bottom-color: var(--primary); font-weight: 600;{% endif %}">Gesendet</a>
+        <a href="{{ url_for('billing.index', tab='bezahlt') }}" class="tab-item {% if tab == 'bezahlt' %}active{% endif %}" style="padding: 12px 16px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; {% if tab == 'bezahlt' %}color: var(--primary); border-bottom-color: var(--primary); font-weight: 600;{% endif %}">Bezahlt</a>
+        <a href="{{ url_for('billing.index', tab='ueberfaellig') }}" class="tab-item {% if tab == 'ueberfaellig' %}active{% endif %}" style="padding: 12px 16px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; {% if tab == 'ueberfaellig' %}color: #e74c3c; border-bottom-color: #e74c3c; font-weight: 600;{% endif %}">Überfällig</a>
+    </div>
+
+    <!-- Filter -->
+    <form class="filter-bar" method="GET" action="{{ url_for('billing.index') }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input" placeholder="Rechnungsnr., Patient, Versicherung..." value="{{ search }}">
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-input">
+                <option value="">Alle Status</option>
+                <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Entwurf</option>
+                <option value="checked" {% if status_filter == 'checked' %}selected{% endif %}>Geprüft</option>
+                <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Gesendet</option>
+                <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Bezahlt</option>
+                <option value="partially_paid" {% if status_filter == 'partially_paid' %}selected{% endif %}>Teilbezahlt</option>
+                <option value="overdue" {% if status_filter == 'overdue' %}selected{% endif %}>Überfällig</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Storniert</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="billing_type" class="form-input">
+                <option value="">Alle Typen</option>
+                <option value="KVG" {% if billing_type == 'KVG' %}selected{% endif %}>KVG</option>
+                <option value="UVG" {% if billing_type == 'UVG' %}selected{% endif %}>UVG</option>
+                <option value="MVG" {% if billing_type == 'MVG' %}selected{% endif %}>MVG</option>
+                <option value="IVG" {% if billing_type == 'IVG' %}selected{% endif %}>IVG</option>
+                <option value="Privat" {% if billing_type == 'Privat' %}selected{% endif %}>Privat</option>
+                <option value="Selbstzahler" {% if billing_type == 'Selbstzahler' %}selected{% endif %}>Selbstzahler</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <input type="date" name="date_from" class="form-input" value="{{ date_from }}" title="Von Datum">
+        </div>
+        <div class="filter-group">
+            <input type="date" name="date_to" class="form-input" value="{{ date_to }}" title="Bis Datum">
+        </div>
+        <div class="filter-group">
+            <select name="sort" class="form-input">
+                <option value="date_desc" {% if sort_by == 'date_desc' %}selected{% endif %}>Datum (neueste)</option>
+                <option value="date_asc" {% if sort_by == 'date_asc' %}selected{% endif %}>Datum (älteste)</option>
+                <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>Betrag (höchste)</option>
+                <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>Betrag (niedrigste)</option>
+                <option value="due_asc" {% if sort_by == 'due_asc' %}selected{% endif %}>Fälligkeit (nächste)</option>
+                <option value="due_desc" {% if sort_by == 'due_desc' %}selected{% endif %}>Fälligkeit (späteste)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+        {% if search or status_filter or billing_type or date_from or date_to %}
+        <a href="{{ url_for('billing.index', tab=tab) }}" class="btn btn-ghost">Zurücksetzen</a>
+        {% endif %}
+    </form>
+
+    <!-- Tabelle -->
+    {% if rechnungen %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Patient</th>
+                    <th>Versicherung</th>
+                    <th>Typ</th>
+                    <th style="text-align:right;">Betrag</th>
+                    <th style="text-align:right;">Offen</th>
+                    <th>Status</th>
+                    <th>Fällig am</th>
+                    <th>Mahnstufe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rechnungen %}
+                <tr onclick="window.location='{{ url_for('billing.detail', id=r.id) }}'" style="cursor:pointer;">
+                    <td><strong>{{ r.invoice_number or '-' }}</strong></td>
+                    <td>
+                        {% if r.patient %}
+                            {{ r.patient.first_name }} {{ r.patient.last_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ r.insurance_provider.name if r.insurance_provider else '-' }}</td>
+                    <td>{{ r.billing_type or '-' }}</td>
+                    <td style="text-align:right;">CHF {{ '%.2f'|format(r.amount_total) }}</td>
+                    <td style="text-align:right;">
+                        {% if r.amount_open > 0 %}
+                            <strong>CHF {{ '%.2f'|format(r.amount_open) }}</strong>
+                        {% else %}
+                            CHF 0.00
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.status == 'draft' %}
+                            <span class="badge badge-secondary">Entwurf</span>
+                        {% elif r.status == 'checked' %}
+                            <span class="badge badge-primary">Geprüft</span>
+                        {% elif r.status == 'sent' %}
+                            {% if r.due_date and r.due_date < today and r.amount_open > 0 %}
+                                <span class="badge badge-danger">Überfällig</span>
+                            {% else %}
+                                <span class="badge badge-warning">Gesendet</span>
+                            {% endif %}
+                        {% elif r.status == 'paid' %}
+                            <span class="badge badge-success">Bezahlt</span>
+                        {% elif r.status == 'partially_paid' %}
+                            <span class="badge" style="background:#f39c12;color:#fff;">Teilbezahlt</span>
+                        {% elif r.status == 'overdue' %}
+                            <span class="badge badge-danger">Überfällig</span>
+                        {% elif r.status == 'cancelled' %}
+                            <span class="badge badge-secondary">Storniert</span>
+                        {% elif r.status == 'inkasso' %}
+                            <span class="badge" style="background:#721c24;color:#fff;">Im Inkasso</span>
+                        {% else %}
+                            <span class="badge">{{ r.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.due_date %}
+                            <span style="{{ 'color:#e74c3c;font-weight:600;' if r.due_date < today and r.amount_open > 0 else '' }}">
+                                {{ r.due_date.strftime('%d.%m.%Y') }}
+                            </span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.dunning_level and r.dunning_level > 0 %}
+                            <span class="badge badge-danger">{{ r.dunning_level }}. Mahnung</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Rechnungen gefunden.</p>
+        <a href="{{ url_for('billing.create') }}" class="btn btn-primary" style="margin-top: 12px;">Erste Rechnung erstellen</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

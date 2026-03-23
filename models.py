@@ -591,6 +591,22 @@ class BankAccount(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class DunningRecord(db.Model):
+    """Mahnungshistorie fuer Rechnungen"""
+    __tablename__ = 'dunning_records'
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
+    dunning_level = db.Column(db.Integer, nullable=False)  # 1, 2, 3
+    dunning_date = db.Column(db.Date, nullable=False)
+    dunning_fee = db.Column(db.Float, default=0)
+    dunning_text = db.Column(db.Text)
+    sent_via = db.Column(db.String(50))  # email, print, medidata
+    pdf_path = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    invoice = db.relationship('Invoice', backref=db.backref('dunning_records', lazy='dynamic', order_by='DunningRecord.dunning_date.desc()'))
+
+
 class Holiday(db.Model):
     __tablename__ = 'holidays'
     id = db.Column(db.Integer, primary_key=True)

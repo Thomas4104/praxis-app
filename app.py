@@ -10,7 +10,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList, \
     TherapyGoal, Milestone, Measurement, HealingPhase, \
     SystemSetting, EmailTemplate, PrintTemplate, Permission, \
-    CostApproval, CostApprovalItem, Task, TaskComment
+    CostApproval, CostApprovalItem, Task, TaskComment, \
+    Invoice, InvoiceItem, Payment, DunningRecord
 from config import config
 
 
@@ -53,6 +54,7 @@ def create_app(config_name=None):
     from blueprints.settings import settings_bp
     from blueprints.cost_approvals import cost_approvals_bp
     from blueprints.tasks import tasks_bp
+    from blueprints.billing import billing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -67,6 +69,7 @@ def create_app(config_name=None):
     app.register_blueprint(settings_bp, url_prefix='/settings')
     app.register_blueprint(cost_approvals_bp, url_prefix='/cost-approvals')
     app.register_blueprint(tasks_bp, url_prefix='/tasks')
+    app.register_blueprint(billing_bp, url_prefix='/billing')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -81,6 +84,7 @@ def create_app(config_name=None):
     csrf.exempt(settings_bp)
     csrf.exempt(cost_approvals_bp)
     csrf.exempt(tasks_bp)
+    csrf.exempt(billing_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1047,8 +1051,234 @@ def seed_demo_data():
     # === Gutsprachen: Demo-Daten ===
     _seed_gutsprachen_demo_data(org, patients, serien, insurances, doctors, employees, created_users)
 
+    # === Abrechnung: Demo-Daten ===
+    _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users)
+
     # === Einstellungen: Demo-Daten ===
     _seed_settings_demo_data(org)
+
+
+def _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users):
+    """Erstellt Demo-Daten fuer Abrechnung: Rechnungen, Zahlungen, Mahnungen"""
+
+    today = date.today()
+
+    # Taxpunktwert fuer Berechnungen
+    tp_wert_312 = 1.00  # TarReha / Tarif 312
+    tp_wert_311 = 0.89  # Tarif 311 (UVG)
+    tp_physio = 1.00    # Physiotarif
+
+    # === Rechnung 1: Bezahlt (Serie 4 - Maria Fischer, Manuelle Therapie, abgeschlossen) ===
+    inv1 = Invoice(
+        organization_id=org.id,
+        series_id=serien[3].id,
+        patient_id=patients[3].id,
+        insurance_provider_id=insurances[0].id,
+        invoice_number='RE-2026-0001',
+        amount_total=540.00,
+        amount_paid=540.00,
+        amount_open=0.00,
+        status='paid',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tax_point_value=tp_physio,
+        due_date=today - timedelta(days=20),
+        sent_at=datetime(2026, 2, 20, 10, 0),
+        sent_via='email',
+        paid_at=datetime(2026, 3, 5, 14, 30),
+        created_at=datetime(2026, 2, 18, 9, 0)
+    )
+    db.session.add(inv1)
+    db.session.flush()
+
+    # Positionen fuer Rechnung 1: 6x Manuelle Therapie 45 Min
+    db.session.add(InvoiceItem(
+        invoice_id=inv1.id, position=1,
+        tariff_code='7302', description='Manuelle Therapie (45 Min.)',
+        quantity=6, tax_points=90.0, tax_point_value=tp_physio,
+        amount=540.00, vat_rate=0.0, vat_amount=0.0
+    ))
+
+    # Zahlung fuer Rechnung 1
+    db.session.add(Payment(
+        invoice_id=inv1.id, amount=540.00,
+        payment_date=date(2026, 3, 5),
+        payment_method='bank_transfer',
+        reference='QRR-2026-0001-001'
+    ))
+
+    # === Rechnung 2: Gesendet, offen (Serie 1 - Max Huber, KVG) ===
+    inv2 = Invoice(
+        organization_id=org.id,
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        insurance_provider_id=insurances[0].id,
+        invoice_number='RE-2026-0002',
+        amount_total=270.00,
+        amount_paid=0.00,
+        amount_open=270.00,
+        status='sent',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tax_point_value=tp_wert_312,
+        due_date=today + timedelta(days=20),
+        sent_at=datetime.now() - timedelta(days=5),
+        sent_via='print',
+        created_at=datetime.now() - timedelta(days=7)
+    )
+    db.session.add(inv2)
+    db.session.flush()
+
+    # Positionen: ca. 5-6 Sitzungen Physio KVG 30 Min (voruebergehend, Serie laeuft noch)
+    # Zwischenabrechnung: 5 Sitzungen abgerechnet
+    # Hinweis: Wir rechnen weniger ab als die volle Serie
+    db.session.add(InvoiceItem(
+        invoice_id=inv2.id, position=1,
+        tariff_code='7301', description='Physiotherapie KVG (30 Min.)',
+        quantity=5, tax_points=48.0, tax_point_value=tp_wert_312,
+        amount=240.00, vat_rate=0.0, vat_amount=0.0
+    ))
+    db.session.add(InvoiceItem(
+        invoice_id=inv2.id, position=2,
+        tariff_code='7320', description='Befundbericht an Arzt',
+        quantity=1, tax_points=30.0, tax_point_value=tp_wert_312,
+        amount=30.00, vat_rate=0.0, vat_amount=0.0
+    ))
+
+    # === Rechnung 3: Ueberfaellig (Dummy-Patient Daniel Schmid) ===
+    inv3 = Invoice(
+        organization_id=org.id,
+        patient_id=patients[6].id,
+        insurance_provider_id=insurances[2].id,
+        invoice_number='RE-2026-0003',
+        amount_total=180.00,
+        amount_paid=0.00,
+        amount_open=180.00,
+        status='overdue',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tax_point_value=tp_wert_312,
+        due_date=today - timedelta(days=35),
+        sent_at=datetime.now() - timedelta(days=50),
+        sent_via='email',
+        dunning_level=1,
+        dunning_1_date=today - timedelta(days=5),
+        created_at=datetime.now() - timedelta(days=55)
+    )
+    db.session.add(inv3)
+    db.session.flush()
+
+    db.session.add(InvoiceItem(
+        invoice_id=inv3.id, position=1,
+        tariff_code='7301', description='Physiotherapie KVG (30 Min.)',
+        quantity=3, tax_points=48.0, tax_point_value=tp_wert_312,
+        amount=144.00, vat_rate=0.0, vat_amount=0.0
+    ))
+    db.session.add(InvoiceItem(
+        invoice_id=inv3.id, position=2,
+        tariff_code='7310', description='Erstbefundaufnahme',
+        quantity=1, tax_points=36.0, tax_point_value=tp_wert_312,
+        amount=36.00, vat_rate=0.0, vat_amount=0.0
+    ))
+
+    # Mahnungshistorie fuer Rechnung 3
+    db.session.add(DunningRecord(
+        invoice_id=inv3.id,
+        dunning_level=1,
+        dunning_date=today - timedelta(days=5),
+        dunning_fee=0.0,
+        dunning_text='Wir erlauben uns, Sie freundlich an die ausstehende Zahlung zu erinnern. Bitte überweisen Sie den offenen Betrag innert 10 Tagen.',
+        sent_via='email'
+    ))
+
+    # === Rechnung 4: Teilbezahlt (Petra Schneider) ===
+    inv4 = Invoice(
+        organization_id=org.id,
+        patient_id=patients[7].id,
+        insurance_provider_id=insurances[1].id,
+        invoice_number='RE-2026-0004',
+        amount_total=405.00,
+        amount_paid=200.00,
+        amount_open=205.00,
+        status='partially_paid',
+        billing_type='KVG',
+        billing_model='tiers_garant',
+        tax_point_value=tp_wert_312,
+        due_date=today + timedelta(days=5),
+        sent_at=datetime.now() - timedelta(days=20),
+        sent_via='print',
+        created_at=datetime.now() - timedelta(days=22)
+    )
+    db.session.add(inv4)
+    db.session.flush()
+
+    db.session.add(InvoiceItem(
+        invoice_id=inv4.id, position=1,
+        tariff_code='7301', description='Physiotherapie KVG (30 Min.)',
+        quantity=8, tax_points=48.0, tax_point_value=tp_wert_312,
+        amount=384.00, vat_rate=0.0, vat_amount=0.0
+    ))
+    db.session.add(InvoiceItem(
+        invoice_id=inv4.id, position=2,
+        tariff_code='7320', description='Befundbericht an Arzt',
+        quantity=1, tax_points=21.0, tax_point_value=tp_wert_312,
+        amount=21.00, vat_rate=0.0, vat_amount=0.0
+    ))
+
+    # Teilzahlung
+    db.session.add(Payment(
+        invoice_id=inv4.id, amount=200.00,
+        payment_date=today - timedelta(days=10),
+        payment_method='bank_transfer',
+        reference='QRR-2026-0004-001',
+        notes='Teilzahlung Patient'
+    ))
+
+    # === Rechnung 5: Entwurf (Serie 3 - Bruno Keller, UVG) ===
+    inv5 = Invoice(
+        organization_id=org.id,
+        series_id=serien[2].id,
+        patient_id=patients[2].id,
+        insurance_provider_id=insurances[2].id,
+        invoice_number='RE-2026-0005',
+        amount_total=384.48,
+        amount_paid=0.00,
+        amount_open=384.48,
+        status='draft',
+        billing_type='UVG',
+        billing_model='tiers_payant',
+        tax_point_value=tp_wert_311,
+        due_date=today + timedelta(days=30),
+        created_at=datetime.now() - timedelta(days=1)
+    )
+    db.session.add(inv5)
+    db.session.flush()
+
+    # UVG-Positionen mit Tarif 311
+    db.session.add(InvoiceItem(
+        invoice_id=inv5.id, position=1,
+        tariff_code='7311', description='Physiotherapie UVG (30 Min.)',
+        quantity=9, tax_points=48.0, tax_point_value=tp_wert_311,
+        amount=384.48, vat_rate=0.0, vat_amount=0.0
+    ))
+
+    # Zweite Zahlung (fuer Rechnung 1 - falls Anzahlung und Rest)
+    db.session.add(Payment(
+        invoice_id=inv1.id, amount=0.00,
+        payment_date=date(2026, 2, 25),
+        payment_method='esr_qr',
+        reference='ESR-Kontrolle',
+        notes='Automatische Zuordnung via ESR-Referenz (Nullbetrag-Pruefung)'
+    ))
+
+    # Naechste Rechnungsnummer auf 6 setzen
+    next_nr_setting = SystemSetting.query.filter_by(
+        organization_id=org.id, key='billing_next_invoice_number'
+    ).first()
+    if next_nr_setting:
+        next_nr_setting.value = '6'
+
+    db.session.commit()
 
 
 def _seed_gutsprachen_demo_data(org, patients, serien, insurances, doctors, employees, created_users):

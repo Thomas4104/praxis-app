@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Abrechnung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<span>Neue Abrechnung</span>
+{% endblock %}
+
+{% block page_title %}Neue Abrechnung erstellen{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('billing.create') }}" id="invoiceForm">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Linke Seite: Serie auswaehlen -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Behandlungsserie auswählen</h3>
+            </div>
+            <div class="card-body" style="padding: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Behandlungsserie *</label>
+                    <select name="series_id" id="seriesSelect" class="form-input" required onchange="loadSeriesData()">
+                        <option value="">-- Serie auswählen --</option>
+                        {% for serie in serien %}
+                        <option value="{{ serie.id }}"
+                                data-patient="{{ serie.patient.first_name }} {{ serie.patient.last_name }}"
+                                data-insurance="{{ serie.patient.insurance_provider.name if serie.patient and serie.patient.insurance_provider else '-' }}"
+                                data-type="{{ serie.insurance_type or 'KVG' }}"
+                                data-model="{{ serie.billing_model or 'tiers_garant' }}"
+                                data-status="{{ serie.status }}"
+                                {% if serie.id in billed_series_ids %}disabled{% endif %}>
+                            {% if serie.id in billed_series_ids %}[ABGERECHNET] {% endif %}
+                            {{ serie.template.name if serie.template else 'Serie' }} -
+                            {{ serie.patient.first_name }} {{ serie.patient.last_name }} -
+                            {{ serie.diagnosis_text or '' }}
+                            ({{ serie.status }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Serie-Info -->
+                <div id="seriesInfo" style="display:none; margin-top: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                        <div><strong>Patient:</strong> <span id="infoPatient">-</span></div>
+                        <div><strong>Versicherung:</strong> <span id="infoInsurance">-</span></div>
+                        <div><strong>Typ:</strong> <span id="infoType">-</span></div>
+                        <div><strong>Status:</strong> <span id="infoStatus">-</span></div>
+                    </div>
+                </div>
+
+                <!-- Berechnete Positionen -->
+                <div id="calculatedPositions" style="display:none; margin-top: 16px;">
+                    <h4 style="margin-bottom: 8px;">Berechnete Positionen</h4>
+                    <div class="table-responsive">
+                        <table class="data-table" id="positionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Pos.</th>
+                                    <th>Tarifziffer</th>
+                                    <th>Beschreibung</th>
+                                    <th>Anzahl</th>
+                                    <th>TP</th>
+                                    <th>TP-Wert</th>
+                                    <th>Betrag</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positionsBody">
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="6" style="text-align:right;font-weight:600;">Total:</td>
+                                    <td id="totalAmount" style="font-weight:600;">CHF 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rechte Seite: Einstellungen -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Abrechnungsdetails</h3>
+            </div>
+            <div class="card-body" style="padding: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Abrechnungstyp</label>
+                    <select name="billing_type" id="billingType" class="form-input">
+                        <option value="KVG">KVG (Grundversicherung)</option>
+                        <option value="UVG">UVG (Unfallversicherung)</option>
+                        <option value="MVG">MVG (Militärversicherung)</option>
+                        <option value="IVG">IVG (Invalidenversicherung)</option>
+                        <option value="Privat">Privat / Zusatzversicherung</option>
+                        <option value="Selbstzahler">Selbstzahler</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Abrechnungsmodell</label>
+                    <select name="billing_model" id="billingModel" class="form-input">
+                        <option value="tiers_garant" {% if default_model == 'tiers_garant' %}selected{% endif %}>Tiers Garant (Patient zahlt, fordert zurück)</option>
+                        <option value="tiers_payant" {% if default_model == 'tiers_payant' %}selected{% endif %}>Tiers Payant (Versicherer zahlt direkt)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Zahlungsziel (Tage)</label>
+                    <input type="number" name="payment_term" class="form-input" value="{{ default_term }}" min="1" max="365">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Bemerkungen</label>
+                    <textarea name="notes" class="form-input" rows="3" placeholder="Optionale Bemerkungen zur Rechnung..."></textarea>
+                </div>
+
+                <!-- Manuelle Position hinzufuegen -->
+                <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+                    <h4 style="margin-bottom: 12px;">Zusätzliche Position hinzufügen</h4>
+                    <div id="manualPositions">
+                    </div>
+                    <button type="button" class="btn btn-ghost" onclick="addManualPosition()" style="margin-top: 8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Position hinzufügen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+        <a href="{{ url_for('billing.index') }}" class="btn btn-ghost">Abbrechen</a>
+        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Rechnung erstellen</button>
+    </div>
+</form>
+
+<script>
+function loadSeriesData() {
+    const select = document.getElementById('seriesSelect');
+    const option = select.options[select.selectedIndex];
+    const seriesId = select.value;
+
+    if (!seriesId) {
+        document.getElementById('seriesInfo').style.display = 'none';
+        document.getElementById('calculatedPositions').style.display = 'none';
+        document.getElementById('submitBtn').disabled = true;
+        return;
+    }
+
+    // Info anzeigen
+    document.getElementById('infoPatient').textContent = option.dataset.patient;
+    document.getElementById('infoInsurance').textContent = option.dataset.insurance;
+    document.getElementById('infoType').textContent = option.dataset.type;
+    document.getElementById('infoStatus').textContent = option.dataset.status;
+    document.getElementById('seriesInfo').style.display = 'block';
+
+    // Typ und Modell setzen
+    document.getElementById('billingType').value = option.dataset.type || 'KVG';
+    document.getElementById('billingModel').value = option.dataset.model || 'tiers_garant';
+
+    // Positionen berechnen
+    fetch(`/billing/api/series/${seriesId}/calculate`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                document.getElementById('submitBtn').disabled = true;
+                return;
+            }
+
+            const tbody = document.getElementById('positionsBody');
+            tbody.innerHTML = '';
+
+            data.items.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.position}</td>
+                    <td>${item.tariff_code}</td>
+                    <td>${item.description}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.tax_points.toFixed(1)}</td>
+                    <td>${item.tax_point_value.toFixed(2)}</td>
+                    <td>CHF ${item.amount.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('totalAmount').textContent = 'CHF ' + data.amount_total.toFixed(2);
+            document.getElementById('calculatedPositions').style.display = 'block';
+            document.getElementById('submitBtn').disabled = false;
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('submitBtn').disabled = true;
+        });
+}
+
+let manualPosCount = 0;
+function addManualPosition() {
+    const container = document.getElementById('manualPositions');
+    const div = document.createElement('div');
+    div.style.cssText = 'display: grid; grid-template-columns: 80px 1fr 60px 60px 60px 60px 30px; gap: 8px; margin-bottom: 8px; align-items: center;';
+    div.innerHTML = `
+        <input type="text" name="manual_tariff_code" class="form-input" placeholder="Ziffer" style="font-size:12px;">
+        <input type="text" name="manual_description" class="form-input" placeholder="Beschreibung" style="font-size:12px;">
+        <input type="number" name="manual_quantity" class="form-input" value="1" min="0.5" step="0.5" style="font-size:12px;">
+        <input type="number" name="manual_tax_points" class="form-input" value="0" step="0.1" placeholder="TP" style="font-size:12px;">
+        <input type="number" name="manual_tp_value" class="form-input" value="1.00" step="0.01" placeholder="TP-Wert" style="font-size:12px;">
+        <input type="number" name="manual_vat_rate" class="form-input" value="0" step="0.1" placeholder="MwSt%" style="font-size:12px;">
+        <button type="button" onclick="this.parentElement.remove()" class="btn btn-ghost" style="padding:4px;color:#e74c3c;">&times;</button>
+    `;
+    container.appendChild(div);
+    manualPosCount++;
+}
+</script>
+{% endblock %}

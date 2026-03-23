@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}Rechnung {{ invoice.invoice_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ invoice.invoice_number }}</span>
+{% endblock %}
+
+{% block page_title %}
+Rechnung {{ invoice.invoice_number }}
+{% if invoice.status == 'draft' %}
+    <span class="badge badge-secondary" style="font-size:14px;vertical-align:middle;margin-left:8px;">Entwurf</span>
+{% elif invoice.status == 'checked' %}
+    <span class="badge badge-primary" style="font-size:14px;vertical-align:middle;margin-left:8px;">Geprüft</span>
+{% elif invoice.status == 'sent' %}
+    {% if invoice.due_date and invoice.due_date < today and invoice.amount_open > 0 %}
+        <span class="badge badge-danger" style="font-size:14px;vertical-align:middle;margin-left:8px;">Überfällig</span>
+    {% else %}
+        <span class="badge badge-warning" style="font-size:14px;vertical-align:middle;margin-left:8px;">Gesendet</span>
+    {% endif %}
+{% elif invoice.status == 'paid' %}
+    <span class="badge badge-success" style="font-size:14px;vertical-align:middle;margin-left:8px;">Bezahlt</span>
+{% elif invoice.status == 'partially_paid' %}
+    <span class="badge" style="background:#f39c12;color:#fff;font-size:14px;vertical-align:middle;margin-left:8px;">Teilbezahlt</span>
+{% elif invoice.status == 'overdue' %}
+    <span class="badge badge-danger" style="font-size:14px;vertical-align:middle;margin-left:8px;">Überfällig</span>
+{% elif invoice.status == 'cancelled' %}
+    <span class="badge badge-secondary" style="font-size:14px;vertical-align:middle;margin-left:8px;">Storniert</span>
+{% elif invoice.status == 'inkasso' %}
+    <span class="badge" style="background:#721c24;color:#fff;font-size:14px;vertical-align:middle;margin-left:8px;">Im Inkasso</span>
+{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+{% if invoice.status == 'draft' %}
+    <form method="POST" action="{{ url_for('billing.check_invoice', id=invoice.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-primary">Prüfen</button>
+    </form>
+{% endif %}
+{% if invoice.status in ('draft', 'checked') %}
+    <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="send_via" value="print">
+        <button type="submit" class="btn btn-primary">Senden</button>
+    </form>
+{% endif %}
+{% if invoice.status not in ('paid', 'cancelled') %}
+    <button type="button" class="btn btn-secondary" onclick="document.getElementById('paymentModal').style.display='flex'">Zahlung erfassen</button>
+{% endif %}
+{% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 %}
+    <form method="POST" action="{{ url_for('billing.send_dunning', id=invoice.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-secondary" onclick="return confirm('Mahnung Stufe {{ (invoice.dunning_level or 0) + 1 }} senden?')">Mahnung senden</button>
+    </form>
+{% endif %}
+<a href="{{ url_for('billing.generate_pdf', id=invoice.id) }}" class="btn btn-secondary">PDF</a>
+{% if invoice.billing_model == 'tiers_payant' and invoice.status == 'sent' %}
+    <form method="POST" action="{{ url_for('billing.send_tp_copy', id=invoice.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-ghost">TP-Kopie</button>
+    </form>
+{% endif %}
+{% if invoice.status != 'cancelled' %}
+    <form method="POST" action="{{ url_for('billing.cancel_invoice', id=invoice.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-ghost" style="color:#e74c3c;" onclick="return confirm('Rechnung wirklich stornieren?')">Stornieren</button>
+    </form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <!-- Linke Seite -->
+    <div>
+        <!-- Betragsübersicht -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Total</div>
+                    <div style="font-size: 24px; font-weight: 700;">CHF {{ '%.2f'|format(invoice.amount_total) }}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Bezahlt</div>
+                    <div style="font-size: 24px; font-weight: 700; color: #27ae60;">CHF {{ '%.2f'|format(invoice.amount_paid) }}</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Offen</div>
+                    <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if invoice.amount_open > 0 else 'var(--text-secondary)' }};">CHF {{ '%.2f'|format(invoice.amount_open) }}</div>
+                </div>
+            </div>
+            {% if invoice.amount_total > 0 %}
+            <div style="padding: 0 20px 16px;">
+                <div style="height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden;">
+                    <div style="height: 100%; width: {{ (invoice.amount_paid / invoice.amount_total * 100)|int if invoice.amount_total > 0 else 0 }}%; background: #27ae60; border-radius: 4px; transition: width 0.3s;"></div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Positionen -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Positionen</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Pos.</th>
+                            <th>Tarifziffer</th>
+                            <th>Beschreibung</th>
+                            <th style="text-align:right;">Anzahl</th>
+                            <th style="text-align:right;">Taxpunkte</th>
+                            <th style="text-align:right;">TP-Wert</th>
+                            <th style="text-align:right;">Betrag</th>
+                            <th style="text-align:right;">MwSt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set subtotal = namespace(val=0) %}
+                        {% set total_vat = namespace(val=0) %}
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.position }}</td>
+                            <td><code>{{ item.tariff_code }}</code></td>
+                            <td>{{ item.description }}</td>
+                            <td style="text-align:right;">{{ item.quantity|int if item.quantity == item.quantity|int else '%.1f'|format(item.quantity) }}</td>
+                            <td style="text-align:right;">{{ '%.1f'|format(item.tax_points) }}</td>
+                            <td style="text-align:right;">{{ '%.2f'|format(item.tax_point_value) }}</td>
+                            <td style="text-align:right;">CHF {{ '%.2f'|format(item.amount) }}</td>
+                            <td style="text-align:right;">{{ '%.1f'|format(item.vat_rate) }}%</td>
+                        </tr>
+                        {% set subtotal.val = subtotal.val + item.amount %}
+                        {% set total_vat.val = total_vat.val + (item.vat_amount or 0) %}
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="6" style="text-align:right;">Subtotal:</td>
+                            <td style="text-align:right;">CHF {{ '%.2f'|format(subtotal.val) }}</td>
+                            <td></td>
+                        </tr>
+                        {% if total_vat.val > 0 %}
+                        <tr>
+                            <td colspan="6" style="text-align:right;">MwSt:</td>
+                            <td style="text-align:right;">CHF {{ '%.2f'|format(total_vat.val) }}</td>
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                        <tr style="font-weight: 700;">
+                            <td colspan="6" style="text-align:right;">Total:</td>
+                            <td style="text-align:right;">CHF {{ '%.2f'|format(invoice.amount_total) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Zahlungs-History -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Zahlungsübersicht</h3>
+            </div>
+            {% if payments %}
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Methode</th>
+                            <th style="text-align:right;">Betrag</th>
+                            <th>Referenz</th>
+                            <th>Bemerkung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in payments %}
+                        <tr>
+                            <td>{{ p.payment_date.strftime('%d.%m.%Y') if p.payment_date else '-' }}</td>
+                            <td>
+                                {% if p.payment_method == 'bank_transfer' %}Überweisung
+                                {% elif p.payment_method == 'credit_card' %}Kreditkarte
+                                {% elif p.payment_method == 'twint' %}TWINT
+                                {% elif p.payment_method == 'cash' %}Bar
+                                {% elif p.payment_method == 'esr_qr' %}ESR/QR
+                                {% else %}{{ p.payment_method or '-' }}{% endif %}
+                            </td>
+                            <td style="text-align:right; color: #27ae60; font-weight: 600;">CHF {{ '%.2f'|format(p.amount) }}</td>
+                            <td>{{ p.reference or '-' }}</td>
+                            <td>{{ p.notes or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 24px;">
+                <p>Noch keine Zahlungen erfasst.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Mahn-History -->
+        {% if dunnings %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Mahnungshistorie</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Stufe</th>
+                            <th>Datum</th>
+                            <th style="text-align:right;">Mahngebühr</th>
+                            <th>Versand</th>
+                            <th>Text</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in dunnings %}
+                        <tr>
+                            <td><span class="badge badge-danger">{{ d.dunning_level }}. Mahnung</span></td>
+                            <td>{{ d.dunning_date.strftime('%d.%m.%Y') if d.dunning_date else '-' }}</td>
+                            <td style="text-align:right;">{% if d.dunning_fee > 0 %}CHF {{ '%.2f'|format(d.dunning_fee) }}{% else %}-{% endif %}</td>
+                            <td>{{ d.sent_via or '-' }}</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.dunning_text or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Rechte Seite: Details -->
+    <div>
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Details</h3>
+            </div>
+            <div style="padding: 16px;">
+                <div style="display: grid; gap: 12px; font-size: 14px;">
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Patient</div>
+                        <div>
+                            {% if invoice.patient %}
+                                <a href="{{ url_for('patients.detail', patient_id=invoice.patient.id) }}">{{ invoice.patient.first_name }} {{ invoice.patient.last_name }}</a>
+                            {% else %}-{% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Versicherung</div>
+                        <div>{{ invoice.insurance_provider.name if invoice.insurance_provider else '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungstyp</div>
+                        <div>{{ invoice.billing_type or '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungsmodell</div>
+                        <div>{{ 'Tiers Garant' if invoice.billing_model == 'tiers_garant' else 'Tiers Payant' if invoice.billing_model == 'tiers_payant' else invoice.billing_model or '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Taxpunktwert</div>
+                        <div>{{ '%.2f'|format(invoice.tax_point_value) if invoice.tax_point_value else '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Erstellt am</div>
+                        <div>{{ invoice.created_at.strftime('%d.%m.%Y %H:%M') if invoice.created_at else '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Fällig am</div>
+                        <div style="{{ 'color:#e74c3c;font-weight:600;' if invoice.due_date and invoice.due_date < today and invoice.amount_open > 0 else '' }}">
+                            {{ invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else '-' }}
+                            {% if invoice.due_date and invoice.due_date < today and invoice.amount_open > 0 %}
+                                ({{ (today - invoice.due_date).days }} Tage überfällig)
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if invoice.sent_at %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Gesendet am</div>
+                        <div>{{ invoice.sent_at.strftime('%d.%m.%Y %H:%M') }} ({{ invoice.sent_via or '-' }})</div>
+                    </div>
+                    {% endif %}
+                    {% if invoice.paid_at %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Bezahlt am</div>
+                        <div>{{ invoice.paid_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                    </div>
+                    {% endif %}
+                    {% if invoice.dunning_level and invoice.dunning_level > 0 %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Mahnstufe</div>
+                        <div><span class="badge badge-danger">{{ invoice.dunning_level }}. Mahnung</span></div>
+                    </div>
+                    {% endif %}
+                    {% if invoice.series %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Behandlungsserie</div>
+                        <div><a href="{{ url_for('treatment.serie_detail', serie_id=invoice.series.id) }}">{{ invoice.series.template.name if invoice.series.template else 'Serie' }} #{{ invoice.series.id }}</a></div>
+                    </div>
+                    {% endif %}
+                    {% if invoice.notes %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Bemerkungen</div>
+                        <div>{{ invoice.notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Senden-Optionen (wenn moeglich) -->
+        {% if invoice.status in ('draft', 'checked') %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Versandoptionen</h3>
+            </div>
+            <div style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+                <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="send_via" value="email">
+                    <button type="submit" class="btn btn-secondary" style="width:100%;">Per E-Mail senden</button>
+                </form>
+                <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="send_via" value="print">
+                    <button type="submit" class="btn btn-secondary" style="width:100%;">Per Post senden (Drucken)</button>
+                </form>
+                <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="send_via" value="medidata">
+                    <button type="submit" class="btn btn-ghost" style="width:100%;">MediData (Platzhalter)</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Zahlungs-Modal -->
+<div id="paymentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div class="card" style="width: 480px; max-width: 90vw;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Zahlung erfassen</h3>
+            <button type="button" onclick="document.getElementById('paymentModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-secondary);">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('billing.add_payment', id=invoice.id) }}" style="padding: 16px;">
+            <div class="form-group">
+                <label class="form-label">Betrag (CHF) *</label>
+                <input type="number" name="amount" class="form-input" value="{{ '%.2f'|format(invoice.amount_open) }}" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Zahlungsdatum *</label>
+                <input type="date" name="payment_date" class="form-input" value="{{ today.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Zahlungsmethode *</label>
+                <select name="payment_method" class="form-input" required>
+                    <option value="bank_transfer">Überweisung</option>
+                    <option value="credit_card">Kreditkarte</option>
+                    <option value="twint">TWINT</option>
+                    <option value="cash">Bar</option>
+                    <option value="esr_qr">ESR/QR</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Referenznummer</label>
+                <input type="text" name="reference" class="form-input" placeholder="Bankreferenz / Memo">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bemerkung</label>
+                <textarea name="payment_notes" class="form-input" rows="2"></textarea>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('paymentModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Zahlung verbuchen</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

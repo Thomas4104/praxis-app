@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Mahnungen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<span>Mahnungen</span>
+{% endblock %}
+
+{% block page_title %}Mahnungen{% endblock %}
+
+{% block page_actions %}
+{% if ueberfaellige %}
+<form method="POST" action="{{ url_for('billing.mahnlauf') }}">
+    <button type="submit" class="btn btn-primary" onclick="return confirm('Mahnlauf für alle fälligen Rechnungen starten?')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        Batch-Mahnlauf starten
+    </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    {% if ueberfaellige %}
+    <div style="padding: 16px; background: #fff3cd; border-bottom: 1px solid var(--border); font-size: 14px;">
+        <strong>{{ ueberfaellige|length }} überfällige Rechnungen</strong> mit einem offenen Total von
+        <strong>CHF {{ '%.2f'|format(ueberfaellige|sum(attribute='amount_open')) }}</strong>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Patient</th>
+                    <th style="text-align:right;">Betrag</th>
+                    <th style="text-align:right;">Offen</th>
+                    <th>Fällig seit</th>
+                    <th>Mahnstufe</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in ueberfaellige %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('billing.detail', id=r.id) }}">
+                            <strong>{{ r.invoice_number }}</strong>
+                        </a>
+                    </td>
+                    <td>
+                        {% if r.patient %}
+                            {{ r.patient.first_name }} {{ r.patient.last_name }}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td style="text-align:right;">CHF {{ '%.2f'|format(r.amount_total) }}</td>
+                    <td style="text-align:right; color: #e74c3c; font-weight: 600;">CHF {{ '%.2f'|format(r.amount_open) }}</td>
+                    <td>
+                        <span style="color:#e74c3c;">
+                            {{ r.due_date.strftime('%d.%m.%Y') if r.due_date else '-' }}
+                            {% if r.due_date %}({{ (today - r.due_date).days }} Tage){% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if r.dunning_level and r.dunning_level > 0 %}
+                            <span class="badge badge-danger">{{ r.dunning_level }}. Mahnung</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Keine</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if (r.dunning_level or 0) < 3 %}
+                        <form method="POST" action="{{ url_for('billing.send_dunning', id=r.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;"
+                                    onclick="return confirm('{{ (r.dunning_level or 0) + 1 }}. Mahnung senden?')">
+                                {{ (r.dunning_level or 0) + 1 }}. Mahnung
+                            </button>
+                        </form>
+                        {% else %}
+                            <span style="font-size: 12px; color: #721c24;">Max. erreicht</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine überfälligen Rechnungen. Alles im grünen Bereich!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
