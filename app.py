@@ -9,7 +9,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
     Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList, \
     TherapyGoal, Milestone, Measurement, HealingPhase, \
-    SystemSetting, EmailTemplate, PrintTemplate, Permission
+    SystemSetting, EmailTemplate, PrintTemplate, Permission, \
+    CostApproval, CostApprovalItem, Task, TaskComment
 from config import config
 
 
@@ -50,6 +51,8 @@ def create_app(config_name=None):
     from blueprints.calendar import calendar_bp
     from blueprints.treatment import treatment_bp
     from blueprints.settings import settings_bp
+    from blueprints.cost_approvals import cost_approvals_bp
+    from blueprints.tasks import tasks_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -62,6 +65,8 @@ def create_app(config_name=None):
     app.register_blueprint(calendar_bp, url_prefix='/calendar')
     app.register_blueprint(treatment_bp, url_prefix='/treatment')
     app.register_blueprint(settings_bp, url_prefix='/settings')
+    app.register_blueprint(cost_approvals_bp, url_prefix='/cost-approvals')
+    app.register_blueprint(tasks_bp, url_prefix='/tasks')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -74,6 +79,8 @@ def create_app(config_name=None):
     csrf.exempt(calendar_bp)
     csrf.exempt(treatment_bp)
     csrf.exempt(settings_bp)
+    csrf.exempt(cost_approvals_bp)
+    csrf.exempt(tasks_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1037,8 +1044,218 @@ def seed_demo_data():
 
     db.session.commit()
 
+    # === Gutsprachen: Demo-Daten ===
+    _seed_gutsprachen_demo_data(org, patients, serien, insurances, doctors, employees, created_users)
+
     # === Einstellungen: Demo-Daten ===
     _seed_settings_demo_data(org)
+
+
+def _seed_gutsprachen_demo_data(org, patients, serien, insurances, doctors, employees, created_users):
+    """Erstellt Demo-Daten fuer Gutsprachen und Aufgaben"""
+
+    # === 3 Gutsprachen ===
+
+    # 1. Bewilligt (Serie 1, Max Huber, 9 Sitzungen bewilligt)
+    gs1 = CostApproval(
+        organization_id=org.id,
+        approval_number='GS-2026-0001',
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        insurance_provider_id=insurances[0].id,
+        doctor_id=doctors[0].id,
+        therapist_id=employees['thomas'].id,
+        status='approved',
+        requested_date=date.today() - timedelta(days=12),
+        sent_date=date.today() - timedelta(days=12),
+        response_date=date.today() - timedelta(days=8),
+        valid_until=date.today() + timedelta(days=90),
+        requested_sessions=9,
+        approved_sessions=9,
+        total_amount=432.0,
+        approved_amount=432.0,
+        diagnosis_code='M54.5',
+        diagnosis_text='Kreuzschmerz',
+        prescription_date=date.today() - timedelta(days=14),
+        prescription_type='erst',
+        justification='Patient leidet seit 3 Wochen an akuten Kreuzschmerzen mit Ausstrahlung ins linke Bein. '
+                       'Konservative Therapie mit 9 Sitzungen Physiotherapie indiziert.',
+        response_notes='Gutsprache bewilligt. 9 Sitzungen genehmigt.'
+    )
+    db.session.add(gs1)
+    db.session.flush()
+
+    # Positionen fuer GS1
+    db.session.add(CostApprovalItem(
+        cost_approval_id=gs1.id,
+        tariff_code='7301',
+        description='Physiotherapie Einzelbehandlung',
+        quantity=9,
+        amount=48.0
+    ))
+
+    # 2. Gesendet, ausstehend (Serie 2, Sandra Meier)
+    gs2 = CostApproval(
+        organization_id=org.id,
+        approval_number='GS-2026-0002',
+        series_id=serien[1].id,
+        patient_id=patients[1].id,
+        insurance_provider_id=insurances[0].id,
+        doctor_id=doctors[1].id,
+        therapist_id=employees['sarah'].id,
+        status='sent',
+        requested_date=date.today() - timedelta(days=5),
+        sent_date=date.today() - timedelta(days=5),
+        requested_sessions=9,
+        total_amount=432.0,
+        diagnosis_code='M75.1',
+        diagnosis_text='Impingement-Syndrom Schulter',
+        prescription_date=date.today() - timedelta(days=7),
+        prescription_type='erst',
+        justification='Impingement-Syndrom der rechten Schulter. Einschraenkung der Abduktion und Aussenrotation. '
+                       '9 Sitzungen Physiotherapie zur Mobilisation und Kraeftigung beantragt.'
+    )
+    db.session.add(gs2)
+    db.session.flush()
+
+    db.session.add(CostApprovalItem(
+        cost_approval_id=gs2.id,
+        tariff_code='7301',
+        description='Physiotherapie Einzelbehandlung',
+        quantity=9,
+        amount=48.0
+    ))
+
+    # 3. Abgelehnt (Serie 3, mit Ablehnungsgrund)
+    gs3 = CostApproval(
+        organization_id=org.id,
+        approval_number='GS-2026-0003',
+        series_id=serien[2].id,
+        patient_id=patients[2].id,
+        insurance_provider_id=insurances[2].id,
+        doctor_id=doctors[4].id,
+        therapist_id=employees['thomas'].id,
+        status='rejected',
+        requested_date=date.today() - timedelta(days=20),
+        sent_date=date.today() - timedelta(days=20),
+        response_date=date.today() - timedelta(days=15),
+        requested_sessions=18,
+        total_amount=864.0,
+        diagnosis_code='S82.1',
+        diagnosis_text='Fraktur proximale Tibia',
+        prescription_date=date.today() - timedelta(days=21),
+        prescription_type='erst',
+        justification='Zustand nach operativ versorgter proximaler Tibiafraktur. 18 Sitzungen Physiotherapie fuer '
+                       'Mobilisation, Kraeftigung und Gangschulung beantragt.',
+        rejection_reason='Angefragte Anzahl Sitzungen uebersteigt den bewilligungsfreien Rahmen. '
+                         'Bitte Antrag mit max. 9 Sitzungen (Erstverordnung) einreichen.',
+        response_notes='Ablehnung wegen ueberschrittener Anzahl. Neuer Antrag moeglich.'
+    )
+    db.session.add(gs3)
+    db.session.flush()
+
+    db.session.add(CostApprovalItem(
+        cost_approval_id=gs3.id,
+        tariff_code='7301',
+        description='Physiotherapie Einzelbehandlung',
+        quantity=18,
+        amount=48.0
+    ))
+
+    # Gutsprache mit Serie 1 verknuepfen
+    serien[0].cost_approval_id = gs1.id
+
+    # === 5 Aufgaben ===
+
+    # 1. Automatisch: Fehlende Versicherungsdaten (Patient 5 hat zwar Versicherung, simulieren wir)
+    task1 = Task(
+        organization_id=org.id,
+        title='Fehlende Versicherungsdaten: Lukas Zimmermann',
+        description='Patient P00005 hat eine aktive Behandlungsserie aber unvollstaendige Versicherungsdaten. '
+                    'Bitte Versicherungsnummer pruefen.',
+        category='versicherung',
+        priority='high',
+        task_type='missing_insurance',
+        status='open',
+        auto_generated=True,
+        related_patient_id=patients[4].id,
+        related_series_id=serien[4].id
+    )
+    db.session.add(task1)
+
+    # 2. Automatisch: Fehlende Verordnung
+    task2 = Task(
+        organization_id=org.id,
+        title='Fehlende Verordnung: Nina Brunner',
+        description='Patientin hat keinen Verordnungsnachweis fuer die geplante Behandlung hinterlegt.',
+        category='verordnung',
+        priority='high',
+        task_type='missing_prescription',
+        status='open',
+        auto_generated=True,
+        related_patient_id=patients[5].id
+    )
+    db.session.add(task2)
+
+    # 3. Manuell: Rueckruf Patient
+    task3 = Task(
+        organization_id=org.id,
+        title='Rückruf: Daniel Schmid wegen Terminverschiebung',
+        description='Patient hat angerufen und bittet um Terminverschiebung naechste Woche. Bitte zurueckrufen.',
+        category='sonstiges',
+        priority='normal',
+        task_type='manual',
+        status='open',
+        auto_generated=False,
+        assigned_to_id=created_users['lisa'].id,
+        created_by_id=created_users['thomas'].id,
+        related_patient_id=patients[6].id,
+        due_date=date.today() + timedelta(days=1)
+    )
+    db.session.add(task3)
+
+    # 4. Manuell: Geraet warten
+    task4 = Task(
+        organization_id=org.id,
+        title='Stosswellengerät: Wartungstermin vereinbaren',
+        description='Wartung ist ueberfaellig. Bitte MedTech Service AG kontaktieren fuer Terminvereinbarung.',
+        category='sonstiges',
+        priority='normal',
+        task_type='manual',
+        status='open',
+        auto_generated=False,
+        assigned_to_id=created_users['admin'].id,
+        created_by_id=created_users['admin'].id,
+        due_date=date.today() + timedelta(days=7)
+    )
+    db.session.add(task4)
+
+    # 5. Erledigt
+    task5 = Task(
+        organization_id=org.id,
+        title='Verordnung eingescannt: Max Huber',
+        description='Verordnung fuer Physiotherapie KVG wurde eingescannt und im System hinterlegt.',
+        category='verordnung',
+        priority='low',
+        task_type='manual',
+        status='completed',
+        auto_generated=False,
+        assigned_to_id=created_users['lisa'].id,
+        created_by_id=created_users['thomas'].id,
+        related_patient_id=patients[0].id,
+        completed_at=datetime.now() - timedelta(days=2)
+    )
+    db.session.add(task5)
+
+    # Kommentar zur erledigten Aufgabe
+    db.session.flush()
+    db.session.add(TaskComment(
+        task_id=task5.id,
+        user_id=created_users['lisa'].id,
+        comment='Verordnung eingescannt und unter Patientendokumenten abgelegt.'
+    ))
+
+    db.session.commit()
 
 
 def _seed_settings_demo_data(org):

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Gutsprache{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('cost_approvals.index') }}">Gutsprachen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Neue Gutsprache</span>
+{% endblock %}
+
+{% block page_title %}Neue Gutsprache erstellen{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('cost_approvals.create') }}" class="form-container">
+    <div class="card">
+        <div class="card-header"><h3>Patientendaten</h3></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Patient <span class="required">*</span></label>
+                    <select name="patient_id" id="patientSelect" class="form-input" required onchange="onPatientChange(this.value)">
+                        <option value="">— Patient wählen —</option>
+                        {% for p in patients %}
+                        <option value="{{ p.id }}" {% if preselect_patient_id == p.id %}selected{% endif %}>
+                            {{ p.last_name }}, {{ p.first_name }} ({{ p.patient_number }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Behandlungsserie</label>
+                    <select name="series_id" id="seriesSelect" class="form-input" onchange="onSeriesChange(this.value)">
+                        <option value="">— Serie wählen —</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Versicherung</label>
+                    <select name="insurance_provider_id" id="insuranceSelect" class="form-input">
+                        <option value="">— Versicherung wählen —</option>
+                        {% for ins in insurances %}
+                        <option value="{{ ins.id }}">{{ ins.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Zuweisender Arzt</label>
+                    <select name="doctor_id" id="doctorSelect" class="form-input">
+                        <option value="">— Arzt wählen —</option>
+                        {% for doc in doctors %}
+                        <option value="{{ doc.id }}">{{ doc.salutation }} {{ doc.first_name }} {{ doc.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Therapeut</label>
+                    <select name="therapist_id" id="therapistSelect" class="form-input">
+                        <option value="">— Therapeut wählen —</option>
+                        {% for emp in employees %}
+                        {% if emp.user %}
+                        <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h3>Verordnungsdaten</h3></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Verordnungsdatum</label>
+                    <input type="date" name="prescription_date" id="prescriptionDate" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Erst-/Folgeverordnung</label>
+                    <select name="prescription_type" id="prescriptionType" class="form-input">
+                        <option value="">— Wählen —</option>
+                        <option value="erst">Erstverordnung</option>
+                        <option value="folge">Folgeverordnung</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Diagnose (ICD-10)</label>
+                    <input type="text" name="diagnosis_code" id="diagnosisCode" class="form-input" placeholder="z.B. M54.5">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label class="form-label">Diagnosetext</label>
+                    <input type="text" name="diagnosis_text" id="diagnosisText" class="form-input" placeholder="z.B. Kreuzschmerz">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Angefragte Positionen</h3>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPosition()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Position hinzufügen
+            </button>
+        </div>
+        <div class="card-body">
+            <table class="data-table" id="positionsTable">
+                <thead>
+                    <tr>
+                        <th>Tarifziffer</th>
+                        <th>Beschreibung</th>
+                        <th>Anzahl</th>
+                        <th>Betrag (CHF)</th>
+                        <th>Kommentar</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="positionsBody">
+                    <tr class="position-row">
+                        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301"></td>
+                        <td><input type="text" name="item_description[]" class="form-input" placeholder="Physiotherapie"></td>
+                        <td><input type="number" name="quantity[]" class="form-input" value="9" min="1" style="width:70px;"></td>
+                        <td><input type="number" name="amount[]" class="form-input" value="48.00" step="0.05" style="width:100px;"></td>
+                        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Begründung"></td>
+                        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">✕</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h3>Begründung</h3></div>
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label">Begründungstext (wird an Versicherer gesendet)</label>
+                <textarea name="justification" class="form-input" rows="4" placeholder="Begründung für die Kostengutsprache..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <a href="{{ url_for('cost_approvals.index') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Gutsprache erstellen</button>
+    </div>
+</form>
+
+<script>
+function onPatientChange(patientId) {
+    if (!patientId) return;
+
+    // Serien laden
+    fetch(`/cost-approvals/api/patient/${patientId}/series`)
+        .then(r => r.json())
+        .then(data => {
+            const sel = document.getElementById('seriesSelect');
+            sel.innerHTML = '<option value="">— Serie wählen —</option>';
+            data.series.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                opt.dataset.diagnosisCode = s.diagnosis_code || '';
+                opt.dataset.diagnosisText = s.diagnosis_text || '';
+                opt.dataset.therapistId = s.therapist_id || '';
+                opt.dataset.doctorId = s.doctor_id || '';
+                opt.dataset.prescriptionDate = s.prescription_date || '';
+                opt.dataset.prescriptionType = s.prescription_type || '';
+                sel.appendChild(opt);
+            });
+            {% if preselect_series_id %}
+            sel.value = '{{ preselect_series_id }}';
+            if (sel.value) onSeriesChange(sel.value);
+            {% endif %}
+        });
+
+    // Versicherung laden
+    fetch(`/cost-approvals/api/patient/${patientId}/insurance`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.insurance_provider_id) {
+                document.getElementById('insuranceSelect').value = data.insurance_provider_id;
+            }
+        });
+}
+
+function onSeriesChange(seriesId) {
+    const sel = document.getElementById('seriesSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt && opt.dataset) {
+        if (opt.dataset.diagnosisCode) document.getElementById('diagnosisCode').value = opt.dataset.diagnosisCode;
+        if (opt.dataset.diagnosisText) document.getElementById('diagnosisText').value = opt.dataset.diagnosisText;
+        if (opt.dataset.therapistId) document.getElementById('therapistSelect').value = opt.dataset.therapistId;
+        if (opt.dataset.doctorId) document.getElementById('doctorSelect').value = opt.dataset.doctorId;
+        if (opt.dataset.prescriptionDate) document.getElementById('prescriptionDate').value = opt.dataset.prescriptionDate;
+        if (opt.dataset.prescriptionType) document.getElementById('prescriptionType').value = opt.dataset.prescriptionType;
+    }
+}
+
+function addPosition() {
+    const tbody = document.getElementById('positionsBody');
+    const row = document.createElement('tr');
+    row.className = 'position-row';
+    row.innerHTML = `
+        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301"></td>
+        <td><input type="text" name="item_description[]" class="form-input" placeholder="Beschreibung"></td>
+        <td><input type="number" name="quantity[]" class="form-input" value="1" min="1" style="width:70px;"></td>
+        <td><input type="number" name="amount[]" class="form-input" value="0.00" step="0.05" style="width:100px;"></td>
+        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Begründung"></td>
+        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">✕</button></td>
+    `;
+    tbody.appendChild(row);
+}
+
+function removePosition(btn) {
+    const tbody = document.getElementById('positionsBody');
+    if (tbody.children.length > 1) {
+        btn.closest('tr').remove();
+    }
+}
+
+// Bei Seitenlade: Wenn Patient vorausgewaehlt
+{% if preselect_patient_id %}
+document.addEventListener('DOMContentLoaded', function() {
+    onPatientChange('{{ preselect_patient_id }}');
+});
+{% endif %}
+</script>
+{% endblock %}

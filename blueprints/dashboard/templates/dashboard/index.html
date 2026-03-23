@@ -37,7 +37,7 @@ Guten {{ tageszeit }}, {{ current_user.first_name }}!
         </div>
     </div>
 
-    <div class="stat-card">
+    <a href="{{ url_for('tasks.index') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon stat-icon-warning">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 11 12 14 22 4"></polyline>
@@ -48,19 +48,22 @@ Guten {{ tageszeit }}, {{ current_user.first_name }}!
             <span class="stat-value">{{ offene_aufgaben }}</span>
             <span class="stat-label">Offene Aufgaben</span>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('cost_approvals.index', status='sent') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon stat-icon-info">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
             </svg>
         </div>
         <div class="stat-content">
-            <span class="stat-value">{{ aktive_serien }}</span>
-            <span class="stat-label">Aktive Serien</span>
+            <span class="stat-value">{{ ausstehende_gutsprachen }}</span>
+            <span class="stat-label">Ausstehende Gutsprachen</span>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Hauptbereich -->

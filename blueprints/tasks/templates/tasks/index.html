@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Aufgaben{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Aufgaben</span>
+{% endblock %}
+
+{% block page_title %}Aufgaben{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-secondary" onclick="generateTasks()" title="Automatische Prüfung">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </svg>
+    Prüfen
+</button>
+<button class="btn btn-primary" onclick="showCreateModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Aufgabe
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Tabs -->
+<div class="tabs" style="margin-bottom:1rem; display:flex; gap:0;">
+    <a href="{{ url_for('tasks.index', tab='mine') }}" class="btn {{ 'btn-primary' if tab == 'mine' else 'btn-secondary' }}" style="border-radius:4px 0 0 4px;">Meine Aufgaben</a>
+    <a href="{{ url_for('tasks.index', tab='all') }}" class="btn {{ 'btn-primary' if tab == 'all' else 'btn-secondary' }}" style="border-radius:0;">Alle Aufgaben</a>
+    <a href="{{ url_for('tasks.index', tab='completed') }}" class="btn {{ 'btn-primary' if tab == 'completed' else 'btn-secondary' }}" style="border-radius:0 4px 4px 0;">Erledigte</a>
+</div>
+
+<!-- Filter -->
+<div class="card">
+    <form class="filter-bar" method="GET" action="{{ url_for('tasks.index') }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <div class="filter-group">
+            <select name="category" class="form-input">
+                <option value="">Alle Kategorien</option>
+                <option value="patientendaten" {% if category_filter == 'patientendaten' %}selected{% endif %}>Patientendaten</option>
+                <option value="versicherung" {% if category_filter == 'versicherung' %}selected{% endif %}>Versicherung</option>
+                <option value="arzt" {% if category_filter == 'arzt' %}selected{% endif %}>Arzt</option>
+                <option value="verordnung" {% if category_filter == 'verordnung' %}selected{% endif %}>Verordnung</option>
+                <option value="abrechnung" {% if category_filter == 'abrechnung' %}selected{% endif %}>Abrechnung</option>
+                <option value="gutsprache" {% if category_filter == 'gutsprache' %}selected{% endif %}>Gutsprache</option>
+                <option value="sonstiges" {% if category_filter == 'sonstiges' %}selected{% endif %}>Sonstiges</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="priority" class="form-input">
+                <option value="">Alle Prioritäten</option>
+                <option value="critical" {% if priority_filter == 'critical' %}selected{% endif %}>Kritisch</option>
+                <option value="high" {% if priority_filter == 'high' %}selected{% endif %}>Hoch</option>
+                <option value="normal" {% if priority_filter == 'normal' %}selected{% endif %}>Mittel</option>
+                <option value="low" {% if priority_filter == 'low' %}selected{% endif %}>Niedrig</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+        {% if category_filter or priority_filter %}
+        <a href="{{ url_for('tasks.index', tab=tab) }}" class="btn btn-ghost">Zurücksetzen</a>
+        {% endif %}
+    </form>
+
+    <!-- Aufgabenliste -->
+    {% if aufgaben %}
+    <div class="task-list">
+        {% for aufgabe in aufgaben %}
+        <div class="task-item" style="display:flex; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid #eee; cursor:pointer; gap:0.75rem;" onclick="showDetail({{ aufgabe.id }})">
+            <!-- Checkbox -->
+            {% if aufgabe.status != 'completed' %}
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); completeTask({{ aufgabe.id }})" title="Erledigt" style="padding:2px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                </svg>
+            </button>
+            {% else %}
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); reopenTask({{ aufgabe.id }})" title="Wieder öffnen" style="padding:2px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </button>
+            {% endif %}
+
+            <!-- Prioritaet -->
+            <span class="badge badge-{{ 'danger' if aufgabe.priority == 'critical' else ('warning' if aufgabe.priority == 'high' else ('info' if aufgabe.priority == 'normal' else 'secondary')) }}" style="min-width:70px; text-align:center;">
+                {{ 'Kritisch' if aufgabe.priority == 'critical' else ('Hoch' if aufgabe.priority == 'high' else ('Mittel' if aufgabe.priority == 'normal' else 'Niedrig')) }}
+            </span>
+
+            <!-- Inhalt -->
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:500; {{ 'text-decoration:line-through; color:#999;' if aufgabe.status == 'completed' else '' }}">
+                    {{ aufgabe.title }}
+                    {% if aufgabe.auto_generated %}
+                    <span style="font-size:0.7rem; color:#999; margin-left:4px;">auto</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:0.8rem; color:#888;">
+                    {% if aufgabe.related_patient %}
+                        {{ aufgabe.related_patient.first_name }} {{ aufgabe.related_patient.last_name }} ·
+                    {% endif %}
+                    {% if aufgabe.category %}
+                        {{ {'patientendaten': 'Patientendaten', 'versicherung': 'Versicherung', 'arzt': 'Arzt', 'verordnung': 'Verordnung', 'abrechnung': 'Abrechnung', 'gutsprache': 'Gutsprache', 'sonstiges': 'Sonstiges'}.get(aufgabe.category, aufgabe.category) }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Faelligkeitsdatum -->
+            {% if aufgabe.due_date %}
+            <span style="font-size:0.8rem; color:{{ '#e74c3c' if aufgabe.due_date < today else '#888' }};">
+                {{ aufgabe.due_date.strftime('%d.%m.%Y') }}
+            </span>
+            {% endif %}
+
+            <!-- Zugewiesen an -->
+            {% if aufgabe.assigned_to %}
+            <span style="font-size:0.8rem; color:#888;">
+                {{ aufgabe.assigned_to.first_name }}
+            </span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:2rem; text-align:center;">
+        <p>Keine Aufgaben gefunden.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Detail-Panel -->
+<div id="detailPanel" style="display:none; position:fixed; top:0; right:0; bottom:0; width:400px; background:white; box-shadow:-2px 0 10px rgba(0,0,0,0.1); z-index:100; overflow-y:auto; padding:1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 id="detailTitle" style="margin:0;"></h3>
+        <button class="btn btn-ghost btn-sm" onclick="hideDetail()">✕</button>
+    </div>
+    <div id="detailContent"></div>
+</div>
+
+<!-- Neue Aufgabe Modal -->
+<div id="createModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin-bottom:1rem;">Neue Aufgabe</h3>
+        <form method="POST" action="{{ url_for('tasks.create') }}">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Titel <span class="required">*</span></label>
+                <input type="text" name="title" class="form-input" required placeholder="Aufgabentitel">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Beschreibung</label>
+                <textarea name="description" class="form-input" rows="3" placeholder="Details..."></textarea>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Priorität</label>
+                    <select name="priority" class="form-input">
+                        <option value="low">Niedrig</option>
+                        <option value="normal" selected>Mittel</option>
+                        <option value="high">Hoch</option>
+                        <option value="critical">Kritisch</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Kategorie</label>
+                    <select name="category" class="form-input">
+                        <option value="sonstiges">Sonstiges</option>
+                        <option value="patientendaten">Patientendaten</option>
+                        <option value="versicherung">Versicherung</option>
+                        <option value="arzt">Arzt</option>
+                        <option value="verordnung">Verordnung</option>
+                        <option value="abrechnung">Abrechnung</option>
+                        <option value="gutsprache">Gutsprache</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Zugewiesen an</label>
+                    <select name="assigned_to_id" class="form-input">
+                        {% for m in mitarbeiter %}
+                        <option value="{{ m.id }}" {% if m.id == current_user.id %}selected{% endif %}>{{ m.first_name }} {{ m.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fälligkeitsdatum</label>
+                    <input type="date" name="due_date" class="form-input">
+                </div>
+            </div>
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+}
+function hideCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+}
+
+function completeTask(id) {
+    fetch(`/tasks/api/${id}/complete`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); });
+}
+
+function reopenTask(id) {
+    fetch(`/tasks/api/${id}/reopen`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); });
+}
+
+function generateTasks() {
+    fetch('/tasks/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => {
+            alert(data.message);
+            location.reload();
+        });
+}
+
+function showDetail(id) {
+    fetch(`/tasks/api/${id}/detail`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('detailTitle').textContent = data.title;
+            let html = `
+                <div style="margin-bottom:1rem;">
+                    <span class="badge badge-${ data.priority === 'critical' ? 'danger' : (data.priority === 'high' ? 'warning' : (data.priority === 'normal' ? 'info' : 'secondary')) }">${data.priority_label}</span>
+                    <span class="badge badge-secondary">${data.category_label}</span>
+                    ${data.auto_generated ? '<span style="font-size:0.7rem; color:#999;">automatisch</span>' : ''}
+                </div>
+                ${data.description ? '<p>' + data.description + '</p>' : ''}
+                <div style="font-size:0.85rem; color:#666; margin-bottom:1rem;">
+                    ${data.patient ? '<p><strong>Patient:</strong> ' + data.patient + '</p>' : ''}
+                    ${data.assigned_to ? '<p><strong>Zugewiesen an:</strong> ' + data.assigned_to + '</p>' : ''}
+                    ${data.due_date ? '<p><strong>Fällig:</strong> ' + data.due_date + '</p>' : ''}
+                    <p><strong>Erstellt:</strong> ${data.created_at}</p>
+                    ${data.completed_at ? '<p><strong>Erledigt:</strong> ' + data.completed_at + '</p>' : ''}
+                </div>
+            `;
+
+            // Kommentare
+            if (data.comments && data.comments.length > 0) {
+                html += '<h4 style="margin:1rem 0 0.5rem;">Kommentare</h4>';
+                data.comments.forEach(c => {
+                    html += '<div style="border-left:3px solid #4a90d9; padding:0.5rem; margin-bottom:0.5rem; background:#f8f9fa;">';
+                    html += '<div style="font-size:0.75rem; color:#888;">' + c.user + ' · ' + c.created_at + '</div>';
+                    html += '<div>' + c.comment + '</div>';
+                    html += '</div>';
+                });
+            }
+
+            // Kommentar hinzufuegen
+            if (data.status !== 'completed') {
+                html += `
+                    <div style="margin-top:1rem;">
+                        <textarea id="commentInput" class="form-input" rows="2" placeholder="Kommentar..."></textarea>
+                        <button class="btn btn-secondary btn-sm" style="margin-top:0.5rem;" onclick="addComment(${data.id})">Kommentar hinzufügen</button>
+                    </div>
+                `;
+            }
+
+            document.getElementById('detailContent').innerHTML = html;
+            document.getElementById('detailPanel').style.display = 'block';
+        });
+}
+
+function hideDetail() {
+    document.getElementById('detailPanel').style.display = 'none';
+}
+
+function addComment(taskId) {
+    const comment = document.getElementById('commentInput').value.trim();
+    if (!comment) return;
+    fetch(`/tasks/api/${taskId}/comment`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({comment: comment})
+    }).then(r => r.json())
+      .then(data => {
+          if (data.success) showDetail(taskId);
+      });
+}
+</script>
+{% endblock %}

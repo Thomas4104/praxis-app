@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Gutsprache {{ gutsprache.approval_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('cost_approvals.index') }}">Gutsprachen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ gutsprache.approval_number }}</span>
+{% endblock %}
+
+{% block page_title %}
+Gutsprache {{ gutsprache.approval_number }}
+{% if gutsprache.status == 'draft' %}
+    <span class="badge badge-secondary">Erstellt</span>
+{% elif gutsprache.status == 'sent' %}
+    <span class="badge badge-primary">Gesendet</span>
+{% elif gutsprache.status == 'approved' %}
+    <span class="badge badge-success">Bewilligt</span>
+{% elif gutsprache.status == 'partially_approved' %}
+    <span class="badge badge-warning">Teilbewilligt</span>
+{% elif gutsprache.status == 'rejected' %}
+    <span class="badge badge-danger">Abgelehnt</span>
+{% elif gutsprache.status == 'cancelled' %}
+    <span class="badge badge-secondary">Storniert</span>
+{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+{% if gutsprache.status == 'draft' %}
+<button class="btn btn-primary" onclick="sendApproval()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+    Senden
+</button>
+{% endif %}
+{% if gutsprache.status == 'sent' %}
+<button class="btn btn-primary" onclick="showResponseModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 11 12 14 22 4"></polyline>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+    </svg>
+    Antwort erfassen
+</button>
+{% endif %}
+{% if gutsprache.status in ('rejected', 'cancelled') %}
+<button class="btn btn-secondary" onclick="resendApproval()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </svg>
+    Erneut senden
+</button>
+{% endif %}
+{% if gutsprache.status not in ('cancelled',) %}
+<button class="btn btn-danger" onclick="cancelApproval()">Stornieren</button>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="detail-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <!-- Patient -->
+    <div class="card">
+        <div class="card-header"><h3>Patient</h3></div>
+        <div class="card-body">
+            {% if gutsprache.patient %}
+            <p><strong>{{ gutsprache.patient.first_name }} {{ gutsprache.patient.last_name }}</strong></p>
+            <p>Pat.-Nr.: {{ gutsprache.patient.patient_number }}</p>
+            <p>Geb.: {{ gutsprache.patient.date_of_birth.strftime('%d.%m.%Y') if gutsprache.patient.date_of_birth else '-' }}</p>
+            {% else %}
+            <p class="text-muted">Kein Patient zugeordnet</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Versicherung -->
+    <div class="card">
+        <div class="card-header"><h3>Versicherung</h3></div>
+        <div class="card-body">
+            {% if gutsprache.insurance_provider %}
+            <p><strong>{{ gutsprache.insurance_provider.name }}</strong></p>
+            <p>{{ gutsprache.insurance_provider.address or '' }}</p>
+            <p>{{ gutsprache.insurance_provider.zip_code or '' }} {{ gutsprache.insurance_provider.city or '' }}</p>
+            {% else %}
+            <p class="text-muted">Keine Versicherung zugeordnet</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Verordnung -->
+    <div class="card">
+        <div class="card-header"><h3>Verordnungsdaten</h3></div>
+        <div class="card-body">
+            <p><strong>Diagnose:</strong> {{ gutsprache.diagnosis_code or '-' }} — {{ gutsprache.diagnosis_text or '-' }}</p>
+            <p><strong>Verordnungsdatum:</strong> {{ gutsprache.prescription_date.strftime('%d.%m.%Y') if gutsprache.prescription_date else '-' }}</p>
+            <p><strong>Typ:</strong> {{ 'Erstverordnung' if gutsprache.prescription_type == 'erst' else ('Folgeverordnung' if gutsprache.prescription_type == 'folge' else '-') }}</p>
+            <p><strong>Arzt:</strong>
+                {% if gutsprache.doctor %}
+                    {{ gutsprache.doctor.salutation }} {{ gutsprache.doctor.first_name }} {{ gutsprache.doctor.last_name }}
+                {% else %}
+                    -
+                {% endif %}
+            </p>
+            <p><strong>Therapeut:</strong>
+                {% if gutsprache.therapist and gutsprache.therapist.user %}
+                    {{ gutsprache.therapist.user.first_name }} {{ gutsprache.therapist.user.last_name }}
+                {% else %}
+                    -
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Daten -->
+    <div class="card">
+        <div class="card-header"><h3>Zeitdaten</h3></div>
+        <div class="card-body">
+            <p><strong>Erstellt:</strong> {{ gutsprache.created_at.strftime('%d.%m.%Y') if gutsprache.created_at else '-' }}</p>
+            <p><strong>Gesendet:</strong> {{ gutsprache.sent_date.strftime('%d.%m.%Y') if gutsprache.sent_date else '-' }}</p>
+            <p><strong>Antwort:</strong> {{ gutsprache.response_date.strftime('%d.%m.%Y') if gutsprache.response_date else '-' }}</p>
+            <p><strong>Gültig bis:</strong> {{ gutsprache.valid_until.strftime('%d.%m.%Y') if gutsprache.valid_until else '-' }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Positionen -->
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Angefragte Positionen</h3></div>
+    <div class="card-body">
+        {% if items %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tarifziffer</th>
+                    <th>Beschreibung</th>
+                    <th>Anzahl</th>
+                    <th>Betrag (CHF)</th>
+                    <th>Total (CHF)</th>
+                    <th>Kommentar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.tariff_code or '-' }}</td>
+                    <td>{{ item.description or '-' }}</td>
+                    <td>{{ item.quantity|int }}</td>
+                    <td>{{ '%.2f'|format(item.amount) }}</td>
+                    <td>{{ '%.2f'|format(item.amount * item.quantity) }}</td>
+                    <td>{{ item.comment or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2"><strong>Total</strong></td>
+                    <td><strong>{{ gutsprache.requested_sessions or '-' }}</strong></td>
+                    <td></td>
+                    <td><strong>{{ '%.2f'|format(gutsprache.total_amount or 0) }}</strong></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <p class="text-muted">Keine Positionen erfasst.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Begruendung -->
+{% if gutsprache.justification %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Begründung</h3></div>
+    <div class="card-body">
+        <p>{{ gutsprache.justification }}</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Antwort-Bereich -->
+{% if gutsprache.status in ('approved', 'partially_approved', 'rejected') %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header">
+        <h3>Antwort des Kostenträgers</h3>
+        {% if gutsprache.status == 'approved' %}
+            <span class="badge badge-success">Bewilligt</span>
+        {% elif gutsprache.status == 'partially_approved' %}
+            <span class="badge badge-warning">Teilbewilligt</span>
+        {% elif gutsprache.status == 'rejected' %}
+            <span class="badge badge-danger">Abgelehnt</span>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <p><strong>Antwortdatum:</strong> {{ gutsprache.response_date.strftime('%d.%m.%Y') if gutsprache.response_date else '-' }}</p>
+        {% if gutsprache.status in ('approved', 'partially_approved') %}
+        <p><strong>Bewilligte Sitzungen:</strong> {{ gutsprache.approved_sessions or '-' }}</p>
+        <p><strong>Bewilligter Betrag:</strong> CHF {{ '%.2f'|format(gutsprache.approved_amount or 0) }}</p>
+        <p><strong>Gültig bis:</strong> {{ gutsprache.valid_until.strftime('%d.%m.%Y') if gutsprache.valid_until else '-' }}</p>
+        {% endif %}
+        {% if gutsprache.status == 'rejected' and gutsprache.rejection_reason %}
+        <p><strong>Ablehnungsgrund:</strong> {{ gutsprache.rejection_reason }}</p>
+        {% endif %}
+        {% if gutsprache.response_notes %}
+        <p><strong>Bemerkung:</strong> {{ gutsprache.response_notes }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Antwort-Modal -->
+<div id="responseModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin-bottom:1rem;">Antwort erfassen</h3>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Ergebnis</label>
+            <select id="responseResult" class="form-input" onchange="toggleResponseFields()">
+                <option value="approved">Bewilligt</option>
+                <option value="partially_approved">Teilbewilligt</option>
+                <option value="rejected">Abgelehnt</option>
+            </select>
+        </div>
+        <div id="approvedFields">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Bewilligte Sitzungen</label>
+                <input type="number" id="responseApprovedSessions" class="form-input" value="{{ gutsprache.requested_sessions or 0 }}">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Bewilligter Betrag (CHF)</label>
+                <input type="number" id="responseApprovedAmount" class="form-input" step="0.01" value="{{ '%.2f'|format(gutsprache.total_amount or 0) }}">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Gültig bis</label>
+                <input type="date" id="responseValidUntil" class="form-input">
+            </div>
+        </div>
+        <div id="rejectionFields" style="display:none;">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Ablehnungsgrund</label>
+                <textarea id="responseRejectionReason" class="form-input" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Bemerkung</label>
+            <textarea id="responseNotes" class="form-input" rows="2"></textarea>
+        </div>
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="hideResponseModal()">Abbrechen</button>
+            <button class="btn btn-primary" onclick="submitResponse()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function sendApproval() {
+    if (!confirm('Gutsprache jetzt senden?')) return;
+    fetch('/cost-approvals/api/{{ gutsprache.id }}/send', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+}
+
+function cancelApproval() {
+    if (!confirm('Gutsprache wirklich stornieren?')) return;
+    fetch('/cost-approvals/api/{{ gutsprache.id }}/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+}
+
+function resendApproval() {
+    if (!confirm('Gutsprache erneut senden?')) return;
+    fetch('/cost-approvals/api/{{ gutsprache.id }}/resend', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+}
+
+function showResponseModal() {
+    document.getElementById('responseModal').style.display = 'flex';
+}
+
+function hideResponseModal() {
+    document.getElementById('responseModal').style.display = 'none';
+}
+
+function toggleResponseFields() {
+    const result = document.getElementById('responseResult').value;
+    document.getElementById('approvedFields').style.display = (result === 'rejected') ? 'none' : 'block';
+    document.getElementById('rejectionFields').style.display = (result === 'rejected') ? 'block' : 'none';
+}
+
+function submitResponse() {
+    const result = document.getElementById('responseResult').value;
+    const body = {
+        result: result,
+        approved_sessions: parseInt(document.getElementById('responseApprovedSessions').value) || 0,
+        approved_amount: parseFloat(document.getElementById('responseApprovedAmount').value) || 0,
+        valid_until: document.getElementById('responseValidUntil').value,
+        rejection_reason: document.getElementById('responseRejectionReason').value,
+        response_notes: document.getElementById('responseNotes').value
+    };
+    fetch('/cost-approvals/api/{{ gutsprache.id }}/respond', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    }).then(r => r.json())
+      .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
+}
+</script>
+{% endblock %}

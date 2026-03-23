@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 from blueprints.dashboard import dashboard_bp
-from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries
+from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries, CostApproval
 from ai.coordinator import Coordinator
 
 
@@ -69,11 +69,18 @@ def index():
         TreatmentSeries.status == 'active'
     ).count()
 
+    # Ausstehende Gutsprachen
+    ausstehende_gutsprachen = CostApproval.query.filter(
+        CostApproval.organization_id == current_user.organization_id,
+        CostApproval.status.in_(['draft', 'sent'])
+    ).count()
+
     return render_template('dashboard/index.html',
                            termine_heute=termine_heute,
                            patienten_heute=patienten_heute,
                            offene_aufgaben=offene_aufgaben,
                            aktive_serien=aktive_serien,
+                           ausstehende_gutsprachen=ausstehende_gutsprachen,
                            naechste_termine=naechste_termine)
 
 

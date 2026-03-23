@@ -612,26 +612,39 @@ class CostApproval(db.Model):
     __tablename__ = 'cost_approvals'
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    approval_number = db.Column(db.String(30))
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'))
-    status = db.Column(db.String(20), default='draft')
+    therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    status = db.Column(db.String(20), default='draft')  # draft, sent, answered, approved, partially_approved, rejected, cancelled
     requested_date = db.Column(db.Date)
     sent_date = db.Column(db.Date)
     response_date = db.Column(db.Date)
     valid_until = db.Column(db.Date)
+    requested_sessions = db.Column(db.Integer)
     approved_sessions = db.Column(db.Integer)
     approved_amount = db.Column(db.Float)
+    total_amount = db.Column(db.Float)
     rejection_reason = db.Column(db.Text)
+    justification = db.Column(db.Text)  # Begruendungstext an Versicherer
+    diagnosis_code = db.Column(db.String(20))
+    diagnosis_text = db.Column(db.String(500))
+    prescription_date = db.Column(db.Date)
+    prescription_type = db.Column(db.String(30))  # Erst-/Folgeverordnung
     notes = db.Column(db.Text)
+    response_notes = db.Column(db.Text)  # Bemerkung des Kostentraegers
     pdf_path = db.Column(db.String(500))
+    prescription_document_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic')
     patient = db.relationship('Patient', backref='cost_approvals')
     insurance_provider = db.relationship('InsuranceProvider', backref='cost_approvals')
     doctor = db.relationship('Doctor', backref='cost_approvals')
+    therapist = db.relationship('Employee', backref='cost_approvals')
+    series = db.relationship('TreatmentSeries', backref='cost_approval_ref', foreign_keys=[series_id])
 
 
 class CostApprovalItem(db.Model):
@@ -670,8 +683,23 @@ class Task(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     related_patient = db.relationship('Patient', backref='tasks')
+    related_series = db.relationship('TreatmentSeries', backref='tasks')
+    related_invoice = db.relationship('Invoice', backref='tasks')
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='assigned_tasks')
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref='created_tasks')
+    comments = db.relationship('TaskComment', backref='task', lazy='dynamic', order_by='TaskComment.created_at')
+
+
+class TaskComment(db.Model):
+    """Kommentare zu Aufgaben"""
+    __tablename__ = 'task_comments'
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    comment = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='task_comments')
 
 
 # ============================================================

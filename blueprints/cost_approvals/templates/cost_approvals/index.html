@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Gutsprachen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Gutsprachen</span>
+{% endblock %}
+
+{% block page_title %}Gutsprachenübersicht{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('cost_approvals.create') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Gutsprache
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Filter -->
+    <form class="filter-bar" method="GET" action="{{ url_for('cost_approvals.index') }}">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input" placeholder="Patient, Versicherung, Nr..." value="{{ search }}">
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-input">
+                <option value="">Alle Status</option>
+                <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Erstellt</option>
+                <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Gesendet</option>
+                <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Bewilligt</option>
+                <option value="partially_approved" {% if status_filter == 'partially_approved' %}selected{% endif %}>Teilbewilligt</option>
+                <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Abgelehnt</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Storniert</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <input type="date" name="date_from" class="form-input" value="{{ date_from }}" placeholder="Von">
+        </div>
+        <div class="filter-group">
+            <input type="date" name="date_to" class="form-input" value="{{ date_to }}" placeholder="Bis">
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+        {% if search or status_filter or date_from or date_to %}
+        <a href="{{ url_for('cost_approvals.index') }}" class="btn btn-ghost">Zurücksetzen</a>
+        {% endif %}
+    </form>
+
+    <!-- Tabelle -->
+    {% if gutsprachen %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Patient</th>
+                    <th>Versicherung</th>
+                    <th>Therapeut</th>
+                    <th>Status</th>
+                    <th>Datum</th>
+                    <th>Sitzungen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for gs in gutsprachen %}
+                <tr onclick="window.location='{{ url_for('cost_approvals.detail', id=gs.id) }}'" style="cursor:pointer;">
+                    <td>{{ gs.approval_number or '-' }}</td>
+                    <td>
+                        {% if gs.patient %}
+                            {{ gs.patient.first_name }} {{ gs.patient.last_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ gs.insurance_provider.name if gs.insurance_provider else '-' }}</td>
+                    <td>
+                        {% if gs.therapist and gs.therapist.user %}
+                            {{ gs.therapist.user.first_name }} {{ gs.therapist.user.last_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if gs.status == 'draft' %}
+                            <span class="badge badge-secondary">Erstellt</span>
+                        {% elif gs.status == 'sent' %}
+                            <span class="badge badge-primary">Gesendet</span>
+                        {% elif gs.status == 'approved' %}
+                            <span class="badge badge-success">Bewilligt</span>
+                        {% elif gs.status == 'partially_approved' %}
+                            <span class="badge badge-warning">Teilbewilligt</span>
+                        {% elif gs.status == 'rejected' %}
+                            <span class="badge badge-danger">Abgelehnt</span>
+                        {% elif gs.status == 'cancelled' %}
+                            <span class="badge badge-secondary">Storniert</span>
+                        {% else %}
+                            <span class="badge">{{ gs.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ gs.created_at.strftime('%d.%m.%Y') if gs.created_at else '-' }}</td>
+                    <td>
+                        {% if gs.status in ('approved', 'partially_approved') %}
+                            {{ gs.approved_sessions or '-' }} / {{ gs.requested_sessions or '-' }}
+                        {% else %}
+                            {{ gs.requested_sessions or '-' }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Gutsprachen gefunden.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
