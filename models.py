@@ -757,6 +757,18 @@ class EmailAttachment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class EmailFolder(db.Model):
+    """Eigene E-Mail-Ordner pro Organisation"""
+    __tablename__ = 'email_folders'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('email_folders', lazy='dynamic'))
+
+
 class ChatMessage(db.Model):
     __tablename__ = 'chat_messages'
     id = db.Column(db.Integer, primary_key=True)

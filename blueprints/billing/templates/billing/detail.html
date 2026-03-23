@@ -61,6 +61,15 @@ Rechnung {{ invoice.invoice_number }}
         <button type="submit" class="btn btn-ghost">TP-Kopie</button>
     </form>
 {% endif %}
+{% if invoice.patient and invoice.patient.email %}
+<a href="{{ url_for('mailing.compose', to=invoice.patient.email, patient_id=invoice.patient.id, invoice_id=invoice.id, subject='Rechnung ' ~ invoice.invoice_number) }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+        <polyline points="22,6 12,13 2,6"></polyline>
+    </svg>
+    Per E-Mail senden
+</a>
+{% endif %}
 {% if invoice.status != 'cancelled' %}
     <form method="POST" action="{{ url_for('billing.cancel_invoice', id=invoice.id) }}" style="display:inline;">
         <button type="submit" class="btn btn-ghost" style="color:#e74c3c;" onclick="return confirm('Rechnung wirklich stornieren?')">Stornieren</button>

@@ -11,7 +11,7 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     TherapyGoal, Milestone, Measurement, HealingPhase, \
     SystemSetting, EmailTemplate, PrintTemplate, Permission, \
     CostApproval, CostApprovalItem, Task, TaskComment, \
-    Invoice, InvoiceItem, Payment, DunningRecord
+    Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email
 from config import config
 
 
@@ -55,6 +55,7 @@ def create_app(config_name=None):
     from blueprints.cost_approvals import cost_approvals_bp
     from blueprints.tasks import tasks_bp
     from blueprints.billing import billing_bp
+    from blueprints.mailing import mailing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -70,6 +71,7 @@ def create_app(config_name=None):
     app.register_blueprint(cost_approvals_bp, url_prefix='/cost-approvals')
     app.register_blueprint(tasks_bp, url_prefix='/tasks')
     app.register_blueprint(billing_bp, url_prefix='/billing')
+    app.register_blueprint(mailing_bp, url_prefix='/mailing')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -85,6 +87,7 @@ def create_app(config_name=None):
     csrf.exempt(cost_approvals_bp)
     csrf.exempt(tasks_bp)
     csrf.exempt(billing_bp)
+    csrf.exempt(mailing_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1613,9 +1616,90 @@ th { background: #f5f5f5; }
     )
     db.session.add(print_template)
 
+    # === E-Mail Demo-Daten ===
+    # Eigener Ordner
+    ordner_wichtig = EmailFolder(
+        organization_id=org.id,
+        name='Wichtig',
+        sort_order=1
+    )
+    db.session.add(ordner_wichtig)
+    db.session.flush()
+
+    # E-Mail 1: Posteingang, gelesen
+    email_inbox_read = Email(
+        organization_id=org.id,
+        from_address='dr.weber@arztpraxis-weber.ch',
+        to_address='info@omnia-health.ch',
+        subject='Verordnung Physiotherapie - Patient Huber',
+        body_html='<p>Sehr geehrtes Praxisteam,</p><p>anbei sende ich Ihnen die Verordnung für Herrn Max Huber (geb. 15.03.1985) für 9 Sitzungen Physiotherapie KVG.</p><p>Diagnose: Chronische lumbale Rückenschmerzen (M54.5)</p><p>Bitte kontaktieren Sie den Patienten zur Terminvereinbarung.</p><p>Freundliche Grüsse<br>Dr. med. Thomas Weber</p>',
+        body_text='Sehr geehrtes Praxisteam, anbei sende ich Ihnen die Verordnung für Herrn Max Huber für 9 Sitzungen Physiotherapie KVG. Diagnose: Chronische lumbale Rückenschmerzen.',
+        status='received',
+        folder='inbox',
+        linked_patient_id=patients[0].id,
+        read_at=datetime.utcnow() - timedelta(hours=2),
+        created_at=datetime.utcnow() - timedelta(days=1)
+    )
+    # E-Mail 2: Posteingang, ungelesen
+    email_inbox_unread = Email(
+        organization_id=org.id,
+        from_address='anna.meier@bluewin.ch',
+        to_address='info@omnia-health.ch',
+        subject='Terminverschiebung nächste Woche',
+        body_html='<p>Guten Tag,</p><p>Ich möchte meinen Termin am Mittwoch gerne auf Freitag verschieben, da ich beruflich verhindert bin. Ist das möglich?</p><p>Vielen Dank und freundliche Grüsse<br>Anna Meier</p>',
+        body_text='Guten Tag, ich möchte meinen Termin am Mittwoch gerne auf Freitag verschieben. Ist das möglich? Vielen Dank, Anna Meier',
+        status='received',
+        folder='inbox',
+        linked_patient_id=patients[1].id,
+        created_at=datetime.utcnow() - timedelta(hours=3)
+    )
+    # E-Mail 3: Gesendet (Terminbestätigung)
+    email_sent = Email(
+        organization_id=org.id,
+        from_address='info@omnia-health.ch',
+        to_address='max.huber@gmail.com',
+        subject='Terminbestätigung - OMNIA Physiotherapie',
+        body_html='<p>Sehr geehrter Herr Huber,</p><p>Hiermit bestätigen wir Ihren Termin:</p><p><strong>Datum:</strong> Montag, 23.03.2026<br><strong>Zeit:</strong> 09:00 Uhr<br><strong>Therapeut:</strong> Thomas Müller</p><p>Bitte bringen Sie Ihre Versicherungskarte mit.</p><p>Freundliche Grüsse<br>OMNIA Health Services AG</p>',
+        body_text='Terminbestätigung für Max Huber: Montag 23.03.2026, 09:00 Uhr, Therapeut Thomas Müller.',
+        status='sent',
+        folder='sent',
+        linked_patient_id=patients[0].id,
+        sent_at=datetime.utcnow() - timedelta(days=2),
+        created_at=datetime.utcnow() - timedelta(days=2)
+    )
+    # E-Mail 4: Entwurf
+    email_draft = Email(
+        organization_id=org.id,
+        from_address='info@omnia-health.ch',
+        to_address='peter.keller@sunrise.ch',
+        subject='Behandlungsplan - Nachkontrolle',
+        body_html='<p>Sehr geehrter Herr Keller,</p><p>Im Rahmen Ihrer Nachbehandlung nach der Tibiafraktur möchten wir Sie über den weiteren Behandlungsplan informieren...</p>',
+        body_text='Behandlungsplan Nachkontrolle für Peter Keller...',
+        status='draft',
+        folder='drafts',
+        linked_patient_id=patients[2].id,
+        created_at=datetime.utcnow() - timedelta(hours=5)
+    )
+    # E-Mail 5: Archiviert
+    email_archive = Email(
+        organization_id=org.id,
+        from_address='info@css.ch',
+        to_address='info@omnia-health.ch',
+        subject='Kostengutsprache KGS-2026-0001 genehmigt',
+        body_html='<p>Sehr geehrte Damen und Herren,</p><p>Wir teilen Ihnen mit, dass die Kostengutsprache KGS-2026-0001 für die Patientin Lisa Fischer genehmigt wurde.</p><p>Genehmigter Umfang: 12 Sitzungen Physiotherapie KVG</p><p>Freundliche Grüsse<br>CSS Versicherung</p>',
+        body_text='Kostengutsprache KGS-2026-0001 für Lisa Fischer genehmigt. 12 Sitzungen Physiotherapie KVG.',
+        status='received',
+        folder='archive',
+        linked_patient_id=patients[3].id,
+        read_at=datetime.utcnow() - timedelta(days=5),
+        created_at=datetime.utcnow() - timedelta(days=7)
+    )
+    db.session.add_all([email_inbox_read, email_inbox_unread, email_sent, email_draft, email_archive])
+
     # Rollen-Berechtigungen
     modules = ['dashboard', 'kalender', 'patienten', 'mitarbeiter', 'behandlung',
-               'abrechnung', 'produkte', 'ressourcen', 'adressen', 'einstellungen']
+               'abrechnung', 'produkte', 'ressourcen', 'adressen', 'einstellungen',
+               'kommunikation']
     actions = ['lesen', 'erstellen', 'bearbeiten', 'loeschen']
 
     # Therapeut: Lesen ueberall, Bearbeiten bei Patienten/Behandlung/Kalender
@@ -1630,6 +1714,7 @@ th { background: #f5f5f5; }
         'ressourcen': ['lesen'],
         'adressen': ['lesen', 'erstellen', 'bearbeiten'],
         'einstellungen': [],
+        'kommunikation': ['lesen', 'erstellen'],
     }
 
     # Empfang: Lesen ueberall, Erstellen bei Kalender/Patienten
@@ -1644,6 +1729,7 @@ th { background: #f5f5f5; }
         'ressourcen': ['lesen', 'erstellen'],
         'adressen': ['lesen', 'erstellen', 'bearbeiten'],
         'einstellungen': [],
+        'kommunikation': ['lesen', 'erstellen', 'bearbeiten'],
     }
 
     for module in modules:

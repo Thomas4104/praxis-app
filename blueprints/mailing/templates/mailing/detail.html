@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}{{ email.subject or '(kein Betreff)' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ email.subject or '(kein Betreff)' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ email.subject or '(kein Betreff)' }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('mailing.compose', reply_to=email.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 14 4 9 9 4"></polyline>
+        <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+    </svg>
+    Antworten
+</a>
+<a href="{{ url_for('mailing.compose', forward=email.id) }}" class="btn btn-outline">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 14 20 9 15 4"></polyline>
+        <path d="M4 20v-7a4 4 0 0 1 4-4h12"></path>
+    </svg>
+    Weiterleiten
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Demo-Modus Banner -->
+<div class="alert alert-info" style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+    <strong>Demo-Modus:</strong> E-Mail-Versand ist im Demo-Modus. E-Mails werden gespeichert aber nicht versendet.
+</div>
+
+<div class="email-detail-layout">
+    <!-- E-Mail Header -->
+    <div class="card">
+        <div class="card-body">
+            <div class="email-header-grid">
+                <div class="email-header-field">
+                    <span class="email-header-label">Von:</span>
+                    <span class="email-header-value">{{ email.from_address or '—' }}</span>
+                </div>
+                <div class="email-header-field">
+                    <span class="email-header-label">An:</span>
+                    <span class="email-header-value">{{ email.to_address or '—' }}</span>
+                </div>
+                {% if email.cc %}
+                <div class="email-header-field">
+                    <span class="email-header-label">CC:</span>
+                    <span class="email-header-value">{{ email.cc }}</span>
+                </div>
+                {% endif %}
+                <div class="email-header-field">
+                    <span class="email-header-label">Datum:</span>
+                    <span class="email-header-value">
+                        {% if email.sent_at %}
+                        {{ email.sent_at.strftime('%d.%m.%Y %H:%M') }}
+                        {% else %}
+                        {{ email.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="email-header-field">
+                    <span class="email-header-label">Betreff:</span>
+                    <span class="email-header-value"><strong>{{ email.subject or '(kein Betreff)' }}</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- E-Mail Body -->
+    <div class="card">
+        <div class="card-body">
+            <div class="email-body-content">
+                {% if email.body_html %}
+                {{ email.body_html | safe }}
+                {% elif email.body_text %}
+                <pre style="white-space: pre-wrap; font-family: inherit;">{{ email.body_text }}</pre>
+                {% else %}
+                <p class="text-muted">(Kein Inhalt)</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Anhänge -->
+    {% if attachments %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Anhänge ({{ attachments | length }})</h3>
+        </div>
+        <div class="card-body">
+            <div class="attachment-list">
+                {% for att in attachments %}
+                <div class="attachment-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                    <span>{{ att.filename }}</span>
+                    <span class="text-muted">({{ (att.filesize / 1024) | round(1) }} KB)</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Verknüpfungen und Aktionen -->
+    <div class="detail-sidebar-grid">
+        <!-- Verknüpfungen -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Verknüpfungen</h3>
+            </div>
+            <div class="card-body">
+                {% if patient %}
+                <div class="link-item">
+                    <span class="link-label">Patient:</span>
+                    <a href="{{ url_for('patients.detail', patient_id=patient.id) }}">
+                        {{ patient.first_name }} {{ patient.last_name }}
+                    </a>
+                </div>
+                {% endif %}
+                {% if series %}
+                <div class="link-item">
+                    <span class="link-label">Serie:</span>
+                    <span>{{ series.diagnosis or 'Serie #' ~ series.id }}</span>
+                </div>
+                {% endif %}
+                {% if invoice %}
+                <div class="link-item">
+                    <span class="link-label">Rechnung:</span>
+                    <a href="{{ url_for('billing.invoice_detail', invoice_id=invoice.id) }}">
+                        {{ invoice.invoice_number }}
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if not patient %}
+                <div class="link-form">
+                    <label class="form-label">Mit Patient verknüpfen:</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <select id="linkPatientSelect" class="form-control form-control-sm" style="flex: 1;">
+                            <option value="">— Patient wählen —</option>
+                            {% for p in patients %}
+                            <option value="{{ p.id }}">{{ p.last_name }}, {{ p.first_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm btn-outline" onclick="linkPatient()">Verknüpfen</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Aktionen -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Aktionen</h3>
+            </div>
+            <div class="card-body">
+                <div class="action-buttons">
+                    {% if email.folder != 'archive' %}
+                    <button class="btn btn-sm btn-outline" onclick="moveEmail('archive')" style="width: 100%;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                            <rect x="1" y="3" width="22" height="5"></rect>
+                        </svg>
+                        Archivieren
+                    </button>
+                    {% endif %}
+
+                    <!-- In Ordner verschieben -->
+                    <div style="display: flex; gap: 0.5rem; width: 100%;">
+                        <select id="moveToFolder" class="form-control form-control-sm" style="flex: 1;">
+                            <option value="inbox">Posteingang</option>
+                            <option value="archive">Archiv</option>
+                            {% for cf in custom_folders %}
+                            <option value="custom_{{ cf.id }}">{{ cf.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm btn-outline" onclick="moveToSelectedFolder()">Verschieben</button>
+                    </div>
+
+                    <button class="btn btn-sm btn-outline btn-danger" onclick="deleteEmail()" style="width: 100%;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.email-detail-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.email-header-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.email-header-field {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.email-header-label {
+    font-weight: 600;
+    color: var(--text-muted, #666);
+    min-width: 60px;
+}
+
+.email-body-content {
+    padding: 0.5rem 0;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.attachment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    padding: 0.35rem 0;
+}
+
+.detail-sidebar-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .detail-sidebar-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.link-item {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    padding: 0.25rem 0;
+}
+
+.link-label {
+    font-weight: 600;
+    color: var(--text-muted, #666);
+}
+
+.link-form {
+    margin-top: 0.75rem;
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+</style>
+
+<script>
+function moveEmail(folder) {
+    fetch('{{ url_for("mailing.move_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}], folder: folder})
+    }).then(() => window.location = '{{ url_for("mailing.index") }}');
+}
+
+function moveToSelectedFolder() {
+    const folder = document.getElementById('moveToFolder').value;
+    moveEmail(folder);
+}
+
+function deleteEmail() {
+    if (!confirm('Diese E-Mail löschen?')) return;
+    fetch('{{ url_for("mailing.delete_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}]})
+    }).then(() => window.location = '{{ url_for("mailing.index") }}');
+}
+
+function linkPatient() {
+    const patientId = document.getElementById('linkPatientSelect').value;
+    if (!patientId) return;
+    fetch('{{ url_for("mailing.link_patient") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_id: {{ email.id }}, patient_id: parseInt(patientId)})
+    }).then(() => location.reload());
+}
+</script>
+{% endblock %}

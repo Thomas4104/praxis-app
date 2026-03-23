@@ -34,6 +34,14 @@
                 </select>
             </div>
 
+            <a href="{{ url_for('mailing.index') }}" class="header-btn" id="mailHeaderBtn" title="E-Mails" style="text-decoration:none; position:relative;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span class="notification-badge" id="mailHeaderBadge" style="display:none">0</span>
+            </a>
+
             <button class="header-btn notification-btn" id="notificationBtn" title="Benachrichtigungen">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -169,10 +177,18 @@
                 </svg>
                 <span class="nav-label">Fitness</span>
             </a>
-            <a href="{{ url_for('addresses.index') }}" class="nav-item {% if request.blueprint == 'addresses' %}active{% endif %}">
+            <a href="{{ url_for('mailing.index') }}" class="nav-item {% if request.blueprint == 'mailing' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                     <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span class="nav-label">Kommunikation</span>
+                <span class="nav-badge" id="mailBadge" style="display:none"></span>
+            </a>
+            <a href="{{ url_for('addresses.index') }}" class="nav-item {% if request.blueprint == 'addresses' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 17H2a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1zM6 11V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"></path>
+                    <rect x="2" y="11" width="20" height="6" rx="1"></rect>
                 </svg>
                 <span class="nav-label">Adressen</span>
             </a>
@@ -281,6 +297,41 @@
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    <script>
+    // Ungelesene E-Mails laden (Badge in Navigation und Header)
+    (function() {
+        function loadUnreadCount() {
+            fetch('/mailing/api/unread-count')
+                .then(r => r.json())
+                .then(data => {
+                    var count = data.count || 0;
+                    // Sidebar Badge
+                    var badge = document.getElementById('mailBadge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count;
+                            badge.style.display = 'inline-flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                    // Header Badge
+                    var hBadge = document.getElementById('mailHeaderBadge');
+                    if (hBadge) {
+                        if (count > 0) {
+                            hBadge.textContent = count;
+                            hBadge.style.display = 'inline-flex';
+                        } else {
+                            hBadge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(function() {});
+        }
+        loadUnreadCount();
+        setInterval(loadUnreadCount, 60000); // Alle 60 Sekunden aktualisieren
+    })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

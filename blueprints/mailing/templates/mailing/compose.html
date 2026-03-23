@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}E-Mail verfassen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>E-Mail verfassen</span>
+{% endblock %}
+
+{% block page_title %}E-Mail verfassen{% endblock %}
+
+{% block content %}
+<!-- Demo-Modus Banner -->
+<div class="alert alert-info" style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+    <strong>Demo-Modus:</strong> E-Mail-Versand ist im Demo-Modus. E-Mails werden gespeichert aber nicht versendet.
+</div>
+
+<div class="compose-form">
+    <div class="card">
+        <div class="card-body">
+            <!-- Absender -->
+            <div class="form-group">
+                <label class="form-label">Von:</label>
+                <input type="text" id="fromAddress" class="form-control"
+                       value="{{ sender_name }} <{{ sender_address }}>" readonly
+                       style="background: var(--muted-bg, #f5f5f5);">
+            </div>
+
+            <!-- Empfänger -->
+            <div class="form-group">
+                <label class="form-label">An:</label>
+                <div class="recipient-input-wrapper">
+                    <input type="text" id="toAddress" class="form-control" placeholder="E-Mail-Adresse eingeben..."
+                           value="{{ to_address }}" list="patientEmails" autocomplete="off">
+                    <button type="button" class="btn btn-sm btn-link" onclick="toggleCcBcc()" id="ccBccToggle">CC/BCC</button>
+                </div>
+            </div>
+
+            <!-- CC/BCC (einklappbar) -->
+            <div id="ccBccFields" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">CC:</label>
+                    <input type="text" id="ccAddress" class="form-control" placeholder="CC-Empfänger..." list="patientEmails">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">BCC:</label>
+                    <input type="text" id="bccAddress" class="form-control" placeholder="BCC-Empfänger..." list="patientEmails">
+                </div>
+            </div>
+
+            <!-- Datalist fuer Autocomplete -->
+            <datalist id="patientEmails">
+                {% for p in patients %}
+                {% if p.email %}
+                <option value="{{ p.email }}">{{ p.last_name }}, {{ p.first_name }} ({{ p.email }})</option>
+                {% endif %}
+                {% endfor %}
+            </datalist>
+
+            <!-- Betreff -->
+            <div class="form-group">
+                <label class="form-label">Betreff:</label>
+                <input type="text" id="emailSubject" class="form-control" placeholder="Betreff eingeben..."
+                       value="{{ subject }}">
+            </div>
+
+            <!-- Vorlage und Sprache -->
+            <div class="form-row" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label class="form-label">Vorlage laden:</label>
+                    <select id="templateSelect" class="form-control" onchange="loadTemplate()">
+                        <option value="">— Keine Vorlage —</option>
+                        {% for tpl in templates %}
+                        <option value="{{ tpl.id }}">{{ tpl.name }} ({{ tpl.template_type }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 0 0 150px;">
+                    <label class="form-label">Sprache:</label>
+                    <select id="languageSelect" class="form-control">
+                        <option value="de" selected>Deutsch</option>
+                        <option value="fr">Français</option>
+                        <option value="it">Italiano</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Patient verknüpfen -->
+            <div class="form-group">
+                <label class="form-label">Verknüpfter Patient:</label>
+                <select id="linkedPatient" class="form-control">
+                    <option value="">— Kein Patient —</option>
+                    {% for p in patients %}
+                    <option value="{{ p.id }}" {% if patient_id == p.id %}selected{% endif %}>
+                        {{ p.last_name }}, {{ p.first_name }}{% if p.email %} ({{ p.email }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Rich-Text-Editor -->
+            <div class="form-group">
+                <label class="form-label">Nachricht:</label>
+                <div class="editor-toolbar">
+                    <button type="button" class="editor-btn" onclick="execCmd('bold')" title="Fett"><strong>F</strong></button>
+                    <button type="button" class="editor-btn" onclick="execCmd('italic')" title="Kursiv"><em>K</em></button>
+                    <button type="button" class="editor-btn" onclick="execCmd('insertUnorderedList')" title="Aufzählung">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                    </button>
+                    <button type="button" class="editor-btn" onclick="execCmd('insertOrderedList')" title="Nummerierte Liste">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="10" y1="6" x2="21" y2="6"></line>
+                            <line x1="10" y1="12" x2="21" y2="12"></line>
+                            <line x1="10" y1="18" x2="21" y2="18"></line>
+                            <path d="M4 6h1v4"></path>
+                            <path d="M4 10h2"></path>
+                            <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>
+                        </svg>
+                    </button>
+                    <button type="button" class="editor-btn" onclick="insertLink()" title="Link einfügen">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="emailEditor" class="email-editor" contenteditable="true">{{ body | safe }}</div>
+            </div>
+
+            <!-- Platzhalter-Hilfe -->
+            <div class="form-group">
+                <details>
+                    <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted, #666);">Verfügbare Platzhalter</summary>
+                    <div class="placeholder-help">
+                        <code>{patient_name}</code> – Vollständiger Name<br>
+                        <code>{patient_vorname}</code> – Vorname<br>
+                        <code>{patient_nachname}</code> – Nachname<br>
+                        <code>{termin_datum}</code> – Nächster Termin Datum<br>
+                        <code>{termin_zeit}</code> – Nächster Termin Zeit<br>
+                        <code>{therapeut_name}</code> – Therapeut<br>
+                        <code>{praxis_name}</code> – Praxisname<br>
+                        <code>{praxis_telefon}</code> – Telefonnummer<br>
+                        <code>{praxis_email}</code> – E-Mail<br>
+                        <code>{rechnungs_nummer}</code> – Rechnungsnummer<br>
+                        <code>{rechnungs_betrag}</code> – Rechnungsbetrag<br>
+                        <code>{datum}</code> – Heutiges Datum
+                    </div>
+                </details>
+            </div>
+
+            <!-- Aktionen -->
+            <div class="compose-actions">
+                <button class="btn btn-primary" onclick="sendEmail()" id="sendBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    Senden
+                </button>
+                <button class="btn btn-outline" onclick="saveDraft()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Als Entwurf speichern
+                </button>
+                <a href="{{ url_for('mailing.index') }}" class="btn btn-outline">Abbrechen</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.compose-form {
+    max-width: 800px;
+}
+
+.recipient-input-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.recipient-input-wrapper .form-control {
+    flex: 1;
+}
+
+.editor-toolbar {
+    display: flex;
+    gap: 2px;
+    padding: 0.35rem;
+    border: 1px solid var(--border-color, #ddd);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: var(--muted-bg, #f8f9fa);
+}
+
+.editor-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 28px;
+    border: none;
+    background: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-color, #333);
+    font-size: 0.875rem;
+}
+
+.editor-btn:hover {
+    background: var(--hover-bg, #e0e0e0);
+}
+
+.email-editor {
+    min-height: 250px;
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 0 0 6px 6px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    background: #fff;
+}
+
+.email-editor:focus {
+    outline: none;
+    border-color: var(--primary-color, #4a90d9);
+    box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
+}
+
+.placeholder-help {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: var(--muted-bg, #f8f9fa);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1.8;
+}
+
+.placeholder-help code {
+    background: var(--code-bg, #e8e8e8);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+
+.compose-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+</style>
+
+<script>
+const draftId = {{ (draft.id if draft else 'null') | tojson }};
+const seriesId = {{ series_id | tojson if series_id else 'null' }};
+const invoiceId = {{ invoice_id | tojson if invoice_id else 'null' }};
+
+function execCmd(command) {
+    document.execCommand(command, false, null);
+    document.getElementById('emailEditor').focus();
+}
+
+function insertLink() {
+    const url = prompt('URL eingeben:');
+    if (url) {
+        document.execCommand('createLink', false, url);
+    }
+}
+
+function toggleCcBcc() {
+    const fields = document.getElementById('ccBccFields');
+    fields.style.display = fields.style.display === 'none' ? 'block' : 'none';
+}
+
+function getFormData() {
+    return {
+        to: document.getElementById('toAddress').value,
+        cc: document.getElementById('ccAddress') ? document.getElementById('ccAddress').value : '',
+        bcc: document.getElementById('bccAddress') ? document.getElementById('bccAddress').value : '',
+        subject: document.getElementById('emailSubject').value,
+        body_html: document.getElementById('emailEditor').innerHTML,
+        body_text: document.getElementById('emailEditor').innerText,
+        patient_id: document.getElementById('linkedPatient').value || null,
+        series_id: seriesId,
+        invoice_id: invoiceId,
+        draft_id: draftId
+    };
+}
+
+function sendEmail() {
+    const data = getFormData();
+    if (!data.to) {
+        alert('Bitte geben Sie einen Empfänger ein.');
+        return;
+    }
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.textContent = 'Wird gesendet...';
+
+    fetch('{{ url_for("mailing.send_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            window.location = '{{ url_for("mailing.index", folder="sent") }}';
+        } else {
+            alert(result.message || 'Fehler beim Senden.');
+            btn.disabled = false;
+            btn.textContent = 'Senden';
+        }
+    })
+    .catch(() => {
+        alert('Fehler beim Senden der E-Mail.');
+        btn.disabled = false;
+        btn.textContent = 'Senden';
+    });
+}
+
+function saveDraft() {
+    const data = getFormData();
+
+    fetch('{{ url_for("mailing.save_draft") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            alert('Entwurf gespeichert.');
+            window.location = '{{ url_for("mailing.index", folder="drafts") }}';
+        } else {
+            alert(result.message || 'Fehler beim Speichern.');
+        }
+    });
+}
+
+function loadTemplate() {
+    const templateId = document.getElementById('templateSelect').value;
+    if (!templateId) return;
+
+    const patientId = document.getElementById('linkedPatient').value;
+    let url = '{{ url_for("mailing.get_template", template_id=0) }}'.replace('/0', '/' + templateId);
+    if (patientId) url += '?patient_id=' + patientId;
+
+    fetch(url)
+    .then(r => r.json())
+    .then(data => {
+        if (data.subject) document.getElementById('emailSubject').value = data.subject;
+        if (data.body_html) document.getElementById('emailEditor').innerHTML = data.body_html;
+    });
+}
+
+// Bei Patientenwechsel: Empfänger-E-Mail aktualisieren
+document.getElementById('linkedPatient').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption && selectedOption.value) {
+        const text = selectedOption.textContent;
+        const emailMatch = text.match(/\(([^)]+@[^)]+)\)/);
+        if (emailMatch && !document.getElementById('toAddress').value) {
+            document.getElementById('toAddress').value = emailMatch[1];
+        }
+    }
+});
+</script>
+{% endblock %}

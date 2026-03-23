@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 from blueprints.dashboard import dashboard_bp
-from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries, CostApproval
+from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries, CostApproval, Email
 from ai.coordinator import Coordinator
 
 
@@ -75,13 +75,20 @@ def index():
         CostApproval.status.in_(['draft', 'sent'])
     ).count()
 
+    # Ungelesene E-Mails
+    ungelesene_emails = Email.query.filter_by(
+        organization_id=current_user.organization_id,
+        folder='inbox'
+    ).filter(Email.read_at.is_(None)).count()
+
     return render_template('dashboard/index.html',
                            termine_heute=termine_heute,
                            patienten_heute=patienten_heute,
                            offene_aufgaben=offene_aufgaben,
                            aktive_serien=aktive_serien,
                            ausstehende_gutsprachen=ausstehende_gutsprachen,
-                           naechste_termine=naechste_termine)
+                           naechste_termine=naechste_termine,
+                           ungelesene_emails=ungelesene_emails)
 
 
 # === Chat API ===

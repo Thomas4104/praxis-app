@@ -653,6 +653,15 @@
         } else {
             seriesRow.style.display = 'none';
         }
+
+        // E-Mail-Button fuer Terminbestaetigung
+        var emailBtn = document.getElementById('detailEmailBtn');
+        if (emailBtn && appt.patient_id) {
+            emailBtn.href = '/mailing/compose?patient_id=' + appt.patient_id + '&template=confirmation&subject=' + encodeURIComponent('Terminbestätigung');
+            emailBtn.style.display = 'inline-flex';
+        } else if (emailBtn) {
+            emailBtn.style.display = 'none';
+        }
     }
 
     function saveDetail() {

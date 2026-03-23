@@ -12,6 +12,7 @@ from ai.agents.behandlungsplan_agent import BehandlungsplanAgent
 from ai.agents.einstellungen_agent import EinstellungenAgent
 from ai.agents.aufgaben_agent import AufgabenAgent
 from ai.agents.abrechnungs_agent import AbrechnungsAgent
+from ai.agents.kommunikations_agent import KommunikationsAgent
 
 
 class Coordinator:
@@ -28,7 +29,8 @@ class Coordinator:
             'behandlungsplan': BehandlungsplanAgent(),
             'einstellungen': EinstellungenAgent(),
             'aufgaben': AufgabenAgent(),
-            'abrechnung': AbrechnungsAgent()
+            'abrechnung': AbrechnungsAgent(),
+            'kommunikation': KommunikationsAgent()
         }
 
     def register_agent(self, name, agent):
