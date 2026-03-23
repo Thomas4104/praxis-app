@@ -3,178 +3,275 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}OMNIA Praxissoftware{% endblock %}</title>
+    <title>{% block title %}Dashboard{% endblock %} - {{ app_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    {% block head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Sidebar -->
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">OMNIA</div>
-            <div class="sidebar-subtitle">Praxissoftware</div>
-        </div>
-
-        <ul class="sidebar-nav">
-            <li class="{{ 'active' if request.endpoint == 'dashboard.index' }}">
-                <a href="{{ url_for('dashboard.index') }}">
-                    <span class="nav-icon">🏠</span>
-                    <span class="nav-text">Dashboard</span>
-                </a>
-            </li>
-            <li class="{{ 'active' if request.blueprint == 'calendar' }}">
-                <a href="{{ url_for('calendar.index') }}">
-                    <span class="nav-icon">📅</span>
-                    <span class="nav-text">Kalender</span>
-                </a>
-            </li>
-            <li class="{{ 'active' if request.blueprint == 'patients' }}">
-                <a href="{{ url_for('patients.index') }}">
-                    <span class="nav-icon">👥</span>
-                    <span class="nav-text">Patienten</span>
-                </a>
-            </li>
-            <li class="{{ 'active' if request.blueprint == 'treatment' and 'template' not in (request.endpoint or '') and 'warteliste' not in (request.endpoint or '') }}">
-                <a href="{{ url_for('treatment.serien') }}">
-                    <span class="nav-icon">💊</span>
-                    <span class="nav-text">Behandlung</span>
-                </a>
-                <ul class="sidebar-subnav">
-                    <li class="{{ 'active' if request.endpoint == 'treatment.serien' or (request.endpoint or '').startswith('treatment.serie') }}">
-                        <a href="{{ url_for('treatment.serien') }}">Serien</a>
-                    </li>
-                    <li class="{{ 'active' if 'template' in (request.endpoint or '') }}">
-                        <a href="{{ url_for('treatment.templates') }}">Templates</a>
-                    </li>
-                    <li class="{{ 'active' if 'warteliste' in (request.endpoint or '') }}">
-                        <a href="{{ url_for('treatment.warteliste') }}">Warteliste</a>
-                    </li>
-                </ul>
-            </li>
-            <li class="{{ 'active' if request.blueprint in ('billing', 'cost_approvals') }}">
-                <a href="{{ url_for('billing.index') }}">
-                    <span class="nav-icon">💰</span>
-                    <span class="nav-text">Abrechnung</span>
-                </a>
-                <ul class="sidebar-subnav">
-                    <li class="{{ 'active' if request.blueprint == 'billing' and 'mahnungen' not in (request.endpoint or '') and 'zahlungen' not in (request.endpoint or '') and 'payments' not in (request.endpoint or '') and 'tax_point' not in (request.endpoint or '') }}">
-                        <a href="{{ url_for('billing.index') }}">Rechnungen</a>
-                    </li>
-                    <li class="{{ 'active' if request.blueprint == 'cost_approvals' }}">
-                        <a href="{{ url_for('cost_approvals.index') }}">Gutsprachen</a>
-                    </li>
-                    <li class="{{ 'active' if 'zahlungen' in (request.endpoint or '') or 'payments' in (request.endpoint or '') }}">
-                        <a href="{{ url_for('billing.payments_overview') }}">Zahlungen</a>
-                    </li>
-                    <li class="{{ 'active' if 'mahnungen' in (request.endpoint or '') or 'dunning' in (request.endpoint or '') }}">
-                        <a href="{{ url_for('billing.dunning_overview') }}">Mahnungen</a>
-                    </li>
-                </ul>
-            </li>
-            <li class="{{ 'active' if request.blueprint == 'resources' }}">
-                <a href="{{ url_for('resources.index') }}">
-                    <span class="nav-icon">🏥</span>
-                    <span class="nav-text">Ressourcen</span>
-                </a>
-            </li>
-            <li class="{{ 'active' if request.blueprint == 'employees' }}">
-                <a href="{{ url_for('employees.index') }}">
-                    <span class="nav-icon">👤</span>
-                    <span class="nav-text">Mitarbeiter</span>
-                </a>
-            </li>
-        </ul>
-
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <span class="user-name">{{ current_user.name }}</span>
-                <span class="user-role">{{ current_user.role }}</span>
-            </div>
-            <a href="{{ url_for('auth.logout') }}" class="logout-link">Abmelden</a>
-        </div>
-    </nav>
-
-    <!-- Haupt-Content -->
-    <main class="main-content" id="mainContent">
-        <!-- Top Bar (Mobile) -->
-        <header class="top-bar">
-            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-            <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
-            <button class="chat-toggle" onclick="toggleChat()" id="chatToggleBtn">
-                <span class="chat-icon">💬</span>
-                <span class="chat-label">KI</span>
+    <!-- Kopfzeile -->
+    <header class="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebarToggle" title="Menue ein-/ausklappen">
+                <span class="hamburger-icon">
+                    <span></span><span></span><span></span>
+                </span>
             </button>
-        </header>
-
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for category, message in messages %}
-            <div class="flash-message flash-{{ category }}">
-                {{ message }}
-                <button class="flash-close" onclick="this.parentElement.remove()">×</button>
-            </div>
-            {% endfor %}
+            <a href="{{ url_for('dashboard.index') }}" class="header-logo">OMNIA</a>
         </div>
-        {% endif %}
+
+        <div class="header-center">
+            <div class="global-search">
+                <input type="text" id="globalSearch" class="search-input"
+                       placeholder="Patienten, Termine, Adressen suchen..." autocomplete="off">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="header-location">
+                <select id="locationSelect" class="location-select">
+                    <option>Alle Standorte</option>
+                </select>
+            </div>
+
+            <button class="header-btn notification-btn" id="notificationBtn" title="Benachrichtigungen">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <span class="notification-badge" id="notificationBadge" style="display:none">0</span>
+            </button>
+
+            <div class="user-menu" id="userMenu">
+                <button class="user-menu-btn">
+                    <span class="user-avatar">{{ current_user.first_name[0] }}{{ current_user.last_name[0] }}</span>
+                    <span class="user-name">{{ current_user.first_name }} {{ current_user.last_name }}</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <div class="user-dropdown">
+                    <div class="dropdown-header">
+                        <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+                        <span class="user-role">{{ current_user.role }}</span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">Passwort aendern</a>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ url_for('auth.logout') }}" class="dropdown-item dropdown-item-danger">Abmelden</a>
+                </div>
+            </div>
+
+            <button class="header-btn chat-toggle-btn" id="chatToggleBtn" title="KI-Chat oeffnen">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('dashboard.index') }}" class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                </svg>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span class="nav-label">Kalender</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span class="nav-label">Patienten</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span class="nav-label">Mitarbeiter</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+                <span class="nav-label">Behandlung</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+                <span class="nav-label">Abrechnung</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <span class="nav-label">Gutsprachen</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 11 12 14 22 4"></polyline>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                <span class="nav-label">Aufgaben</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span class="nav-label">Auswertung</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <path d="M16 10a4 4 0 0 1-8 0"></path>
+                </svg>
+                <span class="nav-label">Produkte</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                </svg>
+                <span class="nav-label">Ressourcen</span>
+            </a>
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                    <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                    <line x1="6" y1="1" x2="6" y2="4"></line>
+                    <line x1="10" y1="1" x2="10" y2="4"></line>
+                    <line x1="14" y1="1" x2="14" y2="4"></line>
+                </svg>
+                <span class="nav-label">Fitness</span>
+            </a>
+
+            <div class="nav-spacer"></div>
+
+            <a href="#" class="nav-item">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span class="nav-label">Einstellungen</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Hauptinhalt -->
+    <main class="main-content" id="mainContent">
+        <!-- Breadcrumbs -->
+        <div class="breadcrumbs">
+            {% block breadcrumbs %}
+            <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+            {% endblock %}
+        </div>
+
+        <!-- Seitentitel und Aktionen -->
+        <div class="page-header">
+            <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="page-actions">
+                {% block page_actions %}{% endblock %}
+            </div>
+        </div>
+
+        <!-- Flash-Nachrichten -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                        <button class="alert-close">&times;</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
         {% endwith %}
 
-        <!-- Seiten-Inhalt -->
-        <div class="content-area">
+        <!-- Inhalt -->
+        <div class="content">
             {% block content %}{% endblock %}
         </div>
     </main>
 
-    <!-- KI-Chat-Panel (rechts, ausklappbar) -->
+    <!-- KI-Chat Panel -->
     <aside class="chat-panel" id="chatPanel">
         <div class="chat-header">
-            <h2>KI-Assistent</h2>
-            <div class="chat-actions">
-                <button onclick="clearChat()" class="chat-action-btn" title="Chat leeren">🗑️</button>
-                <button onclick="toggleChat()" class="chat-action-btn" title="Schliessen">✕</button>
+            <h3>KI-Assistent</h3>
+            <div class="chat-header-actions">
+                <button class="chat-header-btn" id="chatClearBtn" title="Chat leeren">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                <button class="chat-header-btn" id="chatCloseBtn" title="Chat schliessen">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
         </div>
-
         <div class="chat-messages" id="chatMessages">
             <div class="chat-welcome">
-                <p><strong>Hallo! Ich bin dein KI-Assistent.</strong></p>
-                <p>Ich kann dir bei allem helfen:</p>
-                <ul>
-                    <li>Termine suchen, erstellen und planen</li>
-                    <li>Patienten verwalten</li>
-                    <li>Behandlungsserien starten und planen</li>
-                    <li>Verfügbarkeit prüfen (7 Constraints)</li>
-                    <li>Ressourcen und Warteliste verwalten</li>
-                    <li>Rechnungen erstellen und verwalten</li>
-                    <li>Tarife berechnen und Mahnungen senden</li>
-                    <li>Gutsprachen und Zahlungen verwalten</li>
-                </ul>
-                <p>Was kann ich für dich tun?</p>
+                <p>Guten {{ tageszeit }}, {{ current_user.first_name }}!</p>
+                <p>Wie kann ich Ihnen helfen?</p>
             </div>
         </div>
-
+        <div class="chat-typing" id="chatTyping" style="display:none">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-text">Denke nach...</span>
+        </div>
         <div class="chat-input-area">
-            <form id="chatForm" onsubmit="sendMessage(event)">
-                <div class="chat-input-wrapper">
-                    <textarea id="chatInput"
-                              placeholder="Nachricht eingeben..."
-                              rows="1"
-                              onkeydown="handleChatKeydown(event)"
-                              oninput="autoResizeTextarea(this)"></textarea>
-                    <button type="submit" class="chat-send-btn" id="chatSendBtn">
-                        <span>➤</span>
-                    </button>
-                </div>
-            </form>
+            <textarea id="chatInput" class="chat-input" placeholder="Nachricht eingeben..."
+                      rows="1"></textarea>
+            <button id="chatSendBtn" class="chat-send-btn" title="Senden">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
         </div>
     </aside>
 
-    <!-- Overlay für Mobile -->
-    <div class="overlay" id="overlay" onclick="closePanels()"></div>
+    <!-- Mobile Chat FAB -->
+    <button class="chat-fab" id="chatFab" title="KI-Chat oeffnen">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+    </button>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
-    {% block scripts %}{% endblock %}
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

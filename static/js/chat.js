@@ -1,122 +1,217 @@
-// OMNIA Praxissoftware - KI-Chat Logik
+/**
+ * OMNIA Praxissoftware - KI-Chat Funktionalitaet
+ */
 
-// Chat-Verlauf laden
-async function loadChatHistory() {
-    try {
-        const response = await fetch('/api/chat/history');
-        const data = await response.json();
+document.addEventListener('DOMContentLoaded', function () {
+    var chatPanel = document.getElementById('chatPanel');
+    var chatToggleBtn = document.getElementById('chatToggleBtn');
+    var chatCloseBtn = document.getElementById('chatCloseBtn');
+    var chatClearBtn = document.getElementById('chatClearBtn');
+    var chatMessages = document.getElementById('chatMessages');
+    var chatInput = document.getElementById('chatInput');
+    var chatSendBtn = document.getElementById('chatSendBtn');
+    var chatTyping = document.getElementById('chatTyping');
+    var chatFab = document.getElementById('chatFab');
 
-        if (data.messages && data.messages.length > 0) {
-            const container = document.getElementById('chatMessages');
-            // Willkommensnachricht entfernen wenn Verlauf existiert
-            const welcome = container.querySelector('.chat-welcome');
-            if (welcome) welcome.remove();
+    if (!chatPanel || !chatInput) return;
 
-            data.messages.forEach(msg => {
-                addMessageToUI(msg.role, msg.content);
-            });
+    var isOpen = false;
+    var isSending = false;
+
+    // === Panel oeffnen/schliessen ===
+    function toggleChat() {
+        isOpen = !isOpen;
+        chatPanel.classList.toggle('open', isOpen);
+        document.body.classList.toggle('chat-open', isOpen);
+
+        if (isOpen) {
+            chatInput.focus();
             scrollToBottom();
         }
-    } catch (error) {
-        console.error('Chat-Verlauf laden fehlgeschlagen:', error);
     }
-}
 
-// Nachricht senden
-async function sendMessage(event) {
-    event.preventDefault();
+    if (chatToggleBtn) {
+        chatToggleBtn.addEventListener('click', toggleChat);
+    }
 
-    const input = document.getElementById('chatInput');
-    const sendBtn = document.getElementById('chatSendBtn');
-    const message = input.value.trim();
+    if (chatCloseBtn) {
+        chatCloseBtn.addEventListener('click', function () {
+            isOpen = false;
+            chatPanel.classList.remove('open');
+            document.body.classList.remove('chat-open');
+        });
+    }
 
-    if (!message) return;
+    if (chatFab) {
+        chatFab.addEventListener('click', toggleChat);
+    }
 
-    // UI aktualisieren
-    input.value = '';
-    input.style.height = 'auto';
-    sendBtn.disabled = true;
+    // === Nachricht senden ===
+    function sendMessage() {
+        var message = chatInput.value.trim();
+        if (!message || isSending) return;
 
-    // Willkommensnachricht entfernen
-    const welcome = document.querySelector('.chat-welcome');
-    if (welcome) welcome.remove();
+        // Willkommens-Nachricht entfernen
+        var welcome = chatMessages.querySelector('.chat-welcome');
+        if (welcome) welcome.remove();
 
-    // Benutzer-Nachricht anzeigen
-    addMessageToUI('user', message);
+        // Benutzer-Nachricht anzeigen
+        addMessage(message, 'user');
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
 
-    // Lade-Indikator
-    const loadingMsg = addMessageToUI('loading', 'Denke nach...');
-    scrollToBottom();
+        // Senden
+        isSending = true;
+        chatSendBtn.disabled = true;
+        chatTyping.style.display = 'flex';
+        scrollToBottom();
 
-    try {
-        const response = await fetch('/api/chat', {
+        fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message }),
-        });
+            body: JSON.stringify({ message: message })
+        })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                chatTyping.style.display = 'none';
+                if (data.error) {
+                    addMessage('Fehler: ' + data.error, 'assistant');
+                } else {
+                    addMessage(data.response, 'assistant', data.timestamp);
+                }
+            })
+            .catch(function () {
+                chatTyping.style.display = 'none';
+                addMessage('Verbindungsfehler. Bitte versuchen Sie es erneut.', 'assistant');
+            })
+            .finally(function () {
+                isSending = false;
+                chatSendBtn.disabled = false;
+                scrollToBottom();
+            });
+    }
 
-        const data = await response.json();
+    if (chatSendBtn) {
+        chatSendBtn.addEventListener('click', sendMessage);
+    }
 
-        // Lade-Indikator entfernen
-        if (loadingMsg) loadingMsg.remove();
-
-        if (data.error) {
-            addMessageToUI('assistant', 'Fehler: ' + data.error);
-        } else {
-            addMessageToUI('assistant', data.response);
+    // Enter zum Senden, Shift+Enter fuer neue Zeile
+    chatInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
-    } catch (error) {
-        if (loadingMsg) loadingMsg.remove();
-        addMessageToUI('assistant', 'Verbindungsfehler. Bitte versuche es erneut.');
+    });
+
+    // Auto-Resize Chat-Input
+    chatInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // === Nachricht zum Chat hinzufuegen ===
+    function addMessage(content, role, timestamp) {
+        var div = document.createElement('div');
+        div.className = 'chat-message chat-message-' + role;
+
+        if (role === 'assistant') {
+            div.innerHTML = formatMarkdown(content);
+        } else {
+            div.textContent = content;
+        }
+
+        if (timestamp) {
+            var timeSpan = document.createElement('span');
+            timeSpan.className = 'chat-message-time';
+            timeSpan.textContent = timestamp;
+            div.appendChild(timeSpan);
+        }
+
+        chatMessages.appendChild(div);
+        scrollToBottom();
     }
 
-    sendBtn.disabled = false;
-    scrollToBottom();
-    input.focus();
-}
+    // === Einfache Markdown-Formatierung ===
+    function formatMarkdown(text) {
+        if (!text) return '';
 
-// Nachricht zur UI hinzufügen
-function addMessageToUI(role, content) {
-    const container = document.getElementById('chatMessages');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `chat-message ${role}`;
-    msgDiv.textContent = content;
-    container.appendChild(msgDiv);
-    return msgDiv;
-}
+        // HTML-Entities escapen
+        var html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
 
-// Zum Ende scrollen
-function scrollToBottom() {
-    const container = document.getElementById('chatMessages');
-    container.scrollTop = container.scrollHeight;
-}
+        // Fett: **text**
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-// Enter zum Senden, Shift+Enter für neue Zeile
-function handleChatKeydown(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        // Kursiv: *text*
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+        // Code: `text`
+        html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+
+        // Ungeordnete Listen
+        html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+        // Geordnete Listen
+        html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+        // Zeilenumbrueche
+        html = html.replace(/\n/g, '<br>');
+
+        // Doppelte <br> durch Absaetze ersetzen
+        html = html.replace(/<br><br>/g, '</p><p>');
+
+        return html;
     }
-}
 
-// Textarea automatisch vergrössern
-function autoResizeTextarea(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-}
-
-// Chat leeren
-async function clearChat() {
-    try {
-        await fetch('/api/chat/clear', { method: 'POST' });
-        const container = document.getElementById('chatMessages');
-        container.innerHTML = `
-            <div class="chat-welcome">
-                <p><strong>Chat wurde geleert.</strong></p>
-                <p>Was kann ich für dich tun?</p>
-            </div>
-        `;
-    } catch (error) {
-        console.error('Chat leeren fehlgeschlagen:', error);
+    // === Auto-Scroll ===
+    function scrollToBottom() {
+        setTimeout(function () {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 50);
     }
-}
+
+    // === Chat leeren ===
+    if (chatClearBtn) {
+        chatClearBtn.addEventListener('click', function () {
+            fetch('/api/chat/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(function () {
+                    chatMessages.innerHTML =
+                        '<div class="chat-welcome">' +
+                        '<p>Wie kann ich Ihnen helfen?</p>' +
+                        '</div>';
+                })
+                .catch(function () {
+                    if (typeof showToast === 'function') {
+                        showToast('Fehler beim Leeren des Chats.', 'error');
+                    }
+                });
+        });
+    }
+
+    // === Chat-Verlauf laden ===
+    function loadHistory() {
+        fetch('/api/chat/history')
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (data.messages && data.messages.length > 0) {
+                    var welcome = chatMessages.querySelector('.chat-welcome');
+                    if (welcome) welcome.remove();
+
+                    data.messages.forEach(function (msg) {
+                        addMessage(msg.content, msg.role, msg.timestamp);
+                    });
+                }
+            })
+            .catch(function () {
+                // Verlauf konnte nicht geladen werden - kein Problem
+            });
+    }
+
+    loadHistory();
+});

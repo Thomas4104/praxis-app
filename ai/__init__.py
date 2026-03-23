@@ -1,1 +1,1 @@
-# KI-System der OMNIA Praxissoftware
+from ai.coordinator import Coordinator

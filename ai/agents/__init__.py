@@ -1,1 +1,1 @@
-# Spezialisierte KI-Agenten
+from ai.agents.allgemein_agent import AllgemeinAgent

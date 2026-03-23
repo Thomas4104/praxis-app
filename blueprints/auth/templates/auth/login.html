@@ -3,42 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - OMNIA Praxissoftware</title>
+    <title>Anmelden - OMNIA Praxissoftware</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="login-page">
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <div class="login-logo">OMNIA</div>
-                <div class="login-subtitle">Praxissoftware</div>
+                <h1 class="login-logo">OMNIA</h1>
+                <p class="login-subtitle">Praxissoftware</p>
             </div>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="flash-message flash-{{ category }}">{{ message }}</div>
-            {% endfor %}
-            {% endif %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
             {% endwith %}
 
             <form method="POST" class="login-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="username">Benutzername</label>
-                    <input type="text" id="username" name="username" required autofocus
-                           placeholder="Benutzername eingeben">
+                    <input type="text" id="username" name="username" class="form-control"
+                           placeholder="Benutzername eingeben" required autofocus>
                 </div>
+
                 <div class="form-group">
                     <label for="password">Passwort</label>
-                    <input type="password" id="password" name="password" required
-                           placeholder="Passwort eingeben">
+                    <input type="password" id="password" name="password" class="form-control"
+                           placeholder="Passwort eingeben" required>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full">Anmelden</button>
+
+                <button type="submit" class="btn btn-primary btn-block">Anmelden</button>
             </form>
 
             <div class="login-footer">
-                <small>OMNIA Health Services AG</small>
+                <p>&copy; {{ current_year if current_year else 2026 }} OMNIA Health Services AG</p>
             </div>
         </div>
     </div>

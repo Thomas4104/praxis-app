@@ -1,43 +1,57 @@
-# Kontext-Manager: Sammelt Informationen über den aktuellen Benutzer und die Situation
-
-from datetime import datetime, date
+from datetime import datetime
 from flask_login import current_user
+from models import db, Employee, Appointment, Location
 
 
-def get_user_context():
-    """Erstellt den Kontext für die KI basierend auf dem aktuellen Benutzer."""
-    if not current_user or not current_user.is_authenticated:
-        return {}
+class ContextManager:
+    """Baut den Kontext fuer KI-Anfragen zusammen"""
 
-    context = {
-        'user_id': current_user.id,
-        'user_name': current_user.name,
-        'user_role': current_user.role,
-        'current_date': date.today().isoformat(),
-        'current_time': datetime.now().strftime('%H:%M'),
-        'current_weekday': ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][date.today().weekday()],
-    }
+    @staticmethod
+    def build_context(user=None):
+        """Erstellt den vollstaendigen Kontext fuer den KI-Agenten"""
+        if user is None:
+            from flask_login import current_user
+            user = current_user
 
-    # Mitarbeiter-Informationen hinzufügen falls vorhanden
-    if current_user.employee:
-        emp = current_user.employee
-        context['employee_id'] = emp.id
-        context['organization_id'] = emp.organization_id
-        context['organization_name'] = emp.organization.name if emp.organization else ''
+        now = datetime.now()
+        hour = now.hour
+        if hour < 12:
+            tageszeit = 'Morgen'
+        elif hour < 17:
+            tageszeit = 'Nachmittag'
+        else:
+            tageszeit = 'Abend'
 
-    return context
+        context_parts = [
+            f"Aktuelle Zeit: {now.strftime('%d.%m.%Y %H:%M')} ({tageszeit})",
+            f"Benutzer: {user.first_name} {user.last_name}",
+            f"Rolle: {user.role}",
+        ]
 
+        # Mitarbeiter-Daten laden
+        employee = Employee.query.filter_by(user_id=user.id).first()
+        if employee:
+            if employee.default_location:
+                context_parts.append(f"Standort: {employee.default_location.name}")
 
-def format_context_for_prompt(context):
-    """Formatiert den Kontext als lesbaren Text für den System-Prompt."""
-    if not context:
-        return ''
+            # Heutige Termine zaehlen
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+            today_appointments = Appointment.query.filter(
+                Appointment.employee_id == employee.id,
+                Appointment.start_time >= today_start,
+                Appointment.start_time <= today_end,
+                Appointment.status.in_(['scheduled', 'confirmed'])
+            ).count()
+            context_parts.append(f"Heutige Termine: {today_appointments}")
 
-    lines = [
-        f"Aktueller Benutzer: {context.get('user_name', 'Unbekannt')}",
-        f"Rolle: {context.get('user_role', 'Unbekannt')}",
-        f"Organisation: {context.get('organization_name', 'Unbekannt')}",
-        f"Datum: {context.get('current_weekday', '')}, {context.get('current_date', '')}",
-        f"Uhrzeit: {context.get('current_time', '')}",
-    ]
-    return '\n'.join(lines)
+        # Standorte auflisten
+        locations = Location.query.filter_by(
+            organization_id=user.organization_id,
+            is_active=True
+        ).all()
+        if locations:
+            standorte = ', '.join([loc.name for loc in locations])
+            context_parts.append(f"Verfuegbare Standorte: {standorte}")
+
+        return '\n'.join(context_parts)
