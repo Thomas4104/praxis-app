@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 from blueprints.employees import employees_bp
 from models import db, User, Employee, WorkSchedule, Absence, AbsenceQuota, Certificate, \
     Location, Resource, Appointment, Holiday
+from sqlalchemy.orm import joinedload
 from utils.auth import check_org
 
 
@@ -38,20 +39,23 @@ def index():
         except ValueError:
             pass
 
-    # Ergebnisse laden
-    employees = query.all()
+    # Rollen-Filter und Suchfilter auf DB-Ebene (statt in-memory)
+    if role or search:
+        query = query.join(User, Employee.user_id == User.id)
+        if role:
+            query = query.filter(User.role == role)
+        if search:
+            search_pattern = f'%{search}%'
+            query = query.filter(
+                db.or_(
+                    User.first_name.ilike(search_pattern),
+                    User.last_name.ilike(search_pattern),
+                    Employee.employee_number.ilike(search_pattern)
+                )
+            )
 
-    # Rollen-Filter (ueber User-Beziehung)
-    if role:
-        employees = [e for e in employees if e.user and e.user.role == role]
-
-    # Suchfilter (Name)
-    if search:
-        search_lower = search.lower()
-        employees = [e for e in employees if e.user and
-                     (search_lower in e.user.first_name.lower() or
-                      search_lower in e.user.last_name.lower() or
-                      search_lower in (e.employee_number or '').lower())]
+    # Ergebnisse laden mit eager loading
+    employees = query.options(joinedload(Employee.user)).all()
 
     # Standorte fuer Filter-Dropdown
     locations = Location.query.filter_by(organization_id=current_user.organization_id, is_active=True).order_by(Location.name).all()
@@ -720,12 +724,14 @@ def deployment():
             appointment_map[key] = []
         appointment_map[key].append(appt)
 
-    # Arbeitszeiten laden
+    # Arbeitszeiten laden (eine Query statt N+1)
     schedule_map = {}
-    for emp in employees:
-        schedules = WorkSchedule.query.filter_by(employee_id=emp.id).all()
-        for ws in schedules:
-            key = (emp.id, ws.day_of_week)
+    if org_employee_ids:
+        all_schedules = WorkSchedule.query.filter(
+            WorkSchedule.employee_id.in_(org_employee_ids)
+        ).all()
+        for ws in all_schedules:
+            key = (ws.employee_id, ws.day_of_week)
             if key not in schedule_map:
                 schedule_map[key] = []
             schedule_map[key].append(ws)

@@ -78,10 +78,23 @@ def chart_of_accounts():
 
     accounts = query.order_by(Account.account_number).all()
 
-    # Salden berechnen
+    # Salden berechnen (Batch-Query statt N+1)
     account_balances = {}
-    for acc in accounts:
-        account_balances[acc.id] = get_account_balance(acc.id)
+    if accounts:
+        account_ids = [acc.id for acc in accounts]
+        balance_results = db.session.query(
+            JournalEntryLine.account_id,
+            db.func.coalesce(db.func.sum(JournalEntryLine.debit), 0),
+            db.func.coalesce(db.func.sum(JournalEntryLine.credit), 0)
+        ).filter(
+            JournalEntryLine.account_id.in_(account_ids)
+        ).group_by(JournalEntryLine.account_id).all()
+        for acc_id, total_debit, total_credit in balance_results:
+            account_balances[acc_id] = total_debit - total_credit
+        # Konten ohne Buchungen auf 0 setzen
+        for acc in accounts:
+            if acc.id not in account_balances:
+                account_balances[acc.id] = 0
 
     # Kategorien
     categories = {
@@ -221,13 +234,20 @@ def journal():
     else:
         query = query.order_by(JournalEntry.date.desc(), JournalEntry.id.desc())
 
-    entries = query.all()
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    entries = query.offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (total + per_page - 1) // per_page
+
     accounts = Account.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(Account.account_number).all()
 
     return render_template('accounting/journal.html',
                            entries=entries, accounts=accounts,
-                           von=von, bis=bis, search=search, konto=konto, sort=sort)
+                           von=von, bis=bis, search=search, konto=konto, sort=sort,
+                           page=page, total_pages=total_pages, total=total)
 
 
 @accounting_bp.route('/journal/create', methods=['GET', 'POST'])

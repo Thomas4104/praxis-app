@@ -51,12 +51,14 @@ def index():
 
     emails = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    # Ordner-Zaehler
-    folder_counts = {}
+    # Ordner-Zaehler (eine Query statt N+1)
+    folder_count_rows = db.session.query(
+        Email.folder, db.func.count(Email.id)
+    ).filter_by(organization_id=org_id).group_by(Email.folder).all()
+    folder_counts = {row[0]: row[1] for row in folder_count_rows}
+    # Sicherstellen dass alle Standard-Ordner vorhanden sind
     for f in ['inbox', 'drafts', 'sent', 'archive', 'trash']:
-        folder_counts[f] = Email.query.filter_by(
-            organization_id=org_id, folder=f
-        ).count()
+        folder_counts.setdefault(f, 0)
 
     # Ungelesene im Posteingang
     unread_count = Email.query.filter_by(
@@ -69,9 +71,7 @@ def index():
     ).order_by(EmailFolder.sort_order, EmailFolder.name).all()
 
     for cf in custom_folders:
-        folder_counts[f'custom_{cf.id}'] = Email.query.filter_by(
-            organization_id=org_id, folder=f'custom_{cf.id}'
-        ).count()
+        folder_counts.setdefault(f'custom_{cf.id}', 0)
 
     return render_template('mailing/index.html',
                            emails=emails,

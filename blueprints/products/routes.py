@@ -51,7 +51,12 @@ def index():
     else:
         query = query.order_by(sort_column.asc())
 
-    products = query.all()
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    products = query.offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (total + per_page - 1) // per_page
 
     return render_template('products/index.html',
                            products=products,
@@ -59,7 +64,10 @@ def index():
                            category=category,
                            status=status,
                            sort=sort,
-                           order=order)
+                           order=order,
+                           page=page,
+                           total_pages=total_pages,
+                           total=total)
 
 
 @products_bp.route('/new', methods=['GET', 'POST'])

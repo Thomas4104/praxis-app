@@ -45,7 +45,13 @@ def index():
         (Task.priority == 'low', 3),
         else_=4
     )
-    aufgaben = query.order_by(priority_order, Task.due_date.asc().nullslast(), Task.created_at.desc()).all()
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    query = query.order_by(priority_order, Task.due_date.asc().nullslast(), Task.created_at.desc())
+    total = query.count()
+    aufgaben = query.offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (total + per_page - 1) // per_page
 
     # Mitarbeiter fuer Zuweisung
     mitarbeiter = User.query.filter_by(
@@ -58,7 +64,10 @@ def index():
                            category_filter=category,
                            priority_filter=priority,
                            status_filter=status,
-                           mitarbeiter=mitarbeiter)
+                           mitarbeiter=mitarbeiter,
+                           page=page,
+                           total_pages=total_pages,
+                           total=total)
 
 
 @tasks_bp.route('/create', methods=['POST'])

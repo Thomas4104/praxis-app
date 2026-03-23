@@ -7,6 +7,8 @@ from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, Location, InsuranceProvider,
                     TherapyGoal, Milestone, Measurement, HealingPhase)
 from blueprints.treatment import treatment_bp
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import joinedload
 from utils.auth import check_org, get_org_id
 
 
@@ -59,12 +61,42 @@ def api_serien():
         )
 
     query = query.order_by(TreatmentSeries.created_at.desc())
-    serien = query.all()
+
+    # Pagination fuer API
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 200, type=int), 200)
+    serien = query.options(
+        joinedload(TreatmentSeries.template),
+        joinedload(TreatmentSeries.patient),
+        joinedload(TreatmentSeries.therapist).joinedload(Employee.user)
+    ).limit(per_page).offset((page - 1) * per_page).all()
+
+    # Batch-Queries fuer Termin-Zaehlung (statt N+1)
+    if serien:
+        serie_ids = [s.id for s in serien]
+        total_counts = dict(
+            db.session.query(
+                Appointment.series_id,
+                sa_func.count(Appointment.id)
+            ).filter(
+                Appointment.series_id.in_(serie_ids)
+            ).group_by(Appointment.series_id).all()
+        )
+        completed_counts = dict(
+            db.session.query(
+                Appointment.series_id,
+                sa_func.count(Appointment.id)
+            ).filter(
+                Appointment.series_id.in_(serie_ids),
+                Appointment.status == 'completed'
+            ).group_by(Appointment.series_id).all()
+        )
+    else:
+        total_counts = {}
+        completed_counts = {}
 
     ergebnis = []
     for s in serien:
-        total_termine = s.appointments.count()
-        abgeschlossen = s.appointments.filter(Appointment.status == 'completed').count()
         template_name = s.template.name if s.template else '-'
         therapeut_name = ''
         if s.therapist and s.therapist.user:
@@ -78,8 +110,8 @@ def api_serien():
             'vorlage': template_name,
             'therapeut': therapeut_name,
             'status': s.status,
-            'fortschritt_aktuell': abgeschlossen,
-            'fortschritt_total': total_termine,
+            'fortschritt_aktuell': completed_counts.get(s.id, 0),
+            'fortschritt_total': total_counts.get(s.id, 0),
             'diagnose_code': s.diagnosis_code or '',
             'diagnose_text': s.diagnosis_text or '',
             'erstellt': s.created_at.strftime('%d.%m.%Y') if s.created_at else ''

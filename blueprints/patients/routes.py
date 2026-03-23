@@ -11,6 +11,7 @@ from blueprints.patients import patients_bp
 from models import db, Patient, InsuranceProvider, Doctor, Employee, \
     TreatmentSeries, TreatmentSeriesTemplate, Appointment, PatientDocument, \
     Location, Email, Organization
+from sqlalchemy import func
 from utils.auth import check_org
 
 
@@ -94,14 +95,24 @@ def index():
     patients = query.offset((page - 1) * per_page).limit(per_page).all()
     total_pages = (total + per_page - 1) // per_page
 
-    # Letzte Behandlung pro Patient laden
+    # Letzte Behandlung pro Patient laden (Batch-Query statt N+1)
     last_appointments = {}
-    for p in patients:
-        last_appt = Appointment.query.filter_by(patient_id=p.id) \
-            .filter(Appointment.start_time <= datetime.now()) \
-            .order_by(Appointment.start_time.desc()).first()
-        if last_appt:
-            last_appointments[p.id] = last_appt
+    if patients:
+        patient_ids = [p.id for p in patients]
+        last_appt_dates = dict(
+            db.session.query(
+                Appointment.patient_id,
+                func.max(Appointment.start_time)
+            ).filter(
+                Appointment.patient_id.in_(patient_ids),
+                Appointment.start_time <= datetime.now()
+            ).group_by(Appointment.patient_id).all()
+        )
+        if last_appt_dates:
+            for pid, max_time in last_appt_dates.items():
+                appt = Appointment.query.filter_by(patient_id=pid, start_time=max_time).first()
+                if appt:
+                    last_appointments[pid] = appt
 
     # Filter-Daten
     org_id = current_user.organization_id
@@ -341,12 +352,21 @@ def detail(patient_id):
     emails = Email.query.filter_by(linked_patient_id=patient.id) \
         .order_by(Email.created_at.desc()).all()
 
-    # Serien-Fortschritt berechnen
+    # Serien-Fortschritt berechnen (Batch-Query statt N+1)
     series_progress = {}
-    for s in all_series:
-        appt_count = Appointment.query.filter_by(series_id=s.id).count()
-        total = s.template.num_appointments if s.template else 0
-        series_progress[s.id] = {'done': appt_count, 'total': total}
+    if all_series:
+        series_ids = [s.id for s in all_series]
+        appt_counts = dict(
+            db.session.query(
+                Appointment.series_id,
+                func.count(Appointment.id)
+            ).filter(
+                Appointment.series_id.in_(series_ids)
+            ).group_by(Appointment.series_id).all()
+        )
+        for s in all_series:
+            total = s.template.num_appointments if s.template else 0
+            series_progress[s.id] = {'done': appt_counts.get(s.id, 0), 'total': total}
 
     # Bevorzugte Terminzeiten parsen
     pref_times = {}

@@ -100,14 +100,51 @@ def index():
     else:
         query = query.order_by(Invoice.created_at.desc())
 
-    rechnungen = query.all()
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    rechnungen = query.offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (total + per_page - 1) // per_page
 
-    # Statistiken berechnen
+    # Statistiken berechnen (SQL-Aggregationen statt Python sum())
+    total_offen = db.session.query(db.func.sum(Invoice.amount_open)).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['sent', 'partially_paid', 'overdue'])
+    ).scalar() or 0
+
+    total_ueberfaellig = db.session.query(db.func.sum(Invoice.amount_open)).filter(
+        Invoice.organization_id == org_id,
+        db.or_(
+            Invoice.status == 'overdue',
+            db.and_(
+                Invoice.status.in_(['sent', 'partially_paid']),
+                Invoice.due_date < date.today(),
+                Invoice.amount_open > 0
+            )
+        )
+    ).scalar() or 0
+
+    count_offen = Invoice.query.filter_by(organization_id=org_id).filter(
+        Invoice.status.in_(['sent', 'partially_paid'])
+    ).count()
+
+    count_ueberfaellig = Invoice.query.filter_by(organization_id=org_id).filter(
+        db.or_(
+            Invoice.status == 'overdue',
+            db.and_(
+                Invoice.status.in_(['sent', 'partially_paid']),
+                Invoice.due_date < date.today(),
+                Invoice.amount_open > 0
+            )
+        )
+    ).count()
+
     stats = {
-        'total_offen': sum(r.amount_open or 0 for r in Invoice.query.filter_by(organization_id=org_id).filter(Invoice.status.in_(['sent', 'partially_paid', 'overdue'])).all()),
-        'total_ueberfaellig': sum(r.amount_open or 0 for r in Invoice.query.filter_by(organization_id=org_id).filter(db.or_(Invoice.status == 'overdue', db.and_(Invoice.status.in_(['sent', 'partially_paid']), Invoice.due_date < date.today(), Invoice.amount_open > 0))).all()),
-        'count_offen': Invoice.query.filter_by(organization_id=org_id).filter(Invoice.status.in_(['sent', 'partially_paid'])).count(),
-        'count_ueberfaellig': Invoice.query.filter_by(organization_id=org_id).filter(db.or_(Invoice.status == 'overdue', db.and_(Invoice.status.in_(['sent', 'partially_paid']), Invoice.due_date < date.today(), Invoice.amount_open > 0))).count(),
+        'total_offen': total_offen,
+        'total_ueberfaellig': total_ueberfaellig,
+        'count_offen': count_offen,
+        'count_ueberfaellig': count_ueberfaellig,
     }
 
     return render_template('billing/index.html',
@@ -120,6 +157,9 @@ def index():
                            date_to=date_to,
                            sort_by=sort_by,
                            stats=stats,
+                           page=page,
+                           total_pages=total_pages,
+                           total=total,
                            today=date.today())
 
 
@@ -450,16 +490,25 @@ def zahlungen():
     if method_filter:
         query = query.filter(Payment.payment_method == method_filter)
 
-    zahlungen_list = query.order_by(Payment.payment_date.desc()).all()
+    # Summe per SQL berechnen
+    total = query.with_entities(db.func.sum(Payment.amount)).scalar() or 0
 
-    total = sum(z.amount for z in zahlungen_list)
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    zahlungen_count = query.count()
+    zahlungen_list = query.order_by(Payment.payment_date.desc()) \
+        .offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (zahlungen_count + per_page - 1) // per_page
 
     return render_template('billing/zahlungen.html',
                            zahlungen=zahlungen_list,
                            total=total,
                            date_from=date_from,
                            date_to=date_to,
-                           method_filter=method_filter)
+                           method_filter=method_filter,
+                           page=page,
+                           total_pages=total_pages)
 
 
 # ============================================================
