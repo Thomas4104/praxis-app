@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Versicherung bearbeiten' if insurance else 'Neue Versicherung' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('addresses.index', tab='insurances') }}">Adressen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if insurance else 'Neue Versicherung' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Versicherung bearbeiten' if insurance else 'Neue Versicherung' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Name *</label>
+                    <input type="text" name="name" class="form-input" required
+                           value="{{ insurance.name if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">GLN-Nummer</label>
+                    <input type="text" name="gln_number" class="form-input"
+                           value="{{ insurance.gln_number if insurance else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Adresse</label>
+                    <input type="text" name="address" class="form-input"
+                           value="{{ insurance.address if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PLZ</label>
+                    <input type="text" name="zip_code" class="form-input"
+                           value="{{ insurance.zip_code if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Stadt</label>
+                    <input type="text" name="city" class="form-input"
+                           value="{{ insurance.city if insurance else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Telefon</label>
+                    <input type="tel" name="phone" class="form-input"
+                           value="{{ insurance.phone if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">E-Mail</label>
+                    <input type="email" name="email" class="form-input"
+                           value="{{ insurance.email if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fax</label>
+                    <input type="text" name="fax" class="form-input"
+                           value="{{ insurance.fax if insurance else '' }}">
+                </div>
+            </div>
+
+            <hr style="margin: var(--spacing-lg) 0;">
+            <h4 style="margin-bottom: var(--spacing-md);">Elektronische Abrechnung</h4>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="supports_electronic_billing"
+                           {% if insurance and insurance.supports_electronic_billing %}checked{% endif %}>
+                    Unterstützt elektronische Abrechnung (E-Billing)
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Unterstützt Tiers Payant für:</label>
+                {% set tp = [] %}
+                {% if insurance and insurance.supports_tiers_payant_json %}
+                    {% set tp = insurance.supports_tiers_payant_json | default('[]', true) %}
+                {% endif %}
+                <div class="checkbox-group" style="flex-direction: row; flex-wrap: wrap; gap: var(--spacing-md);">
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="KVG"> KVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="UVG"> UVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="IVG"> IVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="MVG"> MVG</label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('addresses.index', tab='insurances') }}" class="btn btn-secondary">Abbrechen</a>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
+.checkbox-group { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.checkbox-label { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-sm); cursor: pointer; }
+</style>
+{% endblock %}

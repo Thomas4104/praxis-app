@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Patient bearbeiten' if patient else 'Neuer Patient' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('patients.index') }}">Patienten</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if patient else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Patient bearbeiten' if patient else 'Neuer Patient' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="patient-form">
+    <!-- Tab-Navigation -->
+    <div class="form-tabs">
+        <button type="button" class="form-tab active" data-tab="personalien">Personalien</button>
+        <button type="button" class="form-tab" data-tab="versicherung">Versicherung</button>
+        <button type="button" class="form-tab" data-tab="kontakt">Kontakt</button>
+        <button type="button" class="form-tab" data-tab="arbeitgeber">Arbeitgeber</button>
+        <button type="button" class="form-tab" data-tab="sonstiges">Sonstiges</button>
+    </div>
+
+    <!-- Tab: Personalien -->
+    <div class="form-tab-content active" id="tab-personalien">
+        <div class="card">
+            <div class="card-header"><h3>Personalien</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Anrede</label>
+                        <select name="salutation" class="form-select">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="Herr" {% if patient and patient.salutation == 'Herr' %}selected{% endif %}>Herr</option>
+                            <option value="Frau" {% if patient and patient.salutation == 'Frau' %}selected{% endif %}>Frau</option>
+                            <option value="Divers" {% if patient and patient.salutation == 'Divers' %}selected{% endif %}>Divers</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vorname *</label>
+                        <input type="text" name="first_name" class="form-input" required
+                               value="{{ patient.first_name if patient else request.form.get('first_name', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nachname *</label>
+                        <input type="text" name="last_name" class="form-input" required
+                               value="{{ patient.last_name if patient else request.form.get('last_name', '') }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Geburtsdatum *</label>
+                        <input type="date" name="date_of_birth" class="form-input" required
+                               value="{{ patient.date_of_birth.strftime('%Y-%m-%d') if patient and patient.date_of_birth else request.form.get('date_of_birth', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Geschlecht</label>
+                        <select name="gender" class="form-select">
+                            <option value="">-- Bitte wählen --</option>
+                            {% set g = patient.gender if patient else request.form.get('gender', '') %}
+                            <option value="maennlich" {% if g == 'maennlich' %}selected{% endif %}>Männlich</option>
+                            <option value="weiblich" {% if g == 'weiblich' %}selected{% endif %}>Weiblich</option>
+                            <option value="divers" {% if g == 'divers' %}selected{% endif %}>Divers</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">AHV-Nummer</label>
+                        <input type="text" name="ahv_number" class="form-input"
+                               placeholder="756.XXXX.XXXX.XX" pattern="756\.\d{4}\.\d{4}\.\d{2}"
+                               value="{{ patient.ahv_number if patient else request.form.get('ahv_number', '') }}">
+                        <small class="form-hint">Format: 756.XXXX.XXXX.XX</small>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Patientennummer</label>
+                        <input type="text" class="form-input" disabled
+                               value="{{ patient.patient_number if patient else '(wird automatisch vergeben)' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Bevorzugte Sprache</label>
+                        {% set lang = patient.preferred_language if patient else 'Deutsch' %}
+                        <select name="preferred_language" class="form-select">
+                            <option value="Deutsch" {% if lang == 'Deutsch' %}selected{% endif %}>Deutsch</option>
+                            <option value="Französisch" {% if lang == 'Französisch' %}selected{% endif %}>Französisch</option>
+                            <option value="Italienisch" {% if lang == 'Italienisch' %}selected{% endif %}>Italienisch</option>
+                            <option value="Englisch" {% if lang == 'Englisch' %}selected{% endif %}>Englisch</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Versicherung -->
+    <div class="form-tab-content" id="tab-versicherung">
+        <div class="card">
+            <div class="card-header"><h3>Versicherung</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Krankenkasse</label>
+                        <select name="insurance_provider_id" class="form-select searchable-select">
+                            <option value="">-- Bitte wählen --</option>
+                            {% for ins in insurances %}
+                            <option value="{{ ins.id }}" {% if patient and patient.insurance_provider_id == ins.id %}selected{% endif %}>{{ ins.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Versicherungsnummer</label>
+                        <input type="text" name="insurance_number" class="form-input"
+                               value="{{ patient.insurance_number if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Versicherungsart</label>
+                        {% set ins_type = patient.insurance_type if patient else 'KVG' %}
+                        <select name="insurance_type" class="form-select" id="insuranceType">
+                            <option value="KVG" {% if ins_type == 'KVG' %}selected{% endif %}>KVG</option>
+                            <option value="UVG" {% if ins_type == 'UVG' %}selected{% endif %}>UVG</option>
+                            <option value="IVG" {% if ins_type == 'IVG' %}selected{% endif %}>IVG</option>
+                            <option value="MVG" {% if ins_type == 'MVG' %}selected{% endif %}>MVG</option>
+                            <option value="Privat" {% if ins_type == 'Privat' %}selected{% endif %}>Privat</option>
+                            <option value="Selbstzahler" {% if ins_type == 'Selbstzahler' %}selected{% endif %}>Selbstzahler</option>
+                        </select>
+                    </div>
+                    <div class="form-group uvg-fields" style="{% if ins_type not in ['UVG', 'IVG'] %}display:none{% endif %}">
+                        <label class="form-label">Fallnummer</label>
+                        <input type="text" name="case_number" class="form-input"
+                               value="{{ patient.case_number if patient else '' }}">
+                    </div>
+                    <div class="form-group uvg-only" style="{% if ins_type != 'UVG' %}display:none{% endif %}">
+                        <label class="form-label">Unfalldatum</label>
+                        <input type="date" name="accident_date" class="form-input"
+                               value="{{ patient.accident_date.strftime('%Y-%m-%d') if patient and patient.accident_date else '' }}">
+                    </div>
+                </div>
+                <hr style="margin: var(--spacing-lg) 0;">
+                <h4 style="margin-bottom: var(--spacing-md);">Zusatzversicherung</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Name Zusatzversicherung</label>
+                        <input type="text" name="supplementary_insurance_name" class="form-input"
+                               value="{{ patient.supplementary_insurance_name if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Policennummer</label>
+                        <input type="text" name="supplementary_insurance_number" class="form-input"
+                               value="{{ patient.supplementary_insurance_number if patient else '' }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Kontakt -->
+    <div class="form-tab-content" id="tab-kontakt">
+        <div class="card">
+            <div class="card-header"><h3>Kontaktdaten</h3></div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Telefon Festnetz</label>
+                        <input type="tel" name="phone" class="form-input"
+                               value="{{ patient.phone if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mobiltelefon</label>
+                        <input type="tel" name="mobile" class="form-input"
+                               value="{{ patient.mobile if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">E-Mail</label>
+                        <input type="email" name="email" class="form-input"
+                               value="{{ patient.email if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Adresse</label>
+                        <input type="text" name="address" class="form-input"
+                               value="{{ patient.address if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PLZ</label>
+                        <input type="text" name="zip_code" class="form-input"
+                               value="{{ patient.zip_code if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ort</label>
+                        <input type="text" name="city" class="form-input"
+                               value="{{ patient.city if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Land</label>
+                        <input type="text" name="country" class="form-input"
+                               value="{{ patient.country if patient else 'CH' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Bevorzugte Kontaktmethode</label>
+                        {% set cm = patient.preferred_contact_method if patient else 'phone' %}
+                        <select name="preferred_contact_method" class="form-select">
+                            <option value="phone" {% if cm == 'phone' %}selected{% endif %}>Telefon</option>
+                            <option value="email" {% if cm == 'email' %}selected{% endif %}>E-Mail</option>
+                            <option value="sms" {% if cm == 'sms' %}selected{% endif %}>SMS</option>
+                            <option value="post" {% if cm == 'post' %}selected{% endif %}>Post</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr style="margin: var(--spacing-lg) 0;">
+                <h4 style="margin-bottom: var(--spacing-md);">Bevorzugte Terminzeiten</h4>
+
+                {% set pref = {} %}
+                {% if patient and patient.preferred_appointment_times_json %}
+                    {% set pref = patient.preferred_appointment_times_json | tojson %}
+                {% endif %}
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Tageszeiten</label>
+                        <div class="checkbox-group">
+                            {% set pt = [] %}
+                            {% if patient and patient.preferred_appointment_times_json %}
+                                {% set parsed = patient.preferred_appointment_times_json %}
+                            {% endif %}
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="preferred_times" value="morgen"> Morgen (07-09)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="preferred_times" value="vormittag"> Vormittag (09-12)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="preferred_times" value="mittag"> Mittag (12-14)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="preferred_times" value="nachmittag"> Nachmittag (14-17)
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="preferred_times" value="abend"> Abend (17-19)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Wochentage</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label"><input type="checkbox" name="preferred_days" value="montag"> Montag</label>
+                            <label class="checkbox-label"><input type="checkbox" name="preferred_days" value="dienstag"> Dienstag</label>
+                            <label class="checkbox-label"><input type="checkbox" name="preferred_days" value="mittwoch"> Mittwoch</label>
+                            <label class="checkbox-label"><input type="checkbox" name="preferred_days" value="donnerstag"> Donnerstag</label>
+                            <label class="checkbox-label"><input type="checkbox" name="preferred_days" value="freitag"> Freitag</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Arbeitgeber -->
+    <div class="form-tab-content" id="tab-arbeitgeber">
+        <div class="card">
+            <div class="card-header"><h3>Arbeitgeber</h3></div>
+            <div class="card-body">
+                <p class="text-muted" style="margin-bottom: var(--spacing-md);">Relevant für UVG-Fälle.</p>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Firmenname</label>
+                        <input type="text" name="employer_name" class="form-input"
+                               value="{{ patient.employer_name if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Adresse</label>
+                        <input type="text" name="employer_address" class="form-input"
+                               value="{{ patient.employer_address if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Kontaktperson</label>
+                        <input type="text" name="employer_contact" class="form-input"
+                               value="{{ patient.employer_contact if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefon</label>
+                        <input type="tel" name="employer_phone" class="form-input"
+                               value="{{ patient.employer_phone if patient else '' }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Sonstiges -->
+    <div class="form-tab-content" id="tab-sonstiges">
+        <div class="card">
+            <div class="card-header"><h3>Sonstiges</h3></div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Notizen</label>
+                    <textarea name="notes" class="form-textarea" rows="4">{{ patient.notes if patient else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Bevorzugter Therapeut</label>
+                    <select name="preferred_therapist_id" class="form-select">
+                        <option value="">-- Kein bevorzugter Therapeut --</option>
+                        {% for t in therapists %}
+                        <option value="{{ t.id }}" {% if patient and patient.preferred_therapist_id == t.id %}selected{% endif %}>
+                            {{ t.user.first_name }} {{ t.user.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <hr style="margin: var(--spacing-lg) 0;">
+                <h4 style="margin-bottom: var(--spacing-md);">Blacklist</h4>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="blacklisted" {% if patient and patient.blacklisted %}checked{% endif %}>
+                        Patient auf Blacklist setzen
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Grund für Blacklist</label>
+                    <textarea name="blacklist_reason" class="form-textarea" rows="2">{{ patient.blacklist_reason if patient else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('patients.detail', patient_id=patient.id) if patient else url_for('patients.index') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">
+            {{ 'Speichern' if patient else 'Patient erstellen' }}
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-tabs {
+    display: flex; gap: 0; margin-bottom: var(--spacing-lg);
+    border-bottom: 2px solid var(--color-gray-200); flex-wrap: wrap;
+}
+.form-tab {
+    padding: var(--spacing-sm) var(--spacing-lg); background: none; border: none;
+    border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer;
+    font-size: var(--font-size-sm); font-weight: 500; color: var(--color-gray-500);
+    transition: all var(--transition-base);
+}
+.form-tab:hover { color: var(--color-primary); }
+.form-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.form-tab-content { display: none; }
+.form-tab-content.active { display: block; }
+.form-actions {
+    display: flex; justify-content: flex-end; gap: var(--spacing-md);
+    padding: var(--spacing-lg) 0;
+}
+.checkbox-group { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.checkbox-label {
+    display: flex; align-items: center; gap: var(--spacing-xs);
+    font-size: var(--font-size-sm); cursor: pointer;
+}
+.form-hint { font-size: var(--font-size-xs); color: var(--color-gray-500); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tab-Navigation
+document.querySelectorAll('.form-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.form-tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+});
+
+// Versicherungsart: UVG-Felder ein-/ausblenden
+const insType = document.getElementById('insuranceType');
+if (insType) {
+    insType.addEventListener('change', function() {
+        const uvgFields = document.querySelectorAll('.uvg-fields');
+        const uvgOnly = document.querySelectorAll('.uvg-only');
+        uvgFields.forEach(f => f.style.display = ['UVG', 'IVG'].includes(this.value) ? '' : 'none');
+        uvgOnly.forEach(f => f.style.display = this.value === 'UVG' ? '' : 'none');
+    });
+}
+</script>
+{% endblock %}

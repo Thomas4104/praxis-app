@@ -7,7 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
-    Certificate, AbsenceQuota, Absence
+    Certificate, AbsenceQuota, Absence, PatientDocument, Contact
 from config import config
 
 
@@ -43,6 +43,8 @@ def create_app(config_name=None):
     from blueprints.resources import resources_bp
     from blueprints.practice import practice_bp
     from blueprints.employees import employees_bp
+    from blueprints.patients import patients_bp
+    from blueprints.addresses import addresses_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -50,6 +52,8 @@ def create_app(config_name=None):
     app.register_blueprint(resources_bp, url_prefix='/resources')
     app.register_blueprint(practice_bp, url_prefix='/practice')
     app.register_blueprint(employees_bp, url_prefix='/employees')
+    app.register_blueprint(patients_bp, url_prefix='/patients')
+    app.register_blueprint(addresses_bp, url_prefix='/addresses')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -57,6 +61,8 @@ def create_app(config_name=None):
     csrf.exempt(resources_bp)
     csrf.exempt(practice_bp)
     csrf.exempt(employees_bp)
+    csrf.exempt(patients_bp)
+    csrf.exempt(addresses_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -171,6 +177,7 @@ def seed_demo_data():
     ]
 
     employees = {}
+    created_users = {}
     for ud in users_data:
         user = User(
             organization_id=org.id,
@@ -184,6 +191,7 @@ def seed_demo_data():
         user.set_password(ud['password'])
         db.session.add(user)
         db.session.flush()
+        created_users[ud['username']] = user
 
         if ud.get('employee'):
             emp = Employee(
@@ -662,6 +670,117 @@ def seed_demo_data():
     thomas_emp.specializations_json = _json.dumps(['Kniereha', 'Schulterchirurgie-Nachbehandlung'])
     sarah_emp.qualifications_json = _json.dumps(['Sportphysiotherapie', 'Tape-Anwendungen', 'Medizinische Trainingstherapie'])
     sarah_emp.specializations_json = _json.dumps(['Sportrehabilitation', 'Laufsportanalyse'])
+
+    # === Erweiterte Patientendaten ===
+    # Bevorzugte Terminzeiten fuer 5 Patienten
+    patients[0].preferred_appointment_times_json = json.dumps({
+        'times': ['morgen', 'vormittag'], 'days': ['montag', 'mittwoch', 'freitag']
+    })
+    patients[1].preferred_appointment_times_json = json.dumps({
+        'times': ['nachmittag'], 'days': ['dienstag', 'donnerstag']
+    })
+    patients[2].preferred_appointment_times_json = json.dumps({
+        'times': ['morgen', 'vormittag', 'nachmittag'], 'days': ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag']
+    })
+    patients[4].preferred_appointment_times_json = json.dumps({
+        'times': ['abend'], 'days': ['montag', 'mittwoch']
+    })
+    patients[7].preferred_appointment_times_json = json.dumps({
+        'times': ['vormittag', 'nachmittag'], 'days': ['dienstag', 'freitag']
+    })
+
+    # Arbeitgeber fuer 3 Patienten (UVG-Faelle)
+    patients[2].employer_name = 'Baumeister AG'
+    patients[2].employer_address = 'Industriestrasse 25, 8005 Zuerich'
+    patients[2].employer_contact = 'Hans Gruber'
+    patients[2].employer_phone = '+41 44 300 50 50'
+    patients[2].insurance_type = 'UVG'
+    patients[2].case_number = 'UVG-2026-00123'
+    patients[2].accident_date = date(2025, 12, 15)
+
+    patients[6].employer_name = 'Swisscom AG'
+    patients[6].employer_address = 'Alte Tiefenaustrasse 6, 3048 Worblaufen'
+    patients[6].employer_contact = 'Maria Tanner'
+    patients[6].employer_phone = '+41 58 221 00 00'
+
+    patients[9].employer_name = 'UBS Switzerland AG'
+    patients[9].employer_address = 'Bahnhofstrasse 45, 8001 Zuerich'
+    patients[9].employer_contact = 'Peter Aeschbacher'
+    patients[9].employer_phone = '+41 44 234 11 11'
+
+    # 2 Patienten mit Zusatzversicherung
+    patients[0].supplementary_insurance_name = 'Helsana Completa'
+    patients[0].supplementary_insurance_number = 'ZV-2024-001234'
+
+    patients[4].supplementary_insurance_name = 'CSS myFlex Balance'
+    patients[4].supplementary_insurance_number = 'ZV-2025-005678'
+
+    # Bevorzugte Sprache bei einigen Patienten
+    patients[0].preferred_language = 'Deutsch'
+    patients[5].preferred_language = 'Französisch'
+    patients[8].preferred_language = 'Italienisch'
+
+    # Festnetz-Nummern
+    patients[0].phone = '+41 44 100 20 01'
+    patients[3].phone = '+41 52 100 20 04'
+    patients[6].phone = '+41 52 100 20 07'
+
+    # Bevorzugter Therapeut
+    patients[0].preferred_therapist_id = employees['thomas'].id
+    patients[1].preferred_therapist_id = employees['sarah'].id
+
+    # Blacklist-Patient
+    patients[14].blacklisted = True
+    patients[14].blacklist_reason = 'Mehrfach ohne Absage nicht erschienen. Rechnungen offen.'
+
+    # === Patientendokumente (Platzhalter) ===
+    doc_daten = [
+        (patients[0].id, 'verordnung', 'Verordnung Physiotherapie KVG', 'verordnung_huber.pdf'),
+        (patients[1].id, 'verordnung', 'Verordnung Physiotherapie Schulter', 'verordnung_meier.pdf'),
+        (patients[2].id, 'arztbericht', 'OP-Bericht Tibiafraktur', 'op_bericht_keller.pdf'),
+        (patients[2].id, 'verordnung', 'Verordnung Physiotherapie UVG', 'verordnung_keller_uvg.pdf'),
+        (patients[3].id, 'befund', 'MRI-Befund HWS', 'mri_befund_fischer.pdf'),
+    ]
+    for pat_id, doc_type, notes, filename in doc_daten:
+        db.session.add(PatientDocument(
+            patient_id=pat_id,
+            filename=filename,
+            original_filename=filename,
+            file_path=f'/uploads/patients/{pat_id}/{filename}',
+            file_size=125000,
+            file_type='pdf',
+            document_type=doc_type,
+            notes=notes,
+            uploaded_by_id=created_users['admin'].id
+        ))
+
+    # === Allgemeine Kontakte ===
+    kontakte = [
+        Contact(
+            organization_id=org.id,
+            company_name='MedTech Service AG',
+            first_name='Kurt', last_name='Pfister',
+            category='Lieferant',
+            address='Technopark 3', city='Zuerich', zip_code='8005',
+            phone='+41 44 350 60 60', email='service@medtech-service.ch',
+            notes='Wartung aller medizinischen Geraete'
+        ),
+        Contact(
+            organization_id=org.id,
+            company_name='Kantonsaerztlicher Dienst Zuerich',
+            category='Behoerde',
+            address='Stampfenbachstrasse 30', city='Zuerich', zip_code='8090',
+            phone='+41 43 259 24 00', email='kad@gd.zh.ch'
+        ),
+        Contact(
+            organization_id=org.id,
+            company_name='physioswiss - Schweizer Physiotherapie Verband',
+            category='Verband',
+            address='Stadthof', city='Sursee', zip_code='6210',
+            phone='+41 41 926 69 69', email='info@physioswiss.ch'
+        )
+    ]
+    db.session.add_all(kontakte)
 
     # === KI-Einstellungen ===
     db.session.add(AISettings(

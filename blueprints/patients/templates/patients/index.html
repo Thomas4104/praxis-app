@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Patienten{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Patienten</span>
+{% endblock %}
+
+{% block page_title %}Patientenübersicht{% endblock %}
+
+{% block page_actions %}
+{% if current_user.role == 'admin' %}
+<a href="{{ url_for('patients.merge') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16 16 12 12 8 16"></polyline>
+        <line x1="12" y1="12" x2="12" y2="21"></line>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+    </svg>
+    Zusammenführen
+</a>
+{% endif %}
+<a href="{{ url_for('patients.create') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neuer Patient
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Filter-Leiste -->
+    <form class="filter-bar" method="GET" action="{{ url_for('patients.index') }}">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input" placeholder="Name, Geburtsdatum, Telefon, Nr..."
+                   value="{{ search }}" autocomplete="off">
+        </div>
+        <div class="filter-group">
+            <select name="insurance" class="form-select">
+                <option value="">Alle Versicherungen</option>
+                {% for ins in insurances %}
+                <option value="{{ ins.id }}" {% if insurance_filter == ins.id|string %}selected{% endif %}>{{ ins.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-select">
+                <option value="active" {% if status == 'active' %}selected{% endif %}>Nur aktive</option>
+                <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Nur deaktivierte</option>
+                <option value="all" {% if status == 'all' %}selected{% endif %}>Alle</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="blacklist" class="form-select">
+                <option value="">Blacklist: Alle</option>
+                <option value="yes" {% if blacklist_filter == 'yes' %}selected{% endif %}>Nur Blacklist</option>
+                <option value="no" {% if blacklist_filter == 'no' %}selected{% endif %}>Ohne Blacklist</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="sort" class="form-select">
+                <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name A-Z</option>
+                <option value="birthday" {% if sort_by == 'birthday' %}selected{% endif %}>Geburtsdatum</option>
+                <option value="number" {% if sort_by == 'number' %}selected{% endif %}>Patientennr.</option>
+                <option value="created" {% if sort_by == 'created' %}selected{% endif %}>Neueste zuerst</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+    </form>
+
+    <div class="result-count" style="padding: 0 var(--spacing-md); font-size: var(--font-size-sm); color: var(--color-gray-500);">
+        {{ total }} Patient{{ 'en' if total != 1 }} gefunden
+    </div>
+
+    <!-- Patientenliste -->
+    {% if patients %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Name</th>
+                    <th>Geburtsdatum</th>
+                    <th>Telefon</th>
+                    <th>Versicherung</th>
+                    <th>Letzte Behandlung</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in patients %}
+                <tr class="clickable-row {% if p.blacklisted %}row-blacklisted{% endif %} {% if not p.is_active %}row-inactive{% endif %}"
+                    onclick="window.location='{{ url_for('patients.detail', patient_id=p.id) }}'">
+                    <td>{{ p.patient_number }}</td>
+                    <td>
+                        <strong>{{ p.last_name }}, {{ p.first_name }}</strong>
+                        {% if p.blacklisted %}
+                        <span class="badge badge-error" title="{{ p.blacklist_reason or 'Blacklist' }}">BL</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.date_of_birth.strftime('%d.%m.%Y') if p.date_of_birth else '-' }}</td>
+                    <td>{{ p.mobile or p.phone or '-' }}</td>
+                    <td>{{ p.insurance_provider.name if p.insurance_provider else '-' }}</td>
+                    <td>
+                        {% if last_appointments.get(p.id) %}
+                        {{ last_appointments[p.id].start_time.strftime('%d.%m.%Y') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not p.is_active %}
+                        <span class="badge badge-muted">Deaktiviert</span>
+                        {% elif p.blacklisted %}
+                        <span class="badge badge-error">Blacklist</span>
+                        {% else %}
+                        <span class="badge badge-success">Aktiv</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}
+        <a href="{{ url_for('patients.index', page=page-1, search=search, insurance=insurance_filter, status=status, blacklist=blacklist_filter, sort=sort_by) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        {% endif %}
+        <span class="pagination-info">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('patients.index', page=page+1, search=search, insurance=insurance_filter, status=status, blacklist=blacklist_filter, sort=sort_by) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <p>Keine Patienten gefunden.</p>
+        <a href="{{ url_for('patients.create') }}" class="btn btn-primary">Ersten Patienten anlegen</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: var(--color-gray-50); }
+.row-blacklisted { background: #fff5f5; }
+.row-blacklisted:hover { background: #ffe8e8; }
+.row-inactive { opacity: 0.6; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--spacing-md); padding: var(--spacing-md); }
+.pagination-info { font-size: var(--font-size-sm); color: var(--color-gray-600); }
+.result-count { margin-bottom: var(--spacing-sm); }
+</style>
+{% endblock %}

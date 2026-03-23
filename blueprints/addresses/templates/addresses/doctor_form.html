@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Arzt bearbeiten' if doctor else 'Neuer Arzt' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('addresses.index', tab='doctors') }}">Adressen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if doctor else 'Neuer Arzt' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Arzt bearbeiten' if doctor else 'Neuer Arzt' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Anrede</label>
+                    <input type="text" name="salutation" class="form-input" placeholder="z.B. Dr. med."
+                           value="{{ doctor.salutation if doctor else 'Dr. med.' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Vorname</label>
+                    <input type="text" name="first_name" class="form-input"
+                           value="{{ doctor.first_name if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nachname *</label>
+                    <input type="text" name="last_name" class="form-input" required
+                           value="{{ doctor.last_name if doctor else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Fachrichtung</label>
+                    {% set spec = doctor.specialty if doctor else '' %}
+                    <select name="specialty" class="form-select">
+                        <option value="">-- Bitte wählen --</option>
+                        <option value="Allgemeinmedizin" {% if spec == 'Allgemeinmedizin' %}selected{% endif %}>Allgemeinmedizin</option>
+                        <option value="Orthopaedie" {% if spec == 'Orthopaedie' %}selected{% endif %}>Orthopädie</option>
+                        <option value="Rheumatologie" {% if spec == 'Rheumatologie' %}selected{% endif %}>Rheumatologie</option>
+                        <option value="Neurologie" {% if spec == 'Neurologie' %}selected{% endif %}>Neurologie</option>
+                        <option value="Chirurgie" {% if spec == 'Chirurgie' %}selected{% endif %}>Chirurgie</option>
+                        <option value="Paediatrie" {% if spec == 'Paediatrie' %}selected{% endif %}>Pädiatrie</option>
+                        <option value="Innere Medizin" {% if spec == 'Innere Medizin' %}selected{% endif %}>Innere Medizin</option>
+                        <option value="Sonstige" {% if spec == 'Sonstige' %}selected{% endif %}>Sonstige</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">GLN-Nummer</label>
+                    <input type="text" name="gln_number" class="form-input"
+                           value="{{ doctor.gln_number if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ZSR-Nummer</label>
+                    <input type="text" name="zsr_number" class="form-input"
+                           value="{{ doctor.zsr_number if doctor else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Adresse</label>
+                    <input type="text" name="address" class="form-input"
+                           value="{{ doctor.address if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PLZ</label>
+                    <input type="text" name="zip_code" class="form-input"
+                           value="{{ doctor.zip_code if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Stadt</label>
+                    <input type="text" name="city" class="form-input"
+                           value="{{ doctor.city if doctor else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Telefon</label>
+                    <input type="tel" name="phone" class="form-input"
+                           value="{{ doctor.phone if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">E-Mail</label>
+                    <input type="email" name="email" class="form-input"
+                           value="{{ doctor.email if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fax</label>
+                    <input type="text" name="fax" class="form-input"
+                           value="{{ doctor.fax if doctor else '' }}">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('addresses.index', tab='doctors') }}" class="btn btn-secondary">Abbrechen</a>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
+</style>
+{% endblock %}

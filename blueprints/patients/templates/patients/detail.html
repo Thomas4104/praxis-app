@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}{{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('patients.index') }}">Patienten</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ patient.first_name }} {{ patient.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ patient.salutation }} {{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('patients.edit', patient_id=patient.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+<form method="POST" action="{{ url_for('patients.toggle_active', patient_id=patient.id) }}" style="display:inline">
+    <button type="submit" class="btn {% if patient.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if patient.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<!-- Warnungen -->
+{% if patient.blacklisted %}
+<div class="alert alert-error blacklist-banner">
+    <strong>Blacklist aktiv!</strong> {{ patient.blacklist_reason or 'Dieser Patient ist auf der Blacklist.' }}
+</div>
+{% endif %}
+{% if not patient.is_active %}
+<div class="alert alert-warning">Dieser Patient ist deaktiviert.</div>
+{% endif %}
+
+<!-- Header-Karte -->
+<div class="patient-header-card">
+    <div class="patient-avatar">
+        {{ patient.first_name[0] }}{{ patient.last_name[0] }}
+    </div>
+    <div class="patient-header-info">
+        <h2>{{ patient.first_name }} {{ patient.last_name }}</h2>
+        <div class="patient-header-meta">
+            <span class="badge badge-info">{{ patient.patient_number }}</span>
+            {% if patient.date_of_birth %}
+            <span>{{ patient.date_of_birth.strftime('%d.%m.%Y') }}{% if age %} ({{ age }} Jahre){% endif %}</span>
+            {% endif %}
+            {% if patient.insurance_provider %}
+            <span>{{ patient.insurance_provider.name }} ({{ patient.insurance_type }})</span>
+            {% endif %}
+            {% if patient.blacklisted %}
+            <span class="badge badge-error">Blacklist</span>
+            {% elif patient.is_active %}
+            <span class="badge badge-success">Aktiv</span>
+            {% else %}
+            <span class="badge badge-muted">Deaktiviert</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="patient-header-stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ active_series | length }}</div>
+            <div class="stat-label">Aktive Serien</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ documents | length }}</div>
+            <div class="stat-label">Dokumente</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab-Navigation -->
+<div class="detail-tabs">
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='overview') }}"
+       class="detail-tab {% if tab == 'overview' %}active{% endif %}">Übersicht</a>
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='treatments') }}"
+       class="detail-tab {% if tab == 'treatments' %}active{% endif %}">Behandlungen</a>
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='appointments') }}"
+       class="detail-tab {% if tab == 'appointments' %}active{% endif %}">Termine</a>
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='documents') }}"
+       class="detail-tab {% if tab == 'documents' %}active{% endif %}">Dokumente</a>
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='communication') }}"
+       class="detail-tab {% if tab == 'communication' %}active{% endif %}">Kommunikation</a>
+</div>
+
+<!-- Tab: Uebersicht -->
+{% if tab == 'overview' %}
+<div class="detail-grid">
+    <!-- Personalien -->
+    <div class="card">
+        <div class="card-header"><h3>Personalien</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Anrede</span>
+                    <span class="detail-value">{{ patient.salutation or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Geburtsdatum</span>
+                    <span class="detail-value">{{ patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else '-' }}{% if age %} ({{ age }} J.){% endif %}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Geschlecht</span>
+                    <span class="detail-value">{% if patient.gender == 'maennlich' %}Männlich{% elif patient.gender == 'weiblich' %}Weiblich{% elif patient.gender == 'divers' %}Divers{% else %}-{% endif %}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">AHV-Nummer</span>
+                    <span class="detail-value">{{ patient.ahv_number or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Sprache</span>
+                    <span class="detail-value">{{ patient.preferred_language or 'Deutsch' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Versicherung -->
+    <div class="card">
+        <div class="card-header"><h3>Versicherung</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Krankenkasse</span>
+                    <span class="detail-value">{{ patient.insurance_provider.name if patient.insurance_provider else '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Versicherungsnr.</span>
+                    <span class="detail-value">{{ patient.insurance_number or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Versicherungsart</span>
+                    <span class="detail-value">{{ patient.insurance_type or '-' }}</span>
+                </div>
+                {% if patient.case_number %}
+                <div class="detail-item">
+                    <span class="detail-label">Fallnummer</span>
+                    <span class="detail-value">{{ patient.case_number }}</span>
+                </div>
+                {% endif %}
+                {% if patient.accident_date %}
+                <div class="detail-item">
+                    <span class="detail-label">Unfalldatum</span>
+                    <span class="detail-value">{{ patient.accident_date.strftime('%d.%m.%Y') }}</span>
+                </div>
+                {% endif %}
+                {% if patient.supplementary_insurance_name %}
+                <div class="detail-item">
+                    <span class="detail-label">Zusatzversicherung</span>
+                    <span class="detail-value">{{ patient.supplementary_insurance_name }} ({{ patient.supplementary_insurance_number or '-' }})</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Kontakt -->
+    <div class="card">
+        <div class="card-header"><h3>Kontakt</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if patient.phone %}
+                <div class="detail-item">
+                    <span class="detail-label">Festnetz</span>
+                    <span class="detail-value"><a href="tel:{{ patient.phone }}">{{ patient.phone }}</a></span>
+                </div>
+                {% endif %}
+                {% if patient.mobile %}
+                <div class="detail-item">
+                    <span class="detail-label">Mobil</span>
+                    <span class="detail-value"><a href="tel:{{ patient.mobile }}">{{ patient.mobile }}</a></span>
+                </div>
+                {% endif %}
+                {% if patient.email %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value"><a href="mailto:{{ patient.email }}">{{ patient.email }}</a></span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Adresse</span>
+                    <span class="detail-value">{{ patient.address or '-' }}, {{ patient.zip_code or '' }} {{ patient.city or '' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Bev. Kontakt</span>
+                    <span class="detail-value">
+                        {% if patient.preferred_contact_method == 'phone' %}Telefon
+                        {% elif patient.preferred_contact_method == 'email' %}E-Mail
+                        {% elif patient.preferred_contact_method == 'sms' %}SMS
+                        {% elif patient.preferred_contact_method == 'post' %}Post
+                        {% else %}{{ patient.preferred_contact_method or '-' }}{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schnellinfo -->
+    <div class="card">
+        <div class="card-header"><h3>Termine & Behandlung</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Letzte Behandlung</span>
+                    <span class="detail-value">
+                        {% if last_appointment %}
+                        {{ last_appointment.start_time.strftime('%d.%m.%Y %H:%M') }}
+                        {% else %}-{% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Nächster Termin</span>
+                    <span class="detail-value">
+                        {% if next_appointment %}
+                        <strong>{{ next_appointment.start_time.strftime('%d.%m.%Y %H:%M') }}</strong>
+                        {% else %}-{% endif %}
+                    </span>
+                </div>
+                {% if patient.preferred_therapist %}
+                <div class="detail-item">
+                    <span class="detail-label">Bev. Therapeut</span>
+                    <span class="detail-value">{{ patient.preferred_therapist.user.first_name }} {{ patient.preferred_therapist.user.last_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if patient.notes %}
+            <div style="margin-top: var(--spacing-md); padding-top: var(--spacing-md); border-top: 1px solid var(--color-gray-200);">
+                <strong style="font-size: var(--font-size-sm);">Notizen:</strong>
+                <p style="font-size: var(--font-size-sm); color: var(--color-gray-600); white-space: pre-line;">{{ patient.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Arbeitgeber (wenn vorhanden) -->
+{% if patient.employer_name %}
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header"><h3>Arbeitgeber</h3></div>
+    <div class="card-body">
+        <div class="detail-list" style="display: flex; gap: var(--spacing-xl); flex-wrap: wrap;">
+            <div class="detail-item">
+                <span class="detail-label">Firma</span>
+                <span class="detail-value">{{ patient.employer_name }}</span>
+            </div>
+            {% if patient.employer_address %}
+            <div class="detail-item">
+                <span class="detail-label">Adresse</span>
+                <span class="detail-value">{{ patient.employer_address }}</span>
+            </div>
+            {% endif %}
+            {% if patient.employer_contact %}
+            <div class="detail-item">
+                <span class="detail-label">Kontakt</span>
+                <span class="detail-value">{{ patient.employer_contact }}</span>
+            </div>
+            {% endif %}
+            {% if patient.employer_phone %}
+            <div class="detail-item">
+                <span class="detail-label">Telefon</span>
+                <span class="detail-value">{{ patient.employer_phone }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Tab: Behandlungen -->
+{% if tab == 'treatments' %}
+<div class="card">
+    <div class="card-body">
+        {% if all_series %}
+        <div class="series-list">
+            {% for s in all_series %}
+            <div class="series-item {% if s.status == 'completed' %}series-completed{% endif %}">
+                <div class="series-info">
+                    <div class="series-name">
+                        {{ s.template.name if s.template else 'Behandlungsserie' }}
+                        <span class="badge {% if s.status == 'active' %}badge-success{% elif s.status == 'completed' %}badge-muted{% else %}badge-warning{% endif %}">
+                            {% if s.status == 'active' %}Aktiv{% elif s.status == 'completed' %}Abgeschlossen{% else %}{{ s.status }}{% endif %}
+                        </span>
+                    </div>
+                    <div class="series-meta">
+                        {% if s.therapist and s.therapist.user %}
+                        <span>Therapeut: {{ s.therapist.user.first_name }} {{ s.therapist.user.last_name }}</span>
+                        {% endif %}
+                        {% if s.diagnosis_text %}
+                        <span>{{ s.diagnosis_code }}: {{ s.diagnosis_text }}</span>
+                        {% endif %}
+                        <span>{{ s.insurance_type }} / {{ s.billing_model }}</span>
+                    </div>
+                </div>
+                <div class="series-progress">
+                    {% set prog = series_progress.get(s.id, {'done': 0, 'total': 0}) %}
+                    <div class="progress-text">{{ prog.done }}/{{ prog.total }} Termine</div>
+                    <div class="progress-bar" style="width: 100px;">
+                        <div class="progress-fill progress-ok" style="width: {{ (prog.done / prog.total * 100) if prog.total > 0 else 0 }}%"></div>
+                    </div>
+                </div>
+                <div class="series-date">
+                    {{ s.created_at.strftime('%d.%m.%Y') }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Keine Behandlungsserien vorhanden.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Tab: Termine -->
+{% if tab == 'appointments' %}
+<div class="card">
+    <div class="card-body">
+        {% if appointments %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Uhrzeit</th>
+                        <th>Therapeut</th>
+                        <th>Typ</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                    <tr class="{% if appt.start_time < now %}appointment-past{% else %}appointment-future{% endif %}">
+                        <td>{{ appt.start_time.strftime('%d.%m.%Y') }}</td>
+                        <td>{{ appt.start_time.strftime('%H:%M') }} - {{ appt.end_time.strftime('%H:%M') }}</td>
+                        <td>{{ appt.employee.user.first_name }} {{ appt.employee.user.last_name }}</td>
+                        <td>{{ appt.title or appt.appointment_type or '-' }}</td>
+                        <td>
+                            <span class="badge {% if appt.status == 'completed' %}badge-success{% elif appt.status == 'cancelled' %}badge-error{% elif appt.status == 'no_show' %}badge-warning{% else %}badge-info{% endif %}">
+                                {% if appt.status == 'scheduled' %}Geplant
+                                {% elif appt.status == 'confirmed' %}Bestätigt
+                                {% elif appt.status == 'completed' %}Durchgeführt
+                                {% elif appt.status == 'cancelled' %}Abgesagt
+                                {% elif appt.status == 'no_show' %}Nicht erschienen
+                                {% else %}{{ appt.status }}{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Keine Termine vorhanden.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Tab: Dokumente -->
+{% if tab == 'documents' %}
+<div class="card">
+    <div class="card-header">
+        <h3>Dokumente</h3>
+    </div>
+    <div class="card-body">
+        <!-- Upload-Formular -->
+        <form method="POST" action="{{ url_for('patients.upload_document', patient_id=patient.id) }}"
+              enctype="multipart/form-data" class="upload-form">
+            <div class="form-row" style="align-items: flex-end;">
+                <div class="form-group">
+                    <label class="form-label">Datei</label>
+                    <input type="file" name="file" class="form-input" required
+                           accept=".pdf,.jpg,.jpeg,.png,.docx">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Dokumenttyp</label>
+                    <select name="document_type" class="form-select">
+                        <option value="verordnung">Verordnung</option>
+                        <option value="arztbericht">Arztbericht</option>
+                        <option value="befund">Befund</option>
+                        <option value="foto">Foto</option>
+                        <option value="sonstiges" selected>Sonstiges</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notizen</label>
+                    <input type="text" name="doc_notes" class="form-input" placeholder="Optional...">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Hochladen
+                </button>
+            </div>
+            <small class="form-hint">Erlaubte Dateitypen: PDF, JPG, PNG, DOCX. Max. 10 MB.</small>
+        </form>
+
+        <hr style="margin: var(--spacing-lg) 0;">
+
+        <!-- Dokumentenliste -->
+        {% if documents %}
+        <div class="doc-list">
+            {% for doc in documents %}
+            <div class="doc-item">
+                <div class="doc-icon">
+                    {% if doc.file_type in ['jpg', 'jpeg', 'png'] %}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    {% else %}
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div class="doc-info">
+                    <strong>{{ doc.original_filename }}</strong>
+                    <div class="doc-meta">
+                        <span class="badge badge-info">
+                            {% if doc.document_type == 'verordnung' %}Verordnung
+                            {% elif doc.document_type == 'arztbericht' %}Arztbericht
+                            {% elif doc.document_type == 'befund' %}Befund
+                            {% elif doc.document_type == 'foto' %}Foto
+                            {% else %}Sonstiges{% endif %}
+                        </span>
+                        <span>{{ doc.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                        <span>{{ (doc.file_size / 1024) | round(0) | int }} KB</span>
+                        {% if doc.notes %}<span>{{ doc.notes }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="doc-actions">
+                    <a href="{{ url_for('patients.download_document', doc_id=doc.id) }}" class="btn btn-sm btn-secondary" title="Herunterladen">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </a>
+                    <form method="POST" action="{{ url_for('patients.delete_document', doc_id=doc.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Dokument löschen?')" title="Löschen">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Noch keine Dokumente hochgeladen.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Tab: Kommunikation -->
+{% if tab == 'communication' %}
+<div class="card">
+    <div class="card-body">
+        {% if emails %}
+        <div class="email-list">
+            {% for e in emails %}
+            <div class="email-item">
+                <div class="email-info">
+                    <strong>{{ e.subject or '(Kein Betreff)' }}</strong>
+                    <div class="email-meta">
+                        <span>{{ e.from_address or '-' }} → {{ e.to_address or '-' }}</span>
+                        <span>{{ e.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                        <span class="badge {% if e.status == 'sent' %}badge-success{% elif e.status == 'draft' %}badge-muted{% else %}badge-info{% endif %}">
+                            {% if e.status == 'sent' %}Gesendet{% elif e.status == 'draft' %}Entwurf{% else %}{{ e.status }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>Keine Kommunikation vorhanden.</p>
+            <p class="text-muted" style="font-size: var(--font-size-sm);">E-Mail-Versand wird in einer späteren Version verfügbar.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.blacklist-banner { border-left: 4px solid var(--color-error); }
+
+.patient-header-card {
+    display: flex; align-items: center; gap: var(--spacing-lg);
+    padding: var(--spacing-lg); background: white; border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); margin-bottom: var(--spacing-lg);
+}
+.patient-avatar {
+    width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: white; font-weight: 700; font-size: var(--font-size-2xl);
+    flex-shrink: 0; background: var(--color-primary);
+}
+.patient-header-info { flex: 1; }
+.patient-header-info h2 { margin: 0 0 var(--spacing-xs) 0; }
+.patient-header-meta { display: flex; gap: var(--spacing-md); align-items: center; flex-wrap: wrap; color: var(--color-gray-600); font-size: var(--font-size-sm); }
+.patient-header-stats { display: flex; gap: var(--spacing-xl); }
+.stat-item { text-align: center; }
+.stat-value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
+.stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+
+.detail-tabs {
+    display: flex; gap: 0; margin-bottom: var(--spacing-lg);
+    border-bottom: 2px solid var(--color-gray-200); flex-wrap: wrap;
+}
+.detail-tab {
+    padding: var(--spacing-sm) var(--spacing-lg); text-decoration: none;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    font-size: var(--font-size-sm); font-weight: 500; color: var(--color-gray-500);
+    transition: all var(--transition-base);
+}
+.detail-tab:hover { color: var(--color-primary); }
+.detail-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+
+.progress-bar { height: 6px; background: var(--color-gray-200); border-radius: 3px; }
+.progress-fill { height: 100%; border-radius: 3px; }
+.progress-ok { background: var(--color-success); }
+
+.series-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.series-item {
+    display: flex; align-items: center; gap: var(--spacing-lg); padding: var(--spacing-md);
+    border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);
+}
+.series-completed { opacity: 0.7; }
+.series-info { flex: 1; }
+.series-name { font-weight: 600; display: flex; align-items: center; gap: var(--spacing-sm); }
+.series-meta { font-size: var(--font-size-sm); color: var(--color-gray-500); display: flex; gap: var(--spacing-md); flex-wrap: wrap; margin-top: 2px; }
+.series-progress { text-align: center; }
+.progress-text { font-size: var(--font-size-xs); color: var(--color-gray-600); margin-bottom: 4px; }
+.series-date { font-size: var(--font-size-sm); color: var(--color-gray-500); white-space: nowrap; }
+
+.appointment-past { color: var(--color-gray-500); }
+.appointment-future { font-weight: 500; }
+
+.upload-form { margin-bottom: var(--spacing-md); }
+.doc-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.doc-item {
+    display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-sm);
+    border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);
+}
+.doc-icon { color: var(--color-gray-400); flex-shrink: 0; }
+.doc-info { flex: 1; }
+.doc-info strong { font-size: var(--font-size-sm); }
+.doc-meta { font-size: var(--font-size-xs); color: var(--color-gray-500); display: flex; gap: var(--spacing-sm); align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.doc-actions { display: flex; gap: var(--spacing-xs); }
+
+.email-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.email-item { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-gray-100); }
+.email-info strong { font-size: var(--font-size-sm); }
+.email-meta { font-size: var(--font-size-xs); color: var(--color-gray-500); display: flex; gap: var(--spacing-md); margin-top: 2px; }
+
+@media (max-width: 768px) {
+    .patient-header-card { flex-direction: column; text-align: center; }
+    .patient-header-stats { justify-content: center; }
+    .series-item { flex-direction: column; align-items: flex-start; }
+}
+</style>
+{% endblock %}

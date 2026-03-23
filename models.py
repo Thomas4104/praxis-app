@@ -227,10 +227,43 @@ class Patient(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Erweiterte Versicherungsfelder
+    case_number = db.Column(db.String(30))  # Fallnummer bei UVG/IVG
+    accident_date = db.Column(db.Date)  # Unfalldatum bei UVG
+    supplementary_insurance_name = db.Column(db.String(200))
+    supplementary_insurance_number = db.Column(db.String(30))
+    # Erweiterte Kontaktfelder
+    preferred_language = db.Column(db.String(20), default='Deutsch')
+    # Arbeitgeber erweitert
+    employer_contact = db.Column(db.String(200))
+    employer_phone = db.Column(db.String(30))
+    # Bevorzugter Therapeut
+    preferred_therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+
     insurance_provider = db.relationship('InsuranceProvider', backref='patients')
+    preferred_therapist = db.relationship('Employee', foreign_keys=[preferred_therapist_id])
     treatment_series = db.relationship('TreatmentSeries', backref='patient', lazy='dynamic')
     appointments = db.relationship('Appointment', backref='patient', lazy='dynamic')
     invoices = db.relationship('Invoice', backref='patient', lazy='dynamic')
+    documents = db.relationship('PatientDocument', backref='patient', lazy='dynamic')
+
+
+class PatientDocument(db.Model):
+    """Dokumente die einem Patienten zugeordnet sind"""
+    __tablename__ = 'patient_documents'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer)
+    file_type = db.Column(db.String(50))
+    document_type = db.Column(db.String(50))  # verordnung, arztbericht, befund, foto, sonstiges
+    notes = db.Column(db.Text)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploaded_by = db.relationship('User', backref='uploaded_documents')
 
 
 # ============================================================
@@ -247,6 +280,7 @@ class InsuranceProvider(db.Model):
     zip_code = db.Column(db.String(10))
     phone = db.Column(db.String(30))
     email = db.Column(db.String(200))
+    fax = db.Column(db.String(30))
     supports_electronic_billing = db.Column(db.Boolean, default=False)
     supports_tiers_payant_json = db.Column(db.Text)
     contact_json = db.Column(db.Text)

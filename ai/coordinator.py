@@ -6,6 +6,7 @@ from ai.agents.allgemein_agent import AllgemeinAgent
 from ai.agents.ressourcen_agent import RessourcenAgent
 from ai.agents.praxis_agent import PraxisAgent
 from ai.agents.mitarbeiter_agent import MitarbeiterAgent
+from ai.agents.patienten_agent import PatientenAgent
 
 
 class Coordinator:
@@ -16,7 +17,8 @@ class Coordinator:
             'allgemein': AllgemeinAgent(),
             'ressourcen': RessourcenAgent(),
             'praxis': PraxisAgent(),
-            'mitarbeiter': MitarbeiterAgent()
+            'mitarbeiter': MitarbeiterAgent(),
+            'patienten': PatientenAgent()
         }
 
     def register_agent(self, name, agent):

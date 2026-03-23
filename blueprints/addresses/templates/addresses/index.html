@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Adressen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Adressen</span>
+{% endblock %}
+
+{% block page_title %}Adressverwaltung{% endblock %}
+
+{% block page_actions %}
+{% if tab == 'insurances' %}
+<a href="{{ url_for('addresses.create_insurance') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Versicherung
+</a>
+{% elif tab == 'doctors' %}
+<a href="{{ url_for('addresses.create_doctor') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neuer Arzt
+</a>
+{% elif tab == 'contacts' %}
+<a href="{{ url_for('addresses.create_contact') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neuer Kontakt
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Tab-Navigation -->
+<div class="detail-tabs" style="margin-bottom: var(--spacing-lg);">
+    <a href="{{ url_for('addresses.index', tab='insurances') }}"
+       class="detail-tab {% if tab == 'insurances' %}active{% endif %}">Versicherungen</a>
+    <a href="{{ url_for('addresses.index', tab='doctors') }}"
+       class="detail-tab {% if tab == 'doctors' %}active{% endif %}">Ärzte</a>
+    <a href="{{ url_for('addresses.index', tab='contacts') }}"
+       class="detail-tab {% if tab == 'contacts' %}active{% endif %}">Kontakte</a>
+</div>
+
+<div class="card">
+    <!-- Suche -->
+    <form class="filter-bar" method="GET" action="{{ url_for('addresses.index') }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input"
+                   placeholder="{% if tab == 'insurances' %}Name oder GLN suchen...{% elif tab == 'doctors' %}Name, Fachrichtung oder GLN suchen...{% else %}Firma, Name oder Kategorie suchen...{% endif %}"
+                   value="{{ search }}" autocomplete="off">
+        </div>
+        <button type="submit" class="btn btn-secondary">Suchen</button>
+    </form>
+
+    <!-- Tab: Versicherungen -->
+    {% if tab == 'insurances' %}
+        {% if insurances %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>GLN</th>
+                        <th>Telefon</th>
+                        <th>E-Mail</th>
+                        <th>E-Billing</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ins in insurances %}
+                    <tr>
+                        <td><strong>{{ ins.name }}</strong></td>
+                        <td>{{ ins.gln_number or '-' }}</td>
+                        <td>{{ ins.phone or '-' }}</td>
+                        <td>{{ ins.email or '-' }}</td>
+                        <td>
+                            {% if ins.supports_electronic_billing %}
+                            <span class="badge badge-success">Ja</span>
+                            {% else %}
+                            <span class="badge badge-muted">Nein</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('addresses.edit_insurance', insurance_id=ins.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>Keine Versicherungen gefunden.</p></div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Tab: Aerzte -->
+    {% if tab == 'doctors' %}
+        {% if doctors %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Fachrichtung</th>
+                        <th>GLN</th>
+                        <th>ZSR</th>
+                        <th>Telefon</th>
+                        <th>Zuweisungen</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in doctors %}
+                    <tr class="clickable-row" onclick="window.location='{{ url_for('addresses.doctor_detail', doctor_id=doc.id) }}'">
+                        <td><strong>{{ doc.salutation }} {{ doc.first_name }} {{ doc.last_name }}</strong></td>
+                        <td>{{ doc.specialty or '-' }}</td>
+                        <td>{{ doc.gln_number or '-' }}</td>
+                        <td>{{ doc.zsr_number or '-' }}</td>
+                        <td>{{ doc.phone or '-' }}</td>
+                        <td><span class="badge badge-info">{{ doctor_stats.get(doc.id, 0) }}</span></td>
+                        <td>
+                            <a href="{{ url_for('addresses.edit_doctor', doctor_id=doc.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>Keine Ärzte gefunden.</p></div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Tab: Kontakte -->
+    {% if tab == 'contacts' %}
+        {% if contacts %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Firma</th>
+                        <th>Name</th>
+                        <th>Kategorie</th>
+                        <th>Telefon</th>
+                        <th>E-Mail</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contacts %}
+                    <tr>
+                        <td><strong>{{ c.company_name or '-' }}</strong></td>
+                        <td>{{ c.first_name or '' }} {{ c.last_name or '' }}</td>
+                        <td>{{ c.category or '-' }}</td>
+                        <td>{{ c.phone or '-' }}</td>
+                        <td>{{ c.email or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('addresses.edit_contact', contact_id=c.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>Keine Kontakte gefunden.</p></div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-tabs {
+    display: flex; gap: 0; border-bottom: 2px solid var(--color-gray-200); flex-wrap: wrap;
+}
+.detail-tab {
+    padding: var(--spacing-sm) var(--spacing-lg); text-decoration: none;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    font-size: var(--font-size-sm); font-weight: 500; color: var(--color-gray-500);
+    transition: all var(--transition-base);
+}
+.detail-tab:hover { color: var(--color-primary); }
+.detail-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: var(--color-gray-50); }
+</style>
+{% endblock %}

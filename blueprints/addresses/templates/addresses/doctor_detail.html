@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ doctor.salutation }} {{ doctor.first_name }} {{ doctor.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('addresses.index', tab='doctors') }}">Adressen / Ärzte</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ doctor.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ doctor.salutation }} {{ doctor.first_name }} {{ doctor.last_name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('addresses.edit_doctor', doctor_id=doctor.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+<form method="POST" action="{{ url_for('addresses.toggle_doctor', doctor_id=doctor.id) }}" style="display:inline">
+    <button type="submit" class="btn {% if doctor.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if doctor.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="detail-grid">
+    <!-- Basisdaten -->
+    <div class="card">
+        <div class="card-header"><h3>Basisdaten</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Fachrichtung</span>
+                    <span class="detail-value">{{ doctor.specialty or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">GLN-Nummer</span>
+                    <span class="detail-value">{{ doctor.gln_number or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">ZSR-Nummer</span>
+                    <span class="detail-value">{{ doctor.zsr_number or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Adresse</span>
+                    <span class="detail-value">{{ doctor.address or '-' }}, {{ doctor.zip_code or '' }} {{ doctor.city or '' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Telefon</span>
+                    <span class="detail-value">{{ doctor.phone or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value">{{ doctor.email or '-' }}</span>
+                </div>
+                {% if doctor.fax %}
+                <div class="detail-item">
+                    <span class="detail-label">Fax</span>
+                    <span class="detail-value">{{ doctor.fax }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Zuweiserstatistik -->
+    <div class="card">
+        <div class="card-header"><h3>Zuweiserstatistik</h3></div>
+        <div class="card-body">
+            <div style="display: flex; gap: var(--spacing-xl); margin-bottom: var(--spacing-lg);">
+                <div class="stat-item">
+                    <div class="stat-value">{{ patient_count }}</div>
+                    <div class="stat-label">Patienten zugewiesen</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ series_count }}</div>
+                    <div class="stat-label">Behandlungsserien</div>
+                </div>
+            </div>
+
+            {% if recent_series %}
+            <h4 style="margin-bottom: var(--spacing-sm);">Letzte Zuweisungen</h4>
+            <div class="mini-schedule">
+                {% for s in recent_series %}
+                <div class="mini-schedule-item">
+                    <div class="schedule-time">
+                        {{ s.created_at.strftime('%d.%m.%Y') }}
+                    </div>
+                    <div class="schedule-detail">
+                        {{ s.patient.first_name }} {{ s.patient.last_name }}
+                        <small>{{ s.diagnosis_text or s.template.name if s.template else '-' }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">Noch keine Zuweisungen.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-item { text-align: center; }
+.stat-value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
+.stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+.mini-schedule { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.mini-schedule-item { display: flex; gap: var(--spacing-md); padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100); }
+.schedule-time { font-size: var(--font-size-sm); white-space: nowrap; min-width: 90px; }
+.schedule-detail { font-size: var(--font-size-sm); }
+.schedule-detail small { display: block; color: var(--color-gray-500); }
+</style>
+{% endblock %}
