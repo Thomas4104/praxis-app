@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Ressourcen-Kalender{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('resources.index') }}">Ressourcen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Kalender</span>
+{% endblock %}
+
+{% block page_title %}Ressourcen-Kalender{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Kalender-Navigation -->
+    <div class="calendar-toolbar">
+        <div class="calendar-nav">
+            <a href="{{ url_for('resources.calendar', resource_id=resource_id, week=week_offset - 1) }}" class="btn btn-secondary btn-sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </a>
+            <span class="calendar-title">
+                {{ week_start.strftime('%d.%m.') }} - {{ week_end.strftime('%d.%m.%Y') }}
+            </span>
+            <a href="{{ url_for('resources.calendar', resource_id=resource_id, week=week_offset + 1) }}" class="btn btn-secondary btn-sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </a>
+            {% if week_offset != 0 %}
+            <a href="{{ url_for('resources.calendar', resource_id=resource_id) }}" class="btn btn-secondary btn-sm" style="margin-left: var(--spacing-sm);">Heute</a>
+            {% endif %}
+        </div>
+
+        <div class="calendar-resource-select">
+            <select id="resourceSelect" class="form-select" onchange="window.location.href='{{ url_for('resources.calendar', week=week_offset) }}&resource_id=' + this.value">
+                {% for r in resources %}
+                <option value="{{ r.id }}" {% if r.id == resource_id %}selected{% endif %}>{{ r.name }} ({{ r.location.name if r.location else '-' }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Kalender-Grid -->
+    <div class="resource-calendar">
+        <div class="calendar-grid">
+            <!-- Header-Zeile mit Wochentagen -->
+            <div class="calendar-header-cell calendar-time-col"></div>
+            {% for day in weekdays %}
+            <div class="calendar-header-cell {% if day.is_today %}calendar-today{% endif %}">
+                <span class="calendar-day-name">{{ day.name }}</span>
+                <span class="calendar-day-date">{{ day.formatted }}</span>
+            </div>
+            {% endfor %}
+
+            <!-- Stundenzeilen -->
+            {% for hour in hours %}
+            <div class="calendar-time-cell">{{ '%02d' | format(hour) }}:00</div>
+            {% for day in weekdays %}
+            <div class="calendar-cell {% if day.is_today %}calendar-today{% endif %}" data-day="{{ loop.index0 }}" data-hour="{{ hour }}">
+                {% for booking in bookings %}
+                {% if booking.day == loop.index0 and booking.start_hour == hour %}
+                <div class="calendar-event"
+                     style="background-color: {{ booking.color }}20; border-left: 3px solid {{ booking.color }};
+                            height: {{ ((booking.end_hour * 60 + booking.end_minute) - (booking.start_hour * 60 + booking.start_minute)) / 60 * 100 }}%;
+                            min-height: 30px;">
+                    <span class="event-time">{{ '%02d' | format(booking.start_hour) }}:{{ '%02d' | format(booking.start_minute) }}</span>
+                    <span class="event-title">{{ booking.patient }}</span>
+                    <span class="event-therapist">{{ booking.therapist }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.calendar-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-gray-200);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.calendar-title {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    min-width: 200px;
+    text-align: center;
+}
+
+.calendar-resource-select {
+    min-width: 250px;
+}
+
+.resource-calendar {
+    overflow-x: auto;
+    padding: var(--spacing-sm);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    min-width: 700px;
+}
+
+.calendar-header-cell {
+    padding: var(--spacing-sm) var(--spacing-xs);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 2px solid var(--color-gray-300);
+    background: var(--color-gray-50);
+}
+
+.calendar-header-cell.calendar-today {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+.calendar-time-col {
+    border-right: 1px solid var(--color-gray-200);
+}
+
+.calendar-day-name {
+    display: block;
+    font-size: var(--font-size-sm);
+}
+
+.calendar-day-date {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+}
+
+.calendar-time-cell {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    text-align: right;
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    border-right: 1px solid var(--color-gray-200);
+    border-bottom: 1px solid var(--color-gray-100);
+    height: 60px;
+}
+
+.calendar-cell {
+    border-bottom: 1px solid var(--color-gray-100);
+    border-right: 1px solid var(--color-gray-100);
+    height: 60px;
+    position: relative;
+    padding: 2px;
+}
+
+.calendar-cell.calendar-today {
+    background: var(--color-primary-bg);
+}
+
+.calendar-event {
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.calendar-event:hover {
+    opacity: 0.8;
+}
+
+.event-time {
+    font-weight: 600;
+    display: block;
+}
+
+.event-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-therapist {
+    display: block;
+    font-size: 10px;
+    color: var(--color-gray-600);
+}
+
+@media (max-width: 768px) {
+    .calendar-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .calendar-nav {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

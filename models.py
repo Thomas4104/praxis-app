@@ -299,6 +299,37 @@ class Resource(db.Model):
     bookings = db.relationship('ResourceBooking', backref='resource', lazy='dynamic')
 
 
+class ProductPriceHistory(db.Model):
+    """Preis-Historie fuer Produkte"""
+    __tablename__ = 'product_price_history'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    old_price = db.Column(db.Float, nullable=False)
+    new_price = db.Column(db.Float, nullable=False)
+    changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship('Product', backref=db.backref('price_history', lazy='dynamic', order_by='ProductPriceHistory.changed_at.desc()'))
+    changed_by = db.relationship('User', backref='price_changes')
+
+
+class MaintenanceRecord(db.Model):
+    """Wartungshistorie fuer Geraete"""
+    __tablename__ = 'maintenance_records'
+    id = db.Column(db.Integer, primary_key=True)
+    resource_id = db.Column(db.Integer, db.ForeignKey('resources.id'), nullable=False)
+    maintenance_type = db.Column(db.String(50), default='regular')
+    description = db.Column(db.Text)
+    performed_at = db.Column(db.Date, nullable=False)
+    performed_by = db.Column(db.String(200))
+    next_due = db.Column(db.Date)
+    interval_months = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    resource = db.relationship('Resource', backref=db.backref('maintenance_records', lazy='dynamic', order_by='MaintenanceRecord.performed_at.desc()'))
+
+
 class ResourceBooking(db.Model):
     __tablename__ = 'resource_bookings'
     id = db.Column(db.Integer, primary_key=True)

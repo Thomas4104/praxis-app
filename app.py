@@ -6,7 +6,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
-    Appointment, AISettings
+    Appointment, AISettings, Product, MaintenanceRecord
 from config import config
 
 
@@ -38,12 +38,18 @@ def create_app(config_name=None):
     # Blueprints registrieren
     from blueprints.auth import auth_bp
     from blueprints.dashboard import dashboard_bp
+    from blueprints.products import products_bp
+    from blueprints.resources import resources_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(products_bp, url_prefix='/products')
+    app.register_blueprint(resources_bp, url_prefix='/resources')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
+    csrf.exempt(products_bp)
+    csrf.exempt(resources_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -456,6 +462,64 @@ def seed_demo_data():
             title=titel
         )
         db.session.add(appt)
+
+    # === Produkte ===
+    produkte_data = [
+        ('Theraband Rot (leicht)', 'Therapiematerial', 8.50, 8.1, 'Stueck', 25, 5, 'Thera-Band GmbH', 'Thera-Band', 'TB-ROT-001'),
+        ('Theraband Gruen (mittel)', 'Therapiematerial', 8.50, 8.1, 'Stueck', 20, 5, 'Thera-Band GmbH', 'Thera-Band', 'TB-GRN-002'),
+        ('Theraband Blau (stark)', 'Therapiematerial', 8.50, 8.1, 'Stueck', 15, 5, 'Thera-Band GmbH', 'Thera-Band', 'TB-BLU-003'),
+        ('Faszienrolle Standard', 'Therapiematerial', 32.00, 8.1, 'Stueck', 10, 3, 'Blackroll AG', 'Blackroll', 'FR-STD-001'),
+        ('Kinesio-Tape 5m', 'Verbrauchsmaterial', 12.90, 8.1, 'Stueck', 30, 10, 'K-Tape AG', 'K-Tape', 'KT-5M-001'),
+        ('Ultraschall-Gel 250ml', 'Verbrauchsmaterial', 6.50, 8.1, 'Stueck', 8, 10, 'Sono Swiss AG', 'SonoGel', 'UG-250-001'),
+        ('Einweg-Handschuhe Box (100)', 'Verbrauchsmaterial', 9.90, 8.1, 'Packung', 12, 5, 'MediSupply AG', 'SafeGrip', 'EH-100-001'),
+        ('Gymnastikball 65cm', 'Therapiematerial', 28.00, 8.1, 'Stueck', 6, 2, 'TOGU GmbH', 'TOGU', 'GB-65-001'),
+        ('Kuehlung Spray 150ml', 'Verbrauchsmaterial', 11.50, 8.1, 'Stueck', 15, 5, 'Perskindol AG', 'Perskindol', 'KS-150-001'),
+        ('Igelball Set (2 Stueck)', 'Retail', 14.90, 8.1, 'Stueck', 18, 5, 'Sissel GmbH', 'Sissel', 'IB-SET-001'),
+    ]
+
+    for name, cat, price, vat, unit, stock, min_s, supplier, manufacturer, artnr in produkte_data:
+        db.session.add(Product(
+            organization_id=org.id,
+            name=name,
+            category=cat,
+            net_price=price,
+            vat_rate=vat,
+            unit_type=unit,
+            stock_quantity=stock,
+            min_stock=min_s,
+            supplier=supplier,
+            manufacturer=manufacturer,
+            article_number=artnr
+        ))
+
+    db.session.flush()
+
+    # === Wartungseintraege fuer Geraete ===
+    # Ultraschall und Stosswellengeraet finden
+    ultraschall = Resource.query.filter_by(name='Ultraschall').first()
+    stosswelle = Resource.query.filter_by(name='Stosswellengeraet').first()
+
+    if ultraschall:
+        db.session.add(MaintenanceRecord(
+            resource_id=ultraschall.id,
+            maintenance_type='regular',
+            description='Jaehrliche Wartung und Kalibrierung',
+            performed_at=date.today() - timedelta(days=90),
+            performed_by='MedTech Service AG',
+            next_due=date.today() + timedelta(days=275),
+            interval_months=12
+        ))
+
+    if stosswelle:
+        db.session.add(MaintenanceRecord(
+            resource_id=stosswelle.id,
+            maintenance_type='regular',
+            description='Halbjaehrliche Wartung',
+            performed_at=date.today() - timedelta(days=210),
+            performed_by='MedTech Service AG',
+            next_due=date.today() - timedelta(days=27),
+            interval_months=6
+        ))
 
     # === KI-Einstellungen ===
     db.session.add(AISettings(

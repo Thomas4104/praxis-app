@@ -144,7 +144,7 @@
                 </svg>
                 <span class="nav-label">Auswertung</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('products.index') }}" class="nav-item {% if request.blueprint == 'products' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
                     <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -152,7 +152,7 @@
                 </svg>
                 <span class="nav-label">Produkte</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('resources.index') }}" class="nav-item {% if request.blueprint == 'resources' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>

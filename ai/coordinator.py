@@ -3,6 +3,7 @@ import traceback
 from flask import current_app
 from ai.context import ContextManager
 from ai.agents.allgemein_agent import AllgemeinAgent
+from ai.agents.ressourcen_agent import RessourcenAgent
 
 
 class Coordinator:
@@ -10,7 +11,8 @@ class Coordinator:
 
     def __init__(self):
         self.agents = {
-            'allgemein': AllgemeinAgent()
+            'allgemein': AllgemeinAgent(),
+            'ressourcen': RessourcenAgent()
         }
 
     def register_agent(self, name, agent):

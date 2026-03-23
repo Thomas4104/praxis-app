@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Ressource bearbeiten' if resource else 'Neue Ressource' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('resources.index') }}">Ressourcen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if resource else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Ressource bearbeiten' if resource else 'Neue Ressource' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" novalidate>
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Ressourcendaten</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Name</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ resource.name if resource else '' }}" required
+                       placeholder="Name der Ressource">
+            </div>
+
+            <div class="form-group">
+                <label for="resource_type" class="form-label">Typ</label>
+                <select id="resource_type" name="resource_type" class="form-select">
+                    {% set types = [('room', 'Behandlungsraum'), ('Trainingsraum', 'Trainingsraum'), ('Gruppenraum', 'Gruppenraum'), ('device', 'Geraet'), ('Fahrzeug', 'Fahrzeug'), ('Sonstiges', 'Sonstiges')] %}
+                    {% for val, label in types %}
+                    <option value="{{ val }}" {% if resource and resource.resource_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="location_id" class="form-label required">Standort</label>
+                <select id="location_id" name="location_id" class="form-select" required>
+                    <option value="">-- Standort waehlen --</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if resource and resource.location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">Beschreibung</label>
+                <textarea id="description" name="description" class="form-textarea" rows="3"
+                          placeholder="Optionale Beschreibung">{{ resource.description if resource and resource.description else '' }}</textarea>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Details</h3>
+
+            <div class="form-group">
+                <label for="capacity" class="form-label">Kapazitaet (Personen)</label>
+                <input type="number" id="capacity" name="capacity" class="form-input"
+                       value="{{ resource.capacity if resource else 1 }}" min="1">
+                <small class="form-hint">Relevant fuer Gruppenraeume</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Ausstattung</label>
+                <div class="checkbox-grid">
+                    {% set equipment_list = ['Liege', 'Sprossenwand', 'Schlingentisch', 'Laufband', 'Spiegel', 'Waschbecken', 'Klimaanlage', 'Verdunkelung'] %}
+                    {% set current_equipment = [] %}
+                    {% if resource and resource.equipment_json %}
+                        {% set current_equipment = resource.equipment_json | tojson %}
+                    {% endif %}
+                    {% for equip in equipment_list %}
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="equipment" value="{{ equip }}"
+                               {% if resource and resource.equipment_json and equip in resource.equipment_json %}checked{% endif %}>
+                        {{ equip }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_active" id="is_active"
+                           {% if not resource or resource.is_active %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Ressource aktiv</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('resources.detail', resource_id=resource.id) if resource else url_for('resources.index') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+{% endblock %}

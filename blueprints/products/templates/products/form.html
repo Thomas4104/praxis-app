@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Produkt bearbeiten' if product else 'Neues Produkt' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('products.index') }}">Produkte</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if product else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Produkt bearbeiten' if product else 'Neues Produkt' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" id="productForm" novalidate>
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Produktdaten</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Name</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ product.name if product else '' }}" required
+                       placeholder="Produktname eingeben">
+                <div class="form-error" id="nameError"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">Beschreibung</label>
+                <textarea id="description" name="description" class="form-textarea" rows="3"
+                          placeholder="Optionale Beschreibung">{{ product.description if product and product.description else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="category" class="form-label">Kategorie</label>
+                <select id="category" name="category" class="form-select">
+                    <option value="">-- Kategorie waehlen --</option>
+                    {% for cat in ['Therapiematerial', 'Verbrauchsmaterial', 'Retail', 'Sonstiges'] %}
+                    <option value="{{ cat }}" {% if product and product.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="net_price" class="form-label required">Nettopreis (CHF)</label>
+                    <input type="number" id="net_price" name="net_price" class="form-input"
+                           value="{{ '%.2f'|format(product.net_price) if product else '0.00' }}"
+                           step="0.01" min="0" required>
+                    <div class="form-error" id="priceError"></div>
+                </div>
+                <div class="form-group">
+                    <label for="vat_rate" class="form-label">MwSt-Satz</label>
+                    <select id="vat_rate" name="vat_rate" class="form-select">
+                        {% for rate, label in [('0', '0%'), ('2.6', '2.6%'), ('8.1', '8.1%')] %}
+                        <option value="{{ rate }}" {% if product and '%.1f'|format(product.vat_rate) == rate %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="unit_type" class="form-label">Einheit</label>
+                    <select id="unit_type" name="unit_type" class="form-select">
+                        <option value="">-- Einheit waehlen --</option>
+                        {% for unit in ['Stueck', 'cm', 'm', 'Tage', 'Monate', 'Packung', 'ml', 'l'] %}
+                        <option value="{{ unit }}" {% if product and product.unit_type == unit %}selected{% endif %}>{{ unit }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="tariff_code" class="form-label">Tarifcode</label>
+                    <input type="text" id="tariff_code" name="tariff_code" class="form-input"
+                           value="{{ product.tariff_code if product and product.tariff_code else '' }}"
+                           placeholder="Optional">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="article_number" class="form-label">Artikelnummer</label>
+                <input type="text" id="article_number" name="article_number" class="form-input"
+                       value="{{ product.article_number if product and product.article_number else '' }}"
+                       placeholder="Interne Artikelnummer">
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Lieferant & Bestand</h3>
+
+            <div class="form-group">
+                <label for="supplier" class="form-label">Lieferant</label>
+                <input type="text" id="supplier" name="supplier" class="form-input"
+                       value="{{ product.supplier if product and product.supplier else '' }}"
+                       placeholder="Name des Lieferanten">
+            </div>
+
+            <div class="form-group">
+                <label for="manufacturer" class="form-label">Hersteller</label>
+                <input type="text" id="manufacturer" name="manufacturer" class="form-input"
+                       value="{{ product.manufacturer if product and product.manufacturer else '' }}"
+                       placeholder="Name des Herstellers">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="stock_quantity" class="form-label">Lagerbestand</label>
+                    <input type="number" id="stock_quantity" name="stock_quantity" class="form-input"
+                           value="{{ product.stock_quantity if product else 0 }}" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="min_stock" class="form-label">Mindestbestand</label>
+                    <input type="number" id="min_stock" name="min_stock" class="form-input"
+                           value="{{ product.min_stock if product else 0 }}" min="0">
+                    <small class="form-hint">Warnung wenn unterschritten</small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_active" id="is_active"
+                           {% if not product or product.is_active %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Produkt aktiv</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('products.detail', product_id=product.id) if product else url_for('products.index') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('productForm').addEventListener('submit', function(e) {
+    let valid = true;
+    const name = document.getElementById('name');
+    const price = document.getElementById('net_price');
+
+    // Name validieren
+    document.getElementById('nameError').textContent = '';
+    if (!name.value.trim()) {
+        document.getElementById('nameError').textContent = 'Name ist ein Pflichtfeld.';
+        name.focus();
+        valid = false;
+    }
+
+    // Preis validieren
+    document.getElementById('priceError').textContent = '';
+    if (parseFloat(price.value) < 0 || isNaN(parseFloat(price.value))) {
+        document.getElementById('priceError').textContent = 'Bitte geben Sie einen gueltigen Preis ein.';
+        if (valid) price.focus();
+        valid = false;
+    }
+
+    if (!valid) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %}

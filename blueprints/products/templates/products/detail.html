@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('products.index') }}">Produkte</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ product.name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ product.name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('products.edit', product_id=product.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+<form method="POST" action="{{ url_for('products.toggle_active', product_id=product.id) }}" style="display:inline">
+    <button type="submit" class="btn {% if product.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if product.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<!-- Status-Warnungen -->
+{% if not product.is_active %}
+<div class="alert alert-warning">
+    Dieses Produkt ist deaktiviert und steht nicht zur Verfuegung.
+</div>
+{% endif %}
+
+{% if product.min_stock > 0 and product.stock_quantity < product.min_stock %}
+<div class="alert alert-error">
+    <strong>Bestandswarnung:</strong> Der Lagerbestand ({{ product.stock_quantity }}) liegt unter dem Mindestbestand ({{ product.min_stock }}). Nachbestellung empfohlen!
+</div>
+{% endif %}
+
+<div class="detail-grid">
+    <!-- Produktinformationen -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Produktdaten</h3>
+        </div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{{ product.name }}</span>
+                </div>
+                {% if product.description %}
+                <div class="detail-item">
+                    <span class="detail-label">Beschreibung</span>
+                    <span class="detail-value">{{ product.description }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Kategorie</span>
+                    <span class="detail-value">{{ product.category or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Nettopreis</span>
+                    <span class="detail-value">{{ '%.2f'|format(product.net_price) }} CHF</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">MwSt-Satz</span>
+                    <span class="detail-value">{{ product.vat_rate }}%</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Bruttopreis</span>
+                    <span class="detail-value">{{ '%.2f'|format(product.net_price * (1 + product.vat_rate / 100)) }} CHF</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Einheit</span>
+                    <span class="detail-value">{{ product.unit_type or '-' }}</span>
+                </div>
+                {% if product.tariff_code %}
+                <div class="detail-item">
+                    <span class="detail-label">Tarifcode</span>
+                    <span class="detail-value">{{ product.tariff_code }}</span>
+                </div>
+                {% endif %}
+                {% if product.article_number %}
+                <div class="detail-item">
+                    <span class="detail-label">Artikelnummer</span>
+                    <span class="detail-value">{{ product.article_number }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        {% if product.is_active %}
+                            <span class="badge badge-success">Aktiv</span>
+                        {% else %}
+                            <span class="badge badge-muted">Deaktiviert</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestand & Lieferant -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Bestand & Lieferant</h3>
+        </div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Lagerbestand</span>
+                    <span class="detail-value">
+                        {% if product.min_stock > 0 and product.stock_quantity < product.min_stock %}
+                            <span class="badge badge-error">{{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}</span>
+                        {% else %}
+                            {{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Mindestbestand</span>
+                    <span class="detail-value">{{ product.min_stock }} {{ product.unit_type or 'Stueck' }}</span>
+                </div>
+                {% if product.supplier %}
+                <div class="detail-item">
+                    <span class="detail-label">Lieferant</span>
+                    <span class="detail-value">{{ product.supplier }}</span>
+                </div>
+                {% endif %}
+                {% if product.manufacturer %}
+                <div class="detail-item">
+                    <span class="detail-label">Hersteller</span>
+                    <span class="detail-value">{{ product.manufacturer }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preis-Historie -->
+{% if price_history %}
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Preis-Historie</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Alter Preis</th>
+                        <th>Neuer Preis</th>
+                        <th>Geaendert von</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ph in price_history %}
+                    <tr>
+                        <td>{{ ph.changed_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ '%.2f'|format(ph.old_price) }} CHF</td>
+                        <td>{{ '%.2f'|format(ph.new_price) }} CHF</td>
+                        <td>{{ ph.changed_by.first_name ~ ' ' ~ ph.changed_by.last_name if ph.changed_by else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

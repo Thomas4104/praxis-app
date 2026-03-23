@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Ressourcen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Ressourcen</span>
+{% endblock %}
+
+{% block page_title %}Ressourcen{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('resources.calendar') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+    Kalender
+</a>
+<a href="{{ url_for('resources.create') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Ressource
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Tabs -->
+    <div class="tabs">
+        <a href="{{ url_for('resources.index', tab='rooms', location=location_filter, status=status) }}"
+           class="tab {% if tab == 'rooms' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            Raeume
+        </a>
+        <a href="{{ url_for('resources.index', tab='devices', location=location_filter, status=status) }}"
+           class="tab {% if tab == 'devices' %}active{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852 1.001 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Geraete
+        </a>
+    </div>
+
+    <!-- Filter-Leiste -->
+    <form class="filter-bar" method="GET" action="{{ url_for('resources.index') }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <div class="filter-group">
+            <select name="location" class="form-select">
+                <option value="">Alle Standorte</option>
+                {% for loc in locations %}
+                <option value="{{ loc.id }}" {% if location_filter == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-select">
+                <option value="active" {% if status == 'active' %}selected{% endif %}>Nur aktive</option>
+                <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Nur deaktivierte</option>
+                <option value="all" {% if status == 'all' %}selected{% endif %}>Alle</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+    </form>
+
+    <!-- Ressourcen-Tabelle -->
+    {% if resources %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Standort</th>
+                    {% if tab == 'rooms' %}
+                    <th>Kapazitaet</th>
+                    {% endif %}
+                    {% if tab == 'devices' %}
+                    <th>Wartung</th>
+                    {% endif %}
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for resource in resources %}
+                <tr class="{% if not resource.is_active %}row-inactive{% endif %}">
+                    <td>
+                        <a href="{{ url_for('resources.detail', resource_id=resource.id) }}" class="link-primary">
+                            {{ resource.name }}
+                        </a>
+                    </td>
+                    <td>{{ resource.resource_type }}</td>
+                    <td>{{ resource.location.name if resource.location else '-' }}</td>
+                    {% if tab == 'rooms' %}
+                    <td>{{ resource.capacity }} {% if resource.capacity > 1 %}Personen{% else %}Person{% endif %}</td>
+                    {% endif %}
+                    {% if tab == 'devices' %}
+                    <td>
+                        {% if resource.id in overdue_maintenance %}
+                            <span class="badge badge-error">Ueberfaellig</span>
+                        {% else %}
+                            <span class="badge badge-success">OK</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td>
+                        {% if resource.is_active %}
+                            <span class="badge badge-success">Aktiv</span>
+                        {% else %}
+                            <span class="badge badge-muted">Deaktiviert</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <a href="{{ url_for('resources.edit', resource_id=resource.id) }}" class="btn btn-sm btn-secondary" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </a>
+                        <form method="POST" action="{{ url_for('resources.toggle_active', resource_id=resource.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn-sm {% if resource.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                                    title="{{ 'Deaktivieren' if resource.is_active else 'Aktivieren' }}">
+                                {% if resource.is_active %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                                </svg>
+                                {% else %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                {% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
+        <p>Keine Ressourcen gefunden.</p>
+        <a href="{{ url_for('resources.create') }}" class="btn btn-primary">Erste Ressource anlegen</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ resource.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('resources.index') }}">Ressourcen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ resource.name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ resource.name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('resources.calendar', resource_id=resource.id) }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+    Kalender
+</a>
+<a href="{{ url_for('resources.edit', resource_id=resource.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Warnungen -->
+{% if not resource.is_active %}
+<div class="alert alert-warning">
+    Diese Ressource ist deaktiviert.
+</div>
+{% endif %}
+
+{% if latest_maintenance and latest_maintenance.next_due %}
+    {% set today = import('datetime').date.today() if false else none %}
+    {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
+    <div class="alert alert-error">
+        <strong>Wartung ueberfaellig!</strong> Die naechste Wartung war faellig am {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}.
+    </div>
+    {% endif %}
+{% endif %}
+
+<div class="detail-grid">
+    <!-- Ressource-Informationen -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Ressourcendaten</h3>
+        </div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{{ resource.name }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Typ</span>
+                    <span class="detail-value">{{ resource.resource_type }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Standort</span>
+                    <span class="detail-value">{{ resource.location.name if resource.location else '-' }}</span>
+                </div>
+                {% if resource.description %}
+                <div class="detail-item">
+                    <span class="detail-label">Beschreibung</span>
+                    <span class="detail-value">{{ resource.description }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Kapazitaet</span>
+                    <span class="detail-value">{{ resource.capacity }} {% if resource.capacity > 1 %}Personen{% else %}Person{% endif %}</span>
+                </div>
+                {% if resource.equipment_json %}
+                <div class="detail-item">
+                    <span class="detail-label">Ausstattung</span>
+                    <span class="detail-value">
+                        {% for equip in resource.equipment_json | tojson | default('[]', true) %}
+                        {% endfor %}
+                        {{ resource.equipment_json }}
+                    </span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value">
+                        {% if resource.is_active %}
+                            <span class="badge badge-success">Aktiv</span>
+                        {% else %}
+                            <span class="badge badge-muted">Deaktiviert</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wartung (nur fuer Geraete) -->
+    {% if resource.resource_type in ('device', 'Geraet', 'Fahrzeug') %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Wartung</h3>
+        </div>
+        <div class="card-body">
+            {% if latest_maintenance %}
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Letzte Wartung</span>
+                    <span class="detail-value">{{ latest_maintenance.performed_at.strftime('%d.%m.%Y') }}</span>
+                </div>
+                {% if latest_maintenance.next_due %}
+                <div class="detail-item">
+                    <span class="detail-label">Naechste Wartung</span>
+                    <span class="detail-value">
+                        {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
+                            <span class="badge badge-error">{{ latest_maintenance.next_due.strftime('%d.%m.%Y') }} (ueberfaellig)</span>
+                        {% else %}
+                            {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if latest_maintenance.interval_months %}
+                <div class="detail-item">
+                    <span class="detail-label">Wartungsintervall</span>
+                    <span class="detail-value">{{ latest_maintenance.interval_months }} Monate</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted">Noch keine Wartungseintraege vorhanden.</p>
+            {% endif %}
+
+            <!-- Wartungseintrag hinzufuegen -->
+            <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--color-gray-200);">
+                <h4 style="margin-bottom: var(--spacing-md);">Wartung eintragen</h4>
+                <form method="POST" action="{{ url_for('resources.add_maintenance', resource_id=resource.id) }}">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="performed_at" class="form-label">Wartungsdatum</label>
+                            <input type="date" id="performed_at" name="performed_at" class="form-input"
+                                   value="{{ current_datetime.strftime('%Y-%m-%d') }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="interval_months" class="form-label">Intervall (Monate)</label>
+                            <input type="number" id="interval_months" name="interval_months" class="form-input"
+                                   value="{{ latest_maintenance.interval_months if latest_maintenance and latest_maintenance.interval_months else 6 }}" min="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="performed_by" class="form-label">Durchgefuehrt von</label>
+                        <input type="text" id="performed_by" name="performed_by" class="form-input"
+                               placeholder="Name des Technikers">
+                    </div>
+                    <div class="form-group">
+                        <label for="description" class="form-label">Beschreibung</label>
+                        <textarea id="description" name="description" class="form-textarea" rows="2"
+                                  placeholder="Was wurde gemacht?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Wartung speichern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Wartungshistorie -->
+{% if maintenance_records and maintenance_records | length > 0 %}
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Wartungshistorie</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Beschreibung</th>
+                        <th>Durchgefuehrt von</th>
+                        <th>Naechste Wartung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in maintenance_records %}
+                    <tr>
+                        <td>{{ record.performed_at.strftime('%d.%m.%Y') }}</td>
+                        <td>{{ record.description or '-' }}</td>
+                        <td>{{ record.performed_by or '-' }}</td>
+                        <td>{{ record.next_due.strftime('%d.%m.%Y') if record.next_due else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
