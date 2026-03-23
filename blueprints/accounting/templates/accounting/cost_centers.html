@@ -73,6 +73,7 @@
     <div class="card" style="padding: 24px; width: 420px; max-width: 95vw;">
         <h3 style="margin: 0 0 16px;">Neue Kostenstelle</h3>
         <form method="POST" action="{{ url_for('accounting.create_cost_center') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; gap: 12px;">
                 <div>
                     <label class="form-label">Code</label>

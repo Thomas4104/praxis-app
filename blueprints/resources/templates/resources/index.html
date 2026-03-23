@@ -128,6 +128,7 @@
                             </svg>
                         </a>
                         <form method="POST" action="{{ url_for('resources.toggle_active', resource_id=resource.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm {% if resource.is_active %}btn-warning{% else %}btn-success{% endif %}"
                                     title="{{ 'Deaktivieren' if resource.is_active else 'Aktivieren' }}">
                                 {% if resource.is_active %}

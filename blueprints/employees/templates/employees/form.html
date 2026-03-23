@@ -14,6 +14,7 @@
 
 {% block content %}
 <form method="POST" class="form-container" id="employeeForm" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <!-- Tabs -->
     <div class="tab-nav">
         <button type="button" class="tab-btn active" data-tab="basisdaten">Basisdaten</button>

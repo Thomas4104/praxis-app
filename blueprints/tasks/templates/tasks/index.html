@@ -147,6 +147,7 @@
     <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
         <h3 style="margin-bottom:1rem;">Neue Aufgabe</h3>
         <form method="POST" action="{{ url_for('tasks.create') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group" style="margin-bottom:1rem;">
                 <label class="form-label">Titel <span class="required">*</span></label>
                 <input type="text" name="title" class="form-input" required placeholder="Aufgabentitel">
@@ -209,19 +210,19 @@ function hideCreateModal() {
 }
 
 function completeTask(id) {
-    fetch(`/tasks/api/${id}/complete`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF(`/tasks/api/${id}/complete`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => { if (data.success) location.reload(); });
 }
 
 function reopenTask(id) {
-    fetch(`/tasks/api/${id}/reopen`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF(`/tasks/api/${id}/reopen`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => { if (data.success) location.reload(); });
 }
 
 function generateTasks() {
-    fetch('/tasks/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF('/tasks/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => {
             alert(data.message);
@@ -283,7 +284,7 @@ function hideDetail() {
 function addComment(taskId) {
     const comment = document.getElementById('commentInput').value.trim();
     if (!comment) return;
-    fetch(`/tasks/api/${taskId}/comment`, {
+    fetchWithCSRF(`/tasks/api/${taskId}/comment`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({comment: comment})

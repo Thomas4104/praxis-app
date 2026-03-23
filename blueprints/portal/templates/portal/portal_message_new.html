@@ -10,6 +10,7 @@
 
     <div class="portal-card portal-card-form">
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="portal-form-group">
                 <label for="subject">Betreff *</label>
                 <input type="text" id="subject" name="subject" required class="portal-input"

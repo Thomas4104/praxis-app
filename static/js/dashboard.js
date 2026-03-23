@@ -422,7 +422,7 @@
                 if (cb.checked) selected.push(cb.value);
             });
 
-            fetch('/api/dashboard/config', {
+            fetchWithCSRF('/api/dashboard/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',

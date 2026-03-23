@@ -37,6 +37,7 @@
                     {% if (apt.start_time - current_datetime).total_seconds() > 86400 %}
                     <form method="POST" action="{{ url_for('portal.cancel_appointment', appointment_id=apt.id) }}"
                           onsubmit="return confirm('Möchten Sie diesen Termin wirklich absagen?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="portal-btn portal-btn-sm portal-btn-danger">Absagen</button>
                     </form>
                     {% else %}

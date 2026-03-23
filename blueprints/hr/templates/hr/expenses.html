@@ -46,6 +46,7 @@
     <details>
         <summary style="cursor:pointer; font-weight:600; font-size:1.05em;">+ Neue Spese einreichen</summary>
         <form method="POST" action="{{ url_for('hr.expense_create') }}" style="margin-top:16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
                 <div class="form-group">
                     <label>Mitarbeiter</label>
@@ -135,9 +136,11 @@
                 <td style="text-align:right;">
                     {% if exp.status == 'submitted' and current_user.role == 'admin' %}
                     <form method="POST" action="{{ url_for('hr.expense_approve', expense_id=exp.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm btn-success" title="Genehmigen">&#10003;</button>
                     </form>
                     <form method="POST" action="{{ url_for('hr.expense_reject', expense_id=exp.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm btn-danger" title="Ablehnen">&#10007;</button>
                     </form>
                     {% endif %}

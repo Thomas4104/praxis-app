@@ -55,6 +55,7 @@
                         </svg>
                     </a>
                     <form method="POST" action="{{ url_for('practice.toggle_location', location_id=loc.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm {% if loc.is_active %}btn-warning{% else %}btn-success{% endif %}"
                                 title="{{ 'Deaktivieren' if loc.is_active else 'Aktivieren' }}">
                             {% if loc.is_active %}

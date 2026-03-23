@@ -17,6 +17,7 @@
 {% block content %}
 <div class="card" style="max-width: 800px;">
     <form method="POST" action="{{ url_for('fitness.subscription_new') }}" style="padding: 24px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!-- Patient (Autocomplete) -->
         <div class="form-group">
             <label class="form-label">Patient *</label>

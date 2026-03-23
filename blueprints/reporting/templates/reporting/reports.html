@@ -514,7 +514,7 @@
             sort_dir: state.sortDir
         };
 
-        fetch('/reporting/api/run', {
+        fetchWithCSRF('/reporting/api/run', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
@@ -624,7 +624,7 @@
             columns: state.columns
         };
 
-        fetch('/reporting/api/export', {
+        fetchWithCSRF('/reporting/api/export', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
@@ -660,7 +660,7 @@
             columns: state.columns
         };
 
-        fetch('/reporting/api/saved', {
+        fetchWithCSRF('/reporting/api/saved', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
@@ -708,7 +708,7 @@
     }
 
     function renameReport(id, newName) {
-        fetch('/reporting/api/saved/' + id + '/rename', {
+        fetchWithCSRF('/reporting/api/saved/' + id + '/rename', {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({name: newName})
@@ -718,7 +718,7 @@
     }
 
     function deleteReport(id) {
-        fetch('/reporting/api/saved/' + id, {method: 'DELETE'})
+        fetchWithCSRF('/reporting/api/saved/' + id, {method: 'DELETE'})
             .then(r => r.json())
             .then(function() {
                 if (state.currentReportId === id) newReport();

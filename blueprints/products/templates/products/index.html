@@ -119,6 +119,7 @@
                             </svg>
                         </a>
                         <form method="POST" action="{{ url_for('products.toggle_active', product_id=product.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm {% if product.is_active %}btn-warning{% else %}btn-success{% endif %}"
                                     title="{{ 'Deaktivieren' if product.is_active else 'Aktivieren' }}">
                                 {% if product.is_active %}

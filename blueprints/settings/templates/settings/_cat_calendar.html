@@ -4,6 +4,7 @@
         <h2>Kalender-Einstellungen</h2>
     </div>
     <form method="POST" action="{{ url_for('settings.save_calendar') }}" class="form-container" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid form-grid-2">
             <div class="form-section">
                 <h3 class="form-section-title">Zeitraster & Zeiten</h3>

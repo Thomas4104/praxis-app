@@ -14,6 +14,7 @@
 
 {% block page_actions %}
 <form method="POST" action="{{ url_for('accounting.depreciate') }}" style="display: inline;" onsubmit="return confirm('Abschreibungslauf jetzt durchführen?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-secondary">Abschreibungslauf</button>
 </form>
 <button class="btn btn-primary" onclick="document.getElementById('createAssetModal').style.display='flex'">
@@ -96,6 +97,7 @@
     <div class="card" style="padding: 24px; width: 520px; max-width: 95vw;">
         <h3 style="margin: 0 0 16px;">Neues Anlagegut erfassen</h3>
         <form method="POST" action="{{ url_for('accounting.create_asset') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; gap: 12px;">
                 <div>
                     <label class="form-label">Bezeichnung</label>

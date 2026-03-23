@@ -60,6 +60,7 @@
         <h2>Rollen-Berechtigungen</h2>
     </div>
     <form method="POST" action="{{ url_for('settings.save_permissions') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="table-responsive">
             <table class="data-table permissions-table">
                 <thead>

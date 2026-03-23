@@ -28,6 +28,7 @@
             {% endwith %}
 
             <form method="POST" class="portal-auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="portal-form-row">
                     <div class="portal-form-group">
                         <label for="first_name">Vorname *</label>

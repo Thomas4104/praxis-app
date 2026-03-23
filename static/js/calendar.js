@@ -1335,6 +1335,11 @@
         opts.headers = opts.headers || {};
         opts.headers['Content-Type'] = 'application/json';
         opts.headers['Accept'] = 'application/json';
+        var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        if (tokenMeta) {
+            opts.headers['X-CSRFToken'] = tokenMeta.getAttribute('content');
+        }
+        opts.credentials = opts.credentials || 'same-origin';
 
         return fetch(url, opts).then(function(r) {
             if (!r.ok) return r.json().then(function(e) { throw e; });

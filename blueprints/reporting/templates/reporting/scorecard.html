@@ -178,7 +178,7 @@
         var empId = document.getElementById('therapistSelect').value;
         if (!empId) return;
 
-        fetch('/reporting/api/scorecard', {
+        fetchWithCSRF('/reporting/api/scorecard', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({employee_id: parseInt(empId), period: currentPeriod})

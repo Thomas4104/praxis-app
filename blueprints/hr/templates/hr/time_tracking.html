@@ -40,6 +40,7 @@
         <div id="runningTime" style="font-size:1.5em; font-weight:600; color:var(--primary); margin-top:8px;"></div>
     </div>
     <form method="POST" action="{{ url_for('hr.clock_in_out') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="employee_id" value="{{ employee.id }}">
         <button type="submit" class="btn btn-danger" style="padding:16px 40px; font-size:1.1em; border-radius:50px;">
             Ausstempeln
@@ -54,6 +55,7 @@
         {% endif %}
     </div>
     <form method="POST" action="{{ url_for('hr.clock_in_out') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="employee_id" value="{{ employee.id }}">
         <button type="submit" class="btn btn-primary" style="padding:16px 40px; font-size:1.1em; border-radius:50px;">
             Einstempeln
@@ -130,6 +132,7 @@
 <div class="card">
     <h3 style="margin:0 0 16px 0;">Manuelle Zeiterfassung</h3>
     <form method="POST" action="{{ url_for('hr.time_manual') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="employee_id" value="{{ employee.id }}">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:12px;">
             <div class="form-group">

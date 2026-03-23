@@ -142,6 +142,7 @@
             <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--color-gray-200);">
                 <h4 style="margin-bottom: var(--spacing-md);">Wartung eintragen</h4>
                 <form method="POST" action="{{ url_for('resources.add_maintenance', resource_id=resource.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="performed_at" class="form-label">Wartungsdatum</label>

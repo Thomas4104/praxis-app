@@ -478,7 +478,7 @@ function zielSpeichern() {
     const url = editId ? '/treatment/api/ziel/' + editId : '/treatment/api/ziel';
     const method = editId ? 'PUT' : 'POST';
 
-    fetch(url, {
+    fetchWithCSRF(url, {
         method: method,
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -489,7 +489,7 @@ function zielSpeichern() {
 
 function zielLoeschen(id) {
     if (!confirm('Therapieziel wirklich löschen?')) return;
-    fetch('/treatment/api/ziel/' + id, { method: 'DELETE' })
+    fetchWithCSRF('/treatment/api/ziel/' + id, { method: 'DELETE' })
         .then(r => r.json())
         .then(() => window.location.reload());
 }
@@ -515,7 +515,7 @@ function meilensteinSpeichern() {
 
     if (!data.name) { alert('Bitte Name eingeben.'); return; }
 
-    fetch('/treatment/api/meilenstein', {
+    fetchWithCSRF('/treatment/api/meilenstein', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -543,7 +543,7 @@ function messungSpeichern() {
 
     if (isNaN(data.werte.value)) { alert('Bitte gültigen Wert eingeben.'); return; }
 
-    fetch('/treatment/api/messung', {
+    fetchWithCSRF('/treatment/api/messung', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -607,7 +607,7 @@ function ladeMessungen(typ) {
 
 // === Heilungsphasen ===
 function setzeHeilungsphaseGlobal(serieId, phase) {
-    fetch('/treatment/api/heilungsphase', {
+    fetchWithCSRF('/treatment/api/heilungsphase', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({serie_id: serieId, phase_type: phase})
@@ -630,7 +630,7 @@ function kiDiagnoseVorschlag() {
     ergebnisBox.innerHTML = '<em>KI analysiert...</em>';
 
     // Sende an Chat-API
-    fetch('/api/chat', {
+    fetchWithCSRF('/api/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({

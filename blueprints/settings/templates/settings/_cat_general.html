@@ -4,6 +4,7 @@
         <h2>Allgemeine Einstellungen</h2>
     </div>
     <form method="POST" action="{{ url_for('settings.save_general') }}" class="form-container" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-grid form-grid-2">
             <div class="form-section">
                 <h3 class="form-section-title">Sprache & Region</h3>

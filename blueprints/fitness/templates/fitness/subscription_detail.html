@@ -183,6 +183,7 @@
                 {% if abo.status == 'active' %}
                 <!-- Pausieren -->
                 <form method="POST" action="{{ url_for('fitness.subscription_pause', sub_id=abo.id) }}" style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <input type="date" name="paused_until" class="form-input" style="flex: 1;" placeholder="Bis wann?">
                         <button type="submit" class="btn btn-warning" style="white-space: nowrap;"
@@ -192,6 +193,7 @@
 
                 <!-- Kündigen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger" style="width: 100%;"
                             onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
                 </form>
@@ -200,11 +202,13 @@
                 {% if abo.status == 'paused' %}
                 <!-- Fortsetzen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_resume', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-success" style="width: 100%;">Fortsetzen</button>
                 </form>
 
                 <!-- Kündigen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger" style="width: 100%;"
                             onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
                 </form>
@@ -213,6 +217,7 @@
                 <!-- Verlängern -->
                 {% if abo.end_date %}
                 <form method="POST" action="{{ url_for('fitness.subscription_renew', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-primary" style="width: 100%;">Verlängern</button>
                 </form>
                 {% endif %}
@@ -221,6 +226,7 @@
 
                 <!-- Badge zuordnen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_badge', sub_id=abo.id) }}" style="display: flex; gap: 8px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="text" name="badge_number" class="form-input" style="flex: 1;"
                            placeholder="Badge-Nr." value="{{ abo.badge_number or '' }}">
                     <button type="submit" class="btn btn-secondary" style="white-space: nowrap;">Badge speichern</button>
@@ -228,6 +234,7 @@
 
                 <!-- Rechnung erstellen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_create_invoice', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-secondary" style="width: 100%;">Rechnung erstellen</button>
                 </form>
             </div>

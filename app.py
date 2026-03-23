@@ -43,11 +43,6 @@ def create_app(config_name=None):
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
 
-    # CSRF fuer API-Routen deaktivieren
-    @app.before_request
-    def csrf_exempt_api():
-        pass
-
     # Blueprints registrieren
     from blueprints.auth import auth_bp
     from blueprints.dashboard import dashboard_bp
@@ -90,27 +85,6 @@ def create_app(config_name=None):
     app.register_blueprint(reporting_bp, url_prefix='/reporting')
     app.register_blueprint(fitness_bp, url_prefix='/fitness')
     app.register_blueprint(portal_bp, url_prefix='/portal')
-
-    # CSRF-Exempt fuer API-Routen
-    csrf.exempt(dashboard_bp)
-    csrf.exempt(products_bp)
-    csrf.exempt(resources_bp)
-    csrf.exempt(practice_bp)
-    csrf.exempt(employees_bp)
-    csrf.exempt(patients_bp)
-    csrf.exempt(addresses_bp)
-    csrf.exempt(calendar_bp)
-    csrf.exempt(treatment_bp)
-    csrf.exempt(settings_bp)
-    csrf.exempt(cost_approvals_bp)
-    csrf.exempt(tasks_bp)
-    csrf.exempt(billing_bp)
-    csrf.exempt(mailing_bp)
-    csrf.exempt(accounting_bp)
-    csrf.exempt(hr_bp)
-    csrf.exempt(reporting_bp)
-    csrf.exempt(fitness_bp)
-    csrf.exempt(portal_bp)
 
     # Kontext-Prozessoren
     @app.context_processor

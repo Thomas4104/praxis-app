@@ -21,6 +21,7 @@
     Bearbeiten
 </a>
 <form method="POST" action="{{ url_for('addresses.toggle_doctor', doctor_id=doctor.id) }}" style="display:inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn {% if doctor.is_active %}btn-warning{% else %}btn-success{% endif %}">
         {{ 'Deaktivieren' if doctor.is_active else 'Aktivieren' }}
     </button>

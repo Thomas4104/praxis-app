@@ -190,7 +190,7 @@
     };
 
     function loadKPIs(params) {
-        fetch('/reporting/api/kpis', {
+        fetchWithCSRF('/reporting/api/kpis', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(params)
@@ -268,7 +268,7 @@
     }
 
     function loadCharts(params) {
-        fetch('/reporting/api/charts', {
+        fetchWithCSRF('/reporting/api/charts', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(params)

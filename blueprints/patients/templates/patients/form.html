@@ -14,6 +14,7 @@
 
 {% block content %}
 <form method="POST" class="patient-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <!-- Tab-Navigation -->
     <div class="form-tabs">
         <button type="button" class="form-tab active" data-tab="personalien">Personalien</button>

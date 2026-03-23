@@ -110,6 +110,7 @@
     <div class="card" style="padding: 16px;">
         <h3 style="margin: 0 0 12px; font-size: 15px;">Monatsabschluss</h3>
         <form method="POST" action="{{ url_for('accounting.lock_month') }}" onsubmit="return confirm('Monat wirklich sperren? Danach sind keine Buchungen mehr in diesem Monat möglich.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: flex; gap: 10px; align-items: end;">
                 <div>
                     <label class="form-label" style="font-size: 12px;">Jahr</label>
@@ -132,6 +133,7 @@
     <div class="card" style="padding: 16px;">
         <h3 style="margin: 0 0 12px; font-size: 15px;">Jahresabschluss</h3>
         <form method="POST" action="{{ url_for('accounting.lock_year') }}" onsubmit="return confirm('Jahr wirklich sperren? Danach sind keine Buchungen mehr in diesem Jahr möglich.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: flex; gap: 10px; align-items: end;">
                 <div>
                     <label class="form-label" style="font-size: 12px;">Jahr</label>

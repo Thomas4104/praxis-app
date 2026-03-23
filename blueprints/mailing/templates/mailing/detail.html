@@ -286,7 +286,7 @@
 
 <script>
 function moveEmail(folder) {
-    fetch('{{ url_for("mailing.move_email") }}', {
+    fetchWithCSRF('{{ url_for("mailing.move_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_ids: [{{ email.id }}], folder: folder})
@@ -300,7 +300,7 @@ function moveToSelectedFolder() {
 
 function deleteEmail() {
     if (!confirm('Diese E-Mail löschen?')) return;
-    fetch('{{ url_for("mailing.delete_email") }}', {
+    fetchWithCSRF('{{ url_for("mailing.delete_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_ids: [{{ email.id }}]})
@@ -310,7 +310,7 @@ function deleteEmail() {
 function linkPatient() {
     const patientId = document.getElementById('linkPatientSelect').value;
     if (!patientId) return;
-    fetch('{{ url_for("mailing.link_patient") }}', {
+    fetchWithCSRF('{{ url_for("mailing.link_patient") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_id: {{ email.id }}, patient_id: parseInt(patientId)})

@@ -475,7 +475,7 @@ function getSelectedIds() {
 function batchMarkRead() {
     const ids = getSelectedIds();
     if (ids.length === 0) return;
-    fetch('{{ url_for("mailing.mark_read") }}', {
+    fetchWithCSRF('{{ url_for("mailing.mark_read") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_ids: ids})
@@ -485,7 +485,7 @@ function batchMarkRead() {
 function batchArchive() {
     const ids = getSelectedIds();
     if (ids.length === 0) return;
-    fetch('{{ url_for("mailing.move_email") }}', {
+    fetchWithCSRF('{{ url_for("mailing.move_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_ids: ids, folder: 'archive'})
@@ -496,7 +496,7 @@ function batchDelete() {
     const ids = getSelectedIds();
     if (ids.length === 0) return;
     if (!confirm('Ausgewählte E-Mails löschen?')) return;
-    fetch('{{ url_for("mailing.delete_email") }}', {
+    fetchWithCSRF('{{ url_for("mailing.delete_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_ids: ids})
@@ -506,7 +506,7 @@ function batchDelete() {
 function createFolder() {
     const name = prompt('Name des neuen Ordners:');
     if (!name) return;
-    fetch('{{ url_for("mailing.create_folder") }}', {
+    fetchWithCSRF('{{ url_for("mailing.create_folder") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({name: name})

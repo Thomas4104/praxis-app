@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chatTyping.style.display = 'flex';
         scrollToBottom();
 
-        fetch('/api/chat', {
+        fetchWithCSRF('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: message })
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // === Chat leeren ===
     if (chatClearBtn) {
         chatClearBtn.addEventListener('click', function () {
-            fetch('/api/chat/clear', {
+            fetchWithCSRF('/api/chat/clear', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })

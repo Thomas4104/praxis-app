@@ -9,6 +9,7 @@
 
     {% if employees and locations %}
     <form method="POST" action="{{ url_for('settings.save_location_visibility') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="table-responsive">
             <table class="data-table visibility-table">
                 <thead>

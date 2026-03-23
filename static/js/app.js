@@ -2,6 +2,24 @@
  * OMNIA Praxissoftware - Globale JavaScript-Funktionen
  */
 
+/**
+ * Fetch-Wrapper der automatisch den CSRF-Token mitsendet.
+ * Verwenden fuer alle POST/PUT/DELETE AJAX-Requests.
+ */
+function fetchWithCSRF(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    if (!(options.body instanceof FormData)) {
+        options.headers['Content-Type'] = options.headers['Content-Type'] || 'application/json';
+    }
+    var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+    if (tokenMeta) {
+        options.headers['X-CSRFToken'] = tokenMeta.getAttribute('content');
+    }
+    options.credentials = options.credentials || 'same-origin';
+    return fetch(url, options);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
     // === Sidebar Toggle ===

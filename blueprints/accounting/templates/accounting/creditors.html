@@ -14,6 +14,7 @@
 
 {% block page_actions %}
 <form method="POST" action="{{ url_for('accounting.payment_run') }}" style="display: inline;" onsubmit="return confirm('Alle freigegebenen Rechnungen jetzt bezahlen?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-secondary">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -88,11 +89,13 @@
                 <td>
                     {% if ci.status == 'open' %}
                     <form method="POST" action="{{ url_for('accounting.approve_creditor', id=ci.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px;">Freigeben</button>
                     </form>
                     {% endif %}
                     {% if ci.status in ('open', 'approved') %}
                     <form method="POST" action="{{ url_for('accounting.pay_creditor', id=ci.id) }}" style="display: inline;" onsubmit="return confirm('Rechnung als bezahlt markieren?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; color: #27ae60;">Bezahlen</button>
                     </form>
                     {% endif %}
@@ -111,6 +114,7 @@
     <div class="card" style="padding: 24px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto;">
         <h3 style="margin: 0 0 16px;">Neue Lieferantenrechnung</h3>
         <form method="POST" action="{{ url_for('accounting.create_creditor') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; gap: 12px;">
                 <div>
                     <label class="form-label">Lieferant (Name)</label>

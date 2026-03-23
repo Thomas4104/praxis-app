@@ -1,5 +1,6 @@
 <!-- Öffnungszeiten Tab -->
 <form method="POST" action="{{ url_for('practice.save_opening_hours') }}" class="form-container" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-section">
         <h3 class="form-section-title">Standard-Öffnungszeiten der Organisation</h3>
         <p class="form-hint" style="margin-bottom: var(--spacing-md);">

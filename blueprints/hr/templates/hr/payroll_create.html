@@ -17,6 +17,7 @@
 {% block content %}
 <div class="card" style="max-width:500px;">
     <form method="POST" action="{{ url_for('hr.payroll_create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label>Monat</label>
             <select name="month" class="form-control">

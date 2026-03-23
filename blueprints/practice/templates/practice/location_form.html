@@ -14,6 +14,7 @@
 
 {% block content %}
 <form method="POST" class="form-container" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid form-grid-2">
         <!-- Linke Spalte: Stammdaten -->
         <div class="form-section">

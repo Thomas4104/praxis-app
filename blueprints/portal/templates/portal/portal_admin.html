@@ -75,9 +75,11 @@
                     <td>
                         {% if b.status == 'pending' %}
                         <form method="POST" action="{{ url_for('portal.confirm_booking', booking_id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-success" title="Bestätigen">&#10003;</button>
                         </form>
                         <form method="POST" action="{{ url_for('portal.reject_booking', booking_id=b.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-danger" title="Ablehnen">&#10007;</button>
                         </form>
                         {% endif %}

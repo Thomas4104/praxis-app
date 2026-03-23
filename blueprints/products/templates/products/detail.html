@@ -21,6 +21,7 @@
     Bearbeiten
 </a>
 <form method="POST" action="{{ url_for('products.toggle_active', product_id=product.id) }}" style="display:inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn {% if product.is_active %}btn-warning{% else %}btn-success{% endif %}">
         {{ 'Deaktivieren' if product.is_active else 'Aktivieren' }}
     </button>

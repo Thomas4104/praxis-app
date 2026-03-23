@@ -17,13 +17,16 @@
 {% block page_actions %}
 {% if run.status == 'calculated' %}
 <form method="POST" action="{{ url_for('hr.payroll_approve', run_id=run.id) }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-primary" onclick="return confirm('Lohnlauf freigeben?')">Freigeben</button>
 </form>
 <form method="POST" action="{{ url_for('hr.payroll_recalculate', run_id=run.id) }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-outline">Neu berechnen</button>
 </form>
 {% elif run.status == 'approved' %}
 <form method="POST" action="{{ url_for('hr.payroll_pay', run_id=run.id) }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-primary" onclick="return confirm('Lohnlauf als ausbezahlt markieren und in Buchhaltung buchen?')">Auszahlen & Buchen</button>
 </form>
 {% endif %}

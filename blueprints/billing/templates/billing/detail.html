@@ -38,11 +38,13 @@ Rechnung {{ invoice.invoice_number }}
 {% block page_actions %}
 {% if invoice.status == 'draft' %}
     <form method="POST" action="{{ url_for('billing.check_invoice', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-primary">Prüfen</button>
     </form>
 {% endif %}
 {% if invoice.status in ('draft', 'checked') %}
     <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="send_via" value="print">
         <button type="submit" class="btn btn-primary">Senden</button>
     </form>
@@ -52,12 +54,14 @@ Rechnung {{ invoice.invoice_number }}
 {% endif %}
 {% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 %}
     <form method="POST" action="{{ url_for('billing.send_dunning', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-secondary" onclick="return confirm('Mahnung Stufe {{ (invoice.dunning_level or 0) + 1 }} senden?')">Mahnung senden</button>
     </form>
 {% endif %}
 <a href="{{ url_for('billing.generate_pdf', id=invoice.id) }}" class="btn btn-secondary">PDF</a>
 {% if invoice.billing_model == 'tiers_payant' and invoice.status == 'sent' %}
     <form method="POST" action="{{ url_for('billing.send_tp_copy', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-ghost">TP-Kopie</button>
     </form>
 {% endif %}
@@ -331,14 +335,17 @@ Rechnung {{ invoice.invoice_number }}
             </div>
             <div style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
                 <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="send_via" value="email">
                     <button type="submit" class="btn btn-secondary" style="width:100%;">Per E-Mail senden</button>
                 </form>
                 <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="send_via" value="print">
                     <button type="submit" class="btn btn-secondary" style="width:100%;">Per Post senden (Drucken)</button>
                 </form>
                 <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="send_via" value="medidata">
                     <button type="submit" class="btn btn-ghost" style="width:100%;">MediData (Platzhalter)</button>
                 </form>
@@ -356,6 +363,7 @@ Rechnung {{ invoice.invoice_number }}
             <button type="button" onclick="document.getElementById('paymentModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-secondary);">&times;</button>
         </div>
         <form method="POST" action="{{ url_for('billing.add_payment', id=invoice.id) }}" style="padding: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label class="form-label">Betrag (CHF) *</label>
                 <input type="number" name="amount" class="form-input" value="{{ '%.2f'|format(invoice.amount_open) }}" min="0.01" step="0.01" required>

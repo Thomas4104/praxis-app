@@ -358,7 +358,7 @@ function speichereSoap(isAutoSave) {
         notes: document.getElementById('terminNotizen').value
     };
 
-    fetch('/treatment/api/termin/' + aktuellerTerminId + '/soap', {
+    fetchWithCSRF('/treatment/api/termin/' + aktuellerTerminId + '/soap', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -395,7 +395,7 @@ function serieStatus(neuerStatus) {
 
     if (!confirm(msg)) return;
 
-    fetch('/treatment/api/serie/' + SERIE_ID + '/status', {
+    fetchWithCSRF('/treatment/api/serie/' + SERIE_ID + '/status', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({status: neuerStatus})
@@ -409,7 +409,7 @@ function serieStatus(neuerStatus) {
 }
 
 function setzeHeilungsphase(phase) {
-    fetch('/treatment/api/heilungsphase', {
+    fetchWithCSRF('/treatment/api/heilungsphase', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({serie_id: SERIE_ID, phase_type: phase})

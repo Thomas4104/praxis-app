@@ -102,6 +102,7 @@
     <div class="card" style="padding: 24px; width: 480px; max-width: 95vw;">
         <h3 style="margin: 0 0 16px;">Neues Konto erstellen</h3>
         <form method="POST" action="{{ url_for('accounting.create_account') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; gap: 12px;">
                 <div>
                     <label class="form-label">Kontonummer</label>
@@ -144,6 +145,7 @@
     <div class="card" style="padding: 24px; width: 480px; max-width: 95vw;">
         <h3 style="margin: 0 0 16px;">Konto bearbeiten</h3>
         <form id="editAccountForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="display: grid; gap: 12px;">
                 <div>
                     <label class="form-label">Bezeichnung</label>

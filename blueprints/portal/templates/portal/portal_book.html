@@ -10,6 +10,7 @@
 
     <div class="portal-card portal-card-form">
         <form method="POST" id="bookingForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Schritt 1: Behandlungsart -->
             <div class="portal-form-group">
                 <label for="template_id">Behandlungsart *</label>

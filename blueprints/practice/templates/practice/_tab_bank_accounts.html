@@ -36,6 +36,7 @@
                         <span class="badge badge-success">Standard</span>
                     {% else %}
                         <form method="POST" action="{{ url_for('practice.set_default_bank_account', account_id=acc.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-secondary" title="Als Standard setzen">Standard setzen</button>
                         </form>
                     {% endif %}
@@ -48,6 +49,7 @@
                         </svg>
                     </a>
                     <form method="POST" action="{{ url_for('practice.toggle_bank_account', account_id=acc.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm btn-warning" title="Deaktivieren">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>

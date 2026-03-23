@@ -10,6 +10,7 @@
 
     <!-- Kanton laden -->
     <form method="POST" action="{{ url_for('practice.load_canton_holidays') }}" class="filter-bar" style="margin-bottom: var(--spacing-md);">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="year" value="{{ year }}">
         <div class="filter-group">
             <select name="canton" class="form-select" required>
@@ -57,6 +58,7 @@
                     </td>
                     <td class="actions-cell">
                         <form method="POST" action="{{ url_for('practice.delete_holiday', holiday_id=h.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-error" title="Löschen"
                                     onclick="return confirm('Feiertag wirklich löschen?')">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -81,6 +83,7 @@
     <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
         <h3 class="form-section-title">Feiertag hinzufügen</h3>
         <form method="POST" action="{{ url_for('practice.add_holiday') }}" class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-section" style="padding:0;">
                 <div class="form-group">
                     <label for="holiday_name" class="form-label required">Name</label>

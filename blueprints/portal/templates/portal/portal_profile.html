@@ -40,6 +40,7 @@
             </div>
             <div class="portal-card-body">
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="update_profile">
                     <div class="portal-form-row">
                         <div class="portal-form-group">
@@ -95,6 +96,7 @@
             </div>
             <div class="portal-card-body">
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="change_password">
                     <div class="portal-form-group">
                         <label for="current_password">Aktuelles Passwort</label>

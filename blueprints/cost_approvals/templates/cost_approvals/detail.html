@@ -265,21 +265,21 @@ Gutsprache {{ gutsprache.approval_number }}
 <script>
 function sendApproval() {
     if (!confirm('Gutsprache jetzt senden?')) return;
-    fetch('/cost-approvals/api/{{ gutsprache.id }}/send', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/send', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => { if (data.success) location.reload(); else alert(data.error); });
 }
 
 function cancelApproval() {
     if (!confirm('Gutsprache wirklich stornieren?')) return;
-    fetch('/cost-approvals/api/{{ gutsprache.id }}/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => { if (data.success) location.reload(); else alert(data.error); });
 }
 
 function resendApproval() {
     if (!confirm('Gutsprache erneut senden?')) return;
-    fetch('/cost-approvals/api/{{ gutsprache.id }}/resend', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/resend', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
         .then(data => { if (data.success) location.reload(); else alert(data.error); });
 }
@@ -308,7 +308,7 @@ function submitResponse() {
         rejection_reason: document.getElementById('responseRejectionReason').value,
         response_notes: document.getElementById('responseNotes').value
     };
-    fetch('/cost-approvals/api/{{ gutsprache.id }}/respond', {
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/respond', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)

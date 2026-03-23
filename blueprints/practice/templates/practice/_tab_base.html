@@ -1,5 +1,6 @@
 <!-- Basisdaten Tab -->
 <form method="POST" action="{{ url_for('practice.edit_base') }}" class="form-container" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid form-grid-2">
         <!-- Linke Spalte -->
         <div class="form-section">

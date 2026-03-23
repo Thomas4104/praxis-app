@@ -16,6 +16,7 @@
 
 {% block content %}
 <form method="POST" action="{{ url_for('accounting.create_booking') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <!-- Buchungskopf -->
         <div class="card" style="padding: 20px;">

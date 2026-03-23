@@ -320,7 +320,7 @@ function sendEmail() {
     btn.disabled = true;
     btn.textContent = 'Wird gesendet...';
 
-    fetch('{{ url_for("mailing.send_email") }}', {
+    fetchWithCSRF('{{ url_for("mailing.send_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -345,7 +345,7 @@ function sendEmail() {
 function saveDraft() {
     const data = getFormData();
 
-    fetch('{{ url_for("mailing.save_draft") }}', {
+    fetchWithCSRF('{{ url_for("mailing.save_draft") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
