@@ -322,18 +322,21 @@ def seed_demo_data():
     # === Versicherungen ===
     insurances = [
         InsuranceProvider(
+            organization_id=org.id,
             name='Helsana', gln_number='7601003000015',
             address='Postfach', city='Zuerich', zip_code='8081',
             phone='+41 58 340 00 00', email='info@helsana.ch',
             supports_electronic_billing=True
         ),
         InsuranceProvider(
+            organization_id=org.id,
             name='CSS Versicherung', gln_number='7601003000022',
             address='Tribschenstrasse 21', city='Luzern', zip_code='6002',
             phone='+41 58 277 11 11', email='info@css.ch',
             supports_electronic_billing=True
         ),
         InsuranceProvider(
+            organization_id=org.id,
             name='Swica', gln_number='7601003000039',
             address='Roeoeslistrasse 15', city='Winterthur', zip_code='8401',
             phone='+41 52 244 22 33', email='info@swica.ch',
@@ -345,23 +348,23 @@ def seed_demo_data():
 
     # === Aerzte ===
     doctors = [
-        Doctor(salutation='Dr. med.', first_name='Peter', last_name='Mueller',
+        Doctor(organization_id=org.id, salutation='Dr. med.', first_name='Peter', last_name='Mueller',
                specialty='Allgemeinmedizin', gln_number='7601000000101',
                zsr_number='B000001', address='Seestrasse 10', city='Zuerich',
                zip_code='8002', phone='+41 44 201 00 01'),
-        Doctor(salutation='Dr. med.', first_name='Anna', last_name='Schmidt',
+        Doctor(organization_id=org.id, salutation='Dr. med.', first_name='Anna', last_name='Schmidt',
                specialty='Orthopaedie', gln_number='7601000000102',
                zsr_number='B000002', address='Bahnhofplatz 5', city='Winterthur',
                zip_code='8400', phone='+41 52 212 00 02'),
-        Doctor(salutation='Dr. med.', first_name='Marco', last_name='Rossi',
+        Doctor(organization_id=org.id, salutation='Dr. med.', first_name='Marco', last_name='Rossi',
                specialty='Rheumatologie', gln_number='7601000000103',
                zsr_number='B000003', address='Langstrasse 88', city='Zuerich',
                zip_code='8004', phone='+41 44 241 00 03'),
-        Doctor(salutation='Dr. med.', first_name='Claudia', last_name='Bianchi',
+        Doctor(organization_id=org.id, salutation='Dr. med.', first_name='Claudia', last_name='Bianchi',
                specialty='Neurologie', gln_number='7601000000104',
                zsr_number='B000004', address='Marktplatz 3', city='Winterthur',
                zip_code='8400', phone='+41 52 222 00 04'),
-        Doctor(salutation='Dr. med.', first_name='Stefan', last_name='Keller',
+        Doctor(organization_id=org.id, salutation='Dr. med.', first_name='Stefan', last_name='Keller',
                specialty='Chirurgie', gln_number='7601000000105',
                zsr_number='B000005', address='Limmatquai 12', city='Zuerich',
                zip_code='8001', phone='+41 44 251 00 05')

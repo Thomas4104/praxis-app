@@ -42,6 +42,8 @@ class Organization(db.Model):
     emails = db.relationship('Email', backref='organization', lazy='dynamic')
     bank_accounts = db.relationship('BankAccount', backref='organization', lazy='dynamic')
     holidays = db.relationship('Holiday', backref='organization', lazy='dynamic')
+    doctors = db.relationship('Doctor', backref='organization', lazy='dynamic')
+    insurance_providers = db.relationship('InsuranceProvider', backref='organization', lazy='dynamic')
 
 
 class Location(db.Model):
@@ -186,6 +188,7 @@ class AbsenceQuota(db.Model):
 class Permission(db.Model):
     __tablename__ = 'permissions'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     role = db.Column(db.String(20), nullable=False)
     module = db.Column(db.String(50), nullable=False)
     action = db.Column(db.String(50), nullable=False)
@@ -198,6 +201,9 @@ class Permission(db.Model):
 
 class Patient(db.Model):
     __tablename__ = 'patients'
+    __table_args__ = (
+        db.UniqueConstraint('organization_id', 'patient_number', name='uix_org_patient_number'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     patient_number = db.Column(db.String(20))
@@ -274,6 +280,7 @@ class PatientDocument(db.Model):
 class InsuranceProvider(db.Model):
     __tablename__ = 'insurance_providers'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     name = db.Column(db.String(200), nullable=False)
     gln_number = db.Column(db.String(20))
     address = db.Column(db.String(300))
@@ -292,6 +299,7 @@ class InsuranceProvider(db.Model):
 class Doctor(db.Model):
     __tablename__ = 'doctors'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     salutation = db.Column(db.String(20))
     first_name = db.Column(db.String(100))
     last_name = db.Column(db.String(100), nullable=False)
@@ -504,12 +512,15 @@ class Appointment(db.Model):
 
 class Invoice(db.Model):
     __tablename__ = 'invoices'
+    __table_args__ = (
+        db.UniqueConstraint('organization_id', 'invoice_number', name='uix_org_invoice_number'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
-    invoice_number = db.Column(db.String(30), unique=True)
+    invoice_number = db.Column(db.String(30))
     amount_total = db.Column(db.Float, default=0.0)
     amount_paid = db.Column(db.Float, default=0.0)
     amount_open = db.Column(db.Float, default=0.0)
@@ -775,6 +786,7 @@ class EmailFolder(db.Model):
 class ChatMessage(db.Model):
     __tablename__ = 'chat_messages'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     role = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)
