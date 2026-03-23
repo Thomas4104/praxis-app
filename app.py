@@ -54,7 +54,6 @@ def create_app():
 
     # API-Routen umleiten (Dashboard-Chat-API global verfügbar machen)
     @app.route('/api/chat', methods=['POST'])
-    @csrf.exempt
     def api_chat():
         from blueprints.dashboard.routes import chat
         return chat()
@@ -65,7 +64,6 @@ def create_app():
         return chat_history()
 
     @app.route('/api/chat/clear', methods=['POST'])
-    @csrf.exempt
     def api_chat_clear():
         from blueprints.dashboard.routes import chat_clear
         return chat_clear()
@@ -76,22 +74,26 @@ def create_app():
         return api_appointments()
 
     @app.route('/api/calendar/appointments', methods=['POST'])
-    @csrf.exempt
     def api_calendar_create():
         from blueprints.calendar.routes import api_create_appointment
         return api_create_appointment()
 
     @app.route('/api/calendar/appointments/<int:id>', methods=['PUT'])
-    @csrf.exempt
     def api_calendar_update(id):
         from blueprints.calendar.routes import api_update_appointment
         return api_update_appointment(id)
 
     @app.route('/api/calendar/appointments/<int:id>', methods=['DELETE'])
-    @csrf.exempt
     def api_calendar_delete(id):
         from blueprints.calendar.routes import api_delete_appointment
         return api_delete_appointment(id)
+
+    # CSRF für alle API-Routen deaktivieren
+    csrf.exempt(api_chat)
+    csrf.exempt(api_chat_clear)
+    csrf.exempt(api_calendar_create)
+    csrf.exempt(api_calendar_update)
+    csrf.exempt(api_calendar_delete)
 
     # Wurzel-Route
     @app.route('/')
