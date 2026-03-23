@@ -1,0 +1,120 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Termin buchen{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <div class="portal-page-header">
+        <h1>Neuen Termin buchen</h1>
+        <a href="{{ url_for('portal.appointments') }}" class="portal-btn portal-btn-outline">Zurück</a>
+    </div>
+
+    <div class="portal-card portal-card-form">
+        <form method="POST" id="bookingForm">
+            <!-- Schritt 1: Behandlungsart -->
+            <div class="portal-form-group">
+                <label for="template_id">Behandlungsart *</label>
+                <select id="template_id" name="template_id" required class="portal-select" onchange="loadSlots()">
+                    <option value="">Bitte wählen...</option>
+                    {% for t in templates %}
+                    <option value="{{ t.id }}" data-duration="{{ t.duration_minutes }}">
+                        {{ t.name }} ({{ t.duration_minutes }} Min.)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Schritt 2: Therapeut -->
+            <div class="portal-form-group">
+                <label for="employee_id">Therapeut (optional)</label>
+                <select id="employee_id" name="employee_id" class="portal-select" onchange="loadSlots()">
+                    <option value="">Kein Wunsch</option>
+                    {% for emp in employees %}
+                    {% if emp.user %}
+                    <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Schritt 3: Datum -->
+            <div class="portal-form-group">
+                <label for="requested_date">Wunschdatum *</label>
+                <input type="date" id="requested_date" name="requested_date" required
+                       class="portal-input" onchange="loadSlots()"
+                       min="{{ today.strftime('%Y-%m-%d') if today else '' }}">
+            </div>
+
+            <!-- Schritt 4: Verfuegbare Slots -->
+            <div class="portal-form-group" id="slotsContainer" style="display:none;">
+                <label>Verfügbare Zeiten</label>
+                <div id="slotsGrid" class="portal-slots-grid"></div>
+                <input type="hidden" id="requested_time" name="requested_time" required>
+            </div>
+
+            <!-- Anmerkungen -->
+            <div class="portal-form-group">
+                <label for="notes">Anmerkungen (optional)</label>
+                <textarea id="notes" name="notes" class="portal-textarea" rows="3"
+                          placeholder="Besondere Wünsche oder Hinweise..."></textarea>
+            </div>
+
+            <button type="submit" class="portal-btn portal-btn-primary portal-btn-block" id="submitBtn" disabled>
+                Terminanfrage senden
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedSlot = null;
+
+function loadSlots() {
+    const templateId = document.getElementById('template_id').value;
+    const employeeId = document.getElementById('employee_id').value;
+    const dateVal = document.getElementById('requested_date').value;
+    const container = document.getElementById('slotsContainer');
+    const grid = document.getElementById('slotsGrid');
+
+    if (!templateId || !dateVal) {
+        container.style.display = 'none';
+        return;
+    }
+
+    let url = `/portal/api/available-slots?template_id=${templateId}&date=${dateVal}`;
+    if (employeeId) url += `&employee_id=${employeeId}`;
+
+    grid.innerHTML = '<p class="portal-text-muted">Verfügbare Zeiten werden geladen...</p>';
+    container.style.display = 'block';
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (data.slots && data.slots.length > 0) {
+                grid.innerHTML = '';
+                data.slots.forEach(slot => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'portal-slot-btn';
+                    btn.innerHTML = `<strong>${slot.time}</strong><small>${slot.employee_name}</small>`;
+                    btn.onclick = function() {
+                        document.querySelectorAll('.portal-slot-btn').forEach(b => b.classList.remove('selected'));
+                        this.classList.add('selected');
+                        document.getElementById('requested_time').value = slot.time;
+                        document.getElementById('submitBtn').disabled = false;
+                        selectedSlot = slot;
+                    };
+                    grid.appendChild(btn);
+                });
+            } else {
+                grid.innerHTML = '<p class="portal-text-muted">Keine verfügbaren Zeiten an diesem Tag. Bitte wählen Sie ein anderes Datum.</p>';
+                document.getElementById('submitBtn').disabled = true;
+            }
+        })
+        .catch(() => {
+            grid.innerHTML = '<p class="portal-text-muted">Fehler beim Laden der Zeiten.</p>';
+        });
+}
+</script>
+{% endblock %}

@@ -260,6 +260,7 @@ class PatientDocument(db.Model):
     file_type = db.Column(db.String(50))
     document_type = db.Column(db.String(50))  # verordnung, arztbericht, befund, foto, sonstiges
     notes = db.Column(db.Text)
+    portal_visible = db.Column(db.Boolean, default=False)  # Im Patientenportal sichtbar
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1368,3 +1369,63 @@ class FitnessVisit(db.Model):
     subscription = db.relationship('Subscription', backref=db.backref('visits', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('fitness_visits', lazy='dynamic'))
     location = db.relationship('Location', backref=db.backref('fitness_visits', lazy='dynamic'))
+
+
+# ============================================================
+# Patientenportal
+# ============================================================
+
+class PortalAccount(db.Model):
+    """Portal-Zugang fuer Patienten (separates Login-System)"""
+    __tablename__ = 'portal_accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), unique=True)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    is_active = db.Column(db.Boolean, default=False)  # Muss von Praxis aktiviert werden
+    is_verified = db.Column(db.Boolean, default=False)
+    last_login = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('portal_account', uselist=False))
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+
+class PortalMessage(db.Model):
+    """Nachrichten zwischen Patient und Praxis"""
+    __tablename__ = 'portal_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    sender_type = db.Column(db.String(10), nullable=False)  # patient, practice
+    sender_name = db.Column(db.String(200))
+    subject = db.Column(db.String(500))
+    body = db.Column(db.Text, nullable=False)
+    read_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('portal_messages', lazy='dynamic'))
+
+
+class OnlineBookingRequest(db.Model):
+    """Online-Buchungsanfragen ueber das Patientenportal"""
+    __tablename__ = 'online_booking_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))
+    preferred_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
+    requested_date = db.Column(db.Date, nullable=False)
+    requested_time = db.Column(db.Time, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, confirmed, rejected
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('booking_requests', lazy='dynamic'))
+    template = db.relationship('TreatmentSeriesTemplate', backref='booking_requests')
+    preferred_employee = db.relationship('Employee', backref='booking_requests')
+    appointment = db.relationship('Appointment', backref='booking_request')

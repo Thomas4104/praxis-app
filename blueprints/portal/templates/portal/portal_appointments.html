@@ -1,0 +1,117 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Termine{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <div class="portal-page-header">
+        <h1>Meine Termine</h1>
+        <a href="{{ url_for('portal.book_appointment') }}" class="portal-btn portal-btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Neuen Termin buchen
+        </a>
+    </div>
+
+    <!-- Anstehende Termine -->
+    <section class="portal-section">
+        <h2>Anstehende Termine</h2>
+        {% if upcoming %}
+        <div class="portal-list">
+            {% for apt in upcoming %}
+            <div class="portal-list-item">
+                <div class="portal-appointment-date">
+                    <span class="portal-date-day">{{ apt.start_time.strftime('%d') }}</span>
+                    <span class="portal-date-month">{{ ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][apt.start_time.month - 1] }}</span>
+                </div>
+                <div class="portal-list-item-content">
+                    <strong>{{ apt.start_time.strftime('%H:%M') }} – {{ apt.end_time.strftime('%H:%M') }} Uhr</strong>
+                    <span>{{ apt.title or apt.appointment_type or 'Behandlung' }}</span>
+                    {% if apt.employee %}
+                    <span class="portal-text-muted">{{ apt.employee.user.first_name }} {{ apt.employee.user.last_name }}</span>
+                    {% endif %}
+                    {% if apt.location %}
+                    <span class="portal-text-muted">{{ apt.location.name }}</span>
+                    {% endif %}
+                </div>
+                <div class="portal-list-item-actions">
+                    {% set hours_until = (apt.start_time - now).total_seconds() / 3600 if now else 999 %}
+                    {% if (apt.start_time - current_datetime).total_seconds() > 86400 %}
+                    <form method="POST" action="{{ url_for('portal.cancel_appointment', appointment_id=apt.id) }}"
+                          onsubmit="return confirm('Möchten Sie diesen Termin wirklich absagen?')">
+                        <button type="submit" class="portal-btn portal-btn-sm portal-btn-danger">Absagen</button>
+                    </form>
+                    {% else %}
+                    <span class="portal-badge portal-badge-muted">Absage nicht mehr möglich</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="portal-empty">
+            <p>Keine anstehenden Termine.</p>
+            <a href="{{ url_for('portal.book_appointment') }}" class="portal-btn portal-btn-primary">Jetzt Termin buchen</a>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Buchungsanfragen -->
+    {% if booking_requests %}
+    <section class="portal-section">
+        <h2>Buchungsanfragen</h2>
+        <div class="portal-list">
+            {% for req in booking_requests %}
+            <div class="portal-list-item">
+                <div class="portal-appointment-date">
+                    <span class="portal-date-day">{{ req.requested_date.strftime('%d') }}</span>
+                    <span class="portal-date-month">{{ ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][req.requested_date.month - 1] }}</span>
+                </div>
+                <div class="portal-list-item-content">
+                    <strong>{{ req.requested_time.strftime('%H:%M') }} Uhr</strong>
+                    <span>{{ req.template.name if req.template else 'Behandlung' }}</span>
+                    {% if req.preferred_employee %}
+                    <span class="portal-text-muted">Wunsch: {{ req.preferred_employee.user.first_name }} {{ req.preferred_employee.user.last_name }}</span>
+                    {% endif %}
+                </div>
+                <div class="portal-list-item-actions">
+                    {% if req.status == 'pending' %}
+                    <span class="portal-badge portal-badge-warning">Ausstehend</span>
+                    {% elif req.status == 'confirmed' %}
+                    <span class="portal-badge portal-badge-success">Bestätigt</span>
+                    {% elif req.status == 'rejected' %}
+                    <span class="portal-badge portal-badge-danger">Abgelehnt</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Vergangene Termine -->
+    {% if past %}
+    <section class="portal-section">
+        <h2>Vergangene Termine</h2>
+        <div class="portal-list portal-list-muted">
+            {% for apt in past %}
+            <div class="portal-list-item">
+                <div class="portal-appointment-date portal-date-muted">
+                    <span class="portal-date-day">{{ apt.start_time.strftime('%d') }}</span>
+                    <span class="portal-date-month">{{ ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][apt.start_time.month - 1] }}</span>
+                </div>
+                <div class="portal-list-item-content">
+                    <strong>{{ apt.start_time.strftime('%d.%m.%Y %H:%M') }} Uhr</strong>
+                    <span>{{ apt.title or apt.appointment_type or 'Behandlung' }}</span>
+                    {% if apt.employee %}
+                    <span class="portal-text-muted">{{ apt.employee.user.first_name }} {{ apt.employee.user.last_name }}</span>
+                    {% endif %}
+                    <span class="portal-badge portal-badge-{{ 'success' if apt.status == 'completed' else ('danger' if apt.status == 'cancelled' else 'muted') }}">
+                        {{ apt.status }}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

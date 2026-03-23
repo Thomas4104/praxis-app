@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anmelden - OMNIA Patientenportal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+</head>
+<body class="portal-auth-page">
+    <div class="portal-auth-container">
+        <div class="portal-auth-card">
+            <div class="portal-auth-header">
+                <div class="portal-auth-logo">OMNIA</div>
+                <h1>Patientenportal</h1>
+                <p>Melden Sie sich an, um Ihre Termine und Dokumente einzusehen.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="portal-alerts">
+                {% for category, message in messages %}
+                <div class="portal-alert portal-alert-{{ category }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="portal-auth-form">
+                <div class="portal-form-group">
+                    <label for="email">E-Mail-Adresse</label>
+                    <input type="email" id="email" name="email" required
+                           placeholder="ihre.email@beispiel.ch" autocomplete="email">
+                </div>
+                <div class="portal-form-group">
+                    <label for="password">Passwort</label>
+                    <input type="password" id="password" name="password" required
+                           placeholder="Ihr Passwort" autocomplete="current-password">
+                </div>
+                <button type="submit" class="portal-btn portal-btn-primary portal-btn-block">
+                    Anmelden
+                </button>
+            </form>
+
+            <div class="portal-auth-footer">
+                <a href="#" class="portal-link" onclick="document.getElementById('forgotInfo').style.display='block'; return false;">
+                    Passwort vergessen?
+                </a>
+                <div id="forgotInfo" class="portal-info-box" style="display:none; margin-top: 12px;">
+                    Bitte kontaktieren Sie Ihre Praxis, um Ihr Passwort zurückzusetzen.
+                </div>
+                <hr class="portal-divider">
+                <p>Noch kein Konto?</p>
+                <a href="{{ url_for('portal.register') }}" class="portal-btn portal-btn-outline portal-btn-block">
+                    Registrieren
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

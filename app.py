@@ -15,7 +15,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock, \
     EmployeeContract, EmployeeSalary, EmployeeChild, PayrollRun, Payslip, \
     TimeEntry, OvertimeAccount, Expense, SavedReport, \
-    SubscriptionTemplate, Subscription, FitnessVisit
+    SubscriptionTemplate, Subscription, FitnessVisit, \
+    PortalAccount, PortalMessage, OnlineBookingRequest
 from config import config
 
 
@@ -64,6 +65,7 @@ def create_app(config_name=None):
     from blueprints.hr import hr_bp
     from blueprints.reporting import reporting_bp
     from blueprints.fitness import fitness_bp
+    from blueprints.portal import portal_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -84,6 +86,7 @@ def create_app(config_name=None):
     app.register_blueprint(hr_bp, url_prefix='/hr')
     app.register_blueprint(reporting_bp, url_prefix='/reporting')
     app.register_blueprint(fitness_bp, url_prefix='/fitness')
+    app.register_blueprint(portal_bp, url_prefix='/portal')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -104,6 +107,7 @@ def create_app(config_name=None):
     csrf.exempt(hr_bp)
     csrf.exempt(reporting_bp)
     csrf.exempt(fitness_bp)
+    csrf.exempt(portal_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1076,6 +1080,82 @@ def seed_demo_data():
             termin.soap_assessment = soap_daten[i]['soap_assessment']
             termin.soap_plan = soap_daten[i]['soap_plan']
             termin.status = soap_daten[i]['status']
+
+    db.session.commit()
+
+    # === Patientenportal: Demo-Daten ===
+    portal_max = PortalAccount(
+        patient_id=patients[0].id,
+        email='max.huber@gmail.com',
+        is_active=True,
+        is_verified=True
+    )
+    portal_max.set_password('portal123')
+
+    portal_sandra = PortalAccount(
+        patient_id=patients[1].id,
+        email='sandra.meier@bluewin.ch',
+        is_active=True,
+        is_verified=True
+    )
+    portal_sandra.set_password('portal123')
+
+    portal_lukas = PortalAccount(
+        patient_id=patients[4].id,
+        email='lukas.z@gmail.com',
+        is_active=False,
+        is_verified=False
+    )
+    portal_lukas.set_password('portal123')
+
+    db.session.add_all([portal_max, portal_sandra, portal_lukas])
+    db.session.flush()
+
+    # Portal-Nachrichten
+    pmsg1 = PortalMessage(
+        patient_id=patients[0].id,
+        sender_type='patient',
+        sender_name='Max Huber',
+        subject='Frage zu meinem nächsten Termin',
+        body='Guten Tag, ich wollte fragen ob es möglich wäre, meinen Termin am Donnerstag um eine Stunde zu verschieben? Vielen Dank.',
+        created_at=datetime(2026, 3, 20, 14, 30)
+    )
+    pmsg2 = PortalMessage(
+        patient_id=patients[0].id,
+        sender_type='practice',
+        sender_name='OMNIA Praxisteam',
+        subject='Re: Frage zu meinem nächsten Termin',
+        body='Guten Tag Herr Huber, selbstverständlich können wir Ihren Termin verschieben. Wir haben Sie auf 10:00 Uhr umgebucht. Freundliche Grüsse, Ihr OMNIA Praxisteam.',
+        read_at=datetime(2026, 3, 20, 16, 0),
+        created_at=datetime(2026, 3, 20, 15, 45)
+    )
+    pmsg3 = PortalMessage(
+        patient_id=patients[1].id,
+        sender_type='practice',
+        sender_name='OMNIA Praxisteam',
+        subject='Erinnerung: Verordnung einreichen',
+        body='Guten Tag Frau Meier, wir möchten Sie daran erinnern, dass wir für die Fortsetzung Ihrer Behandlung eine neue Verordnung benötigen. Bitte bringen Sie diese zum nächsten Termin mit. Freundliche Grüsse, Ihr OMNIA Praxisteam.',
+        created_at=datetime(2026, 3, 21, 9, 0)
+    )
+    db.session.add_all([pmsg1, pmsg2, pmsg3])
+
+    # Online-Buchungsanfrage (pending)
+    buchung1 = OnlineBookingRequest(
+        patient_id=patients[0].id,
+        template_id=tpl_physio_kvg.id,
+        preferred_employee_id=employees['thomas'].id,
+        requested_date=date(2026, 4, 2),
+        requested_time=time(10, 0),
+        status='pending',
+        notes='Wenn möglich am Vormittag.',
+        created_at=datetime(2026, 3, 22, 11, 30)
+    )
+    db.session.add(buchung1)
+
+    # 2 Dokumente als portal_visible markieren
+    portal_docs = PatientDocument.query.filter_by(patient_id=patients[0].id).limit(2).all()
+    for doc in portal_docs:
+        doc.portal_visible = True
 
     db.session.commit()
 

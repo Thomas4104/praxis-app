@@ -1,0 +1,27 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Neue Nachricht{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <div class="portal-page-header">
+        <h1>Neue Nachricht</h1>
+        <a href="{{ url_for('portal.messages') }}" class="portal-btn portal-btn-outline">Zurück</a>
+    </div>
+
+    <div class="portal-card portal-card-form">
+        <form method="POST">
+            <div class="portal-form-group">
+                <label for="subject">Betreff *</label>
+                <input type="text" id="subject" name="subject" required class="portal-input"
+                       placeholder="Worum geht es?">
+            </div>
+            <div class="portal-form-group">
+                <label for="body">Nachricht *</label>
+                <textarea id="body" name="body" required class="portal-textarea" rows="6"
+                          placeholder="Ihre Nachricht an die Praxis..."></textarea>
+            </div>
+            <button type="submit" class="portal-btn portal-btn-primary">Nachricht senden</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

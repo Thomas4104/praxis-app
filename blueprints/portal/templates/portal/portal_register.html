@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrieren - OMNIA Patientenportal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+</head>
+<body class="portal-auth-page">
+    <div class="portal-auth-container">
+        <div class="portal-auth-card">
+            <div class="portal-auth-header">
+                <div class="portal-auth-logo">OMNIA</div>
+                <h1>Registrierung</h1>
+                <p>Erstellen Sie Ihren Zugang zum Patientenportal.</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="portal-alerts">
+                {% for category, message in messages %}
+                <div class="portal-alert portal-alert-{{ category }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="portal-auth-form">
+                <div class="portal-form-row">
+                    <div class="portal-form-group">
+                        <label for="first_name">Vorname *</label>
+                        <input type="text" id="first_name" name="first_name" required
+                               placeholder="Ihr Vorname">
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="last_name">Nachname *</label>
+                        <input type="text" id="last_name" name="last_name" required
+                               placeholder="Ihr Nachname">
+                    </div>
+                </div>
+                <div class="portal-form-group">
+                    <label for="date_of_birth">Geburtsdatum *</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth" required>
+                </div>
+                <div class="portal-form-group">
+                    <label for="email">E-Mail-Adresse *</label>
+                    <input type="email" id="email" name="email" required
+                           placeholder="ihre.email@beispiel.ch" autocomplete="email">
+                </div>
+                <div class="portal-form-group">
+                    <label for="password">Passwort * <small>(mindestens 6 Zeichen)</small></label>
+                    <input type="password" id="password" name="password" required minlength="6"
+                           placeholder="Passwort wählen" autocomplete="new-password">
+                </div>
+                <div class="portal-form-group">
+                    <label for="password_confirm">Passwort bestätigen *</label>
+                    <input type="password" id="password_confirm" name="password_confirm" required
+                           placeholder="Passwort wiederholen" autocomplete="new-password">
+                </div>
+                <button type="submit" class="portal-btn portal-btn-primary portal-btn-block">
+                    Registrieren
+                </button>
+            </form>
+
+            <div class="portal-auth-footer">
+                <p>Bereits registriert?</p>
+                <a href="{{ url_for('portal.login') }}" class="portal-btn portal-btn-outline portal-btn-block">
+                    Zur Anmeldung
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

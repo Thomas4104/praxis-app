@@ -1,0 +1,120 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Profil{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <h1>Mein Profil</h1>
+
+    <div class="portal-cards portal-cards-stack">
+        <!-- Persönliche Daten (nur Anzeige) -->
+        <div class="portal-card">
+            <div class="portal-card-header">
+                <h2>Persönliche Daten</h2>
+            </div>
+            <div class="portal-card-body">
+                <div class="portal-info-grid">
+                    <div class="portal-info-item">
+                        <label>Name</label>
+                        <span>{{ patient.first_name }} {{ patient.last_name }}</span>
+                    </div>
+                    <div class="portal-info-item">
+                        <label>Geburtsdatum</label>
+                        <span>{{ patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else '-' }}</span>
+                    </div>
+                    <div class="portal-info-item">
+                        <label>Geschlecht</label>
+                        <span>{{ patient.gender or '-' }}</span>
+                    </div>
+                    <div class="portal-info-item">
+                        <label>AHV-Nummer</label>
+                        <span>{{ patient.ahv_number or '-' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kontaktdaten (bearbeitbar) -->
+        <div class="portal-card">
+            <div class="portal-card-header">
+                <h2>Kontaktdaten</h2>
+            </div>
+            <div class="portal-card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="update_profile">
+                    <div class="portal-form-row">
+                        <div class="portal-form-group">
+                            <label for="phone">Telefon</label>
+                            <input type="tel" id="phone" name="phone" class="portal-input"
+                                   value="{{ patient.phone or '' }}">
+                        </div>
+                        <div class="portal-form-group">
+                            <label for="mobile">Mobil</label>
+                            <input type="tel" id="mobile" name="mobile" class="portal-input"
+                                   value="{{ patient.mobile or '' }}">
+                        </div>
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="email">E-Mail</label>
+                        <input type="email" id="email" name="email" class="portal-input"
+                               value="{{ patient.email or '' }}">
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="address">Adresse</label>
+                        <input type="text" id="address" name="address" class="portal-input"
+                               value="{{ patient.address or '' }}">
+                    </div>
+                    <div class="portal-form-row">
+                        <div class="portal-form-group">
+                            <label for="zip_code">PLZ</label>
+                            <input type="text" id="zip_code" name="zip_code" class="portal-input"
+                                   value="{{ patient.zip_code or '' }}">
+                        </div>
+                        <div class="portal-form-group">
+                            <label for="city">Ort</label>
+                            <input type="text" id="city" name="city" class="portal-input"
+                                   value="{{ patient.city or '' }}">
+                        </div>
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="preferred_contact_method">Bevorzugte Kontaktmethode</label>
+                        <select id="preferred_contact_method" name="preferred_contact_method" class="portal-select">
+                            <option value="phone" {% if patient.preferred_contact_method == 'phone' %}selected{% endif %}>Telefon</option>
+                            <option value="email" {% if patient.preferred_contact_method == 'email' %}selected{% endif %}>E-Mail</option>
+                            <option value="sms" {% if patient.preferred_contact_method == 'sms' %}selected{% endif %}>SMS</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="portal-btn portal-btn-primary">Änderungen speichern</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Passwort ändern -->
+        <div class="portal-card">
+            <div class="portal-card-header">
+                <h2>Passwort ändern</h2>
+            </div>
+            <div class="portal-card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="change_password">
+                    <div class="portal-form-group">
+                        <label for="current_password">Aktuelles Passwort</label>
+                        <input type="password" id="current_password" name="current_password" required
+                               class="portal-input" autocomplete="current-password">
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="new_password">Neues Passwort <small>(mindestens 6 Zeichen)</small></label>
+                        <input type="password" id="new_password" name="new_password" required minlength="6"
+                               class="portal-input" autocomplete="new-password">
+                    </div>
+                    <div class="portal-form-group">
+                        <label for="confirm_password">Neues Passwort bestätigen</label>
+                        <input type="password" id="confirm_password" name="confirm_password" required
+                               class="portal-input" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="portal-btn portal-btn-primary">Passwort ändern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

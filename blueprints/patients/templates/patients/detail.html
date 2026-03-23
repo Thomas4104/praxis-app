@@ -95,6 +95,8 @@
        class="detail-tab {% if tab == 'documents' %}active{% endif %}">Dokumente</a>
     <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='communication') }}"
        class="detail-tab {% if tab == 'communication' %}active{% endif %}">Kommunikation</a>
+    <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='portal') }}"
+       class="detail-tab {% if tab == 'portal' %}active{% endif %}">Portal</a>
 </div>
 
 <!-- Tab: Übersicht -->
@@ -509,6 +511,64 @@
             <p>Keine Kommunikation vorhanden.</p>
             <p class="text-muted" style="font-size: var(--font-size-sm);">E-Mail-Versand wird in einer späteren Version verfügbar.</p>
         </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if tab == 'portal' %}
+<div class="card">
+    <div class="card-body">
+        <h3 style="margin: 0 0 16px;">Portal-Zugang</h3>
+        {% if patient.portal_account %}
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+            <span class="badge {% if patient.portal_account.is_active %}badge-success{% else %}badge-warning{% endif %}" style="font-size:14px; padding:6px 14px;">
+                {% if patient.portal_account.is_active %}Aktiv{% else %}Inaktiv{% endif %}
+            </span>
+            <span style="color: var(--color-gray-500); font-size: var(--font-size-sm);">
+                E-Mail: {{ patient.portal_account.email }}
+                {% if patient.portal_account.last_login %}
+                — Letzter Login: {{ patient.portal_account.last_login.strftime('%d.%m.%Y %H:%M') }}
+                {% endif %}
+            </span>
+        </div>
+        <form method="POST" action="{{ url_for('portal.toggle_account', account_id=patient.portal_account.id) }}" style="display:inline;">
+            <input type="hidden" name="referer" value="{{ request.url }}">
+            {% if patient.portal_account.is_active %}
+            <button type="submit" class="btn btn-sm btn-warning">Portal deaktivieren</button>
+            {% else %}
+            <button type="submit" class="btn btn-sm btn-success">Portal aktivieren</button>
+            {% endif %}
+        </form>
+        {% else %}
+        <p style="color: var(--color-gray-500); margin-bottom: 16px;">Dieser Patient hat noch keinen Portal-Zugang.</p>
+        <p style="font-size: var(--font-size-sm); color: var(--color-gray-400);">
+            Der Patient kann sich selbst unter <a href="/portal/register" target="_blank">/portal/register</a> registrieren,
+            oder Sie können den Zugang über den KI-Assistenten aktivieren.
+        </p>
+        {% endif %}
+
+        {% if patient.portal_account and patient.portal_account.is_active %}
+        <!-- Portal-Nachrichten -->
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--color-gray-200);">
+        <h3 style="margin: 0 0 12px;">Portal-Nachrichten</h3>
+        {% set portal_msgs = patient.portal_messages.order_by(None).all() %}
+        {% if portal_msgs %}
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+            {% for msg in portal_msgs[-5:] %}
+            <div style="padding:10px 14px; border-radius:8px; border-left:3px solid {% if msg.sender_type == 'patient' %}var(--color-primary){% else %}var(--color-success){% endif %}; background: {% if msg.sender_type == 'patient' %}#f0f4ff{% else %}#f0faf0{% endif %};">
+                <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--color-gray-500); margin-bottom:4px;">
+                    <strong>{{ msg.sender_name }}</strong>
+                    <span>{{ msg.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <div style="font-weight:600; font-size:13px;">{{ msg.subject }}</div>
+                <div style="font-size:13px; color:#555;">{{ msg.body[:200] }}{% if msg.body|length > 200 %}...{% endif %}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--color-gray-500); font-size: var(--font-size-sm);">Keine Portal-Nachrichten.</p>
+        {% endif %}
         {% endif %}
     </div>
 </div>

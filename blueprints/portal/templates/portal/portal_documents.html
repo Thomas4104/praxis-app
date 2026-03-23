@@ -1,0 +1,76 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Dokumente{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <h1>Meine Dokumente</h1>
+
+    {% if docs or invoices %}
+    <!-- Freigegebene Dokumente -->
+    {% if docs %}
+    <section class="portal-section">
+        <h2>Dokumente</h2>
+        <div class="portal-list">
+            {% for doc in docs %}
+            <div class="portal-list-item">
+                <div class="portal-doc-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+                <div class="portal-list-item-content">
+                    <strong>{{ doc.original_filename }}</strong>
+                    <span class="portal-text-muted">
+                        {{ doc.document_type or 'Dokument' }} — {{ doc.created_at.strftime('%d.%m.%Y') }}
+                    </span>
+                    {% if doc.notes %}
+                    <span class="portal-text-sm">{{ doc.notes }}</span>
+                    {% endif %}
+                </div>
+                <div class="portal-list-item-actions">
+                    <span class="portal-badge portal-badge-muted">{{ doc.file_type or 'PDF' }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Rechnungen -->
+    {% if invoices %}
+    <section class="portal-section">
+        <h2>Rechnungen</h2>
+        <div class="portal-list">
+            {% for inv in invoices %}
+            <div class="portal-list-item">
+                <div class="portal-doc-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                </div>
+                <div class="portal-list-item-content">
+                    <strong>{{ inv.invoice_number }}</strong>
+                    <span>CHF {{ '%.2f' | format(inv.amount_total) }}</span>
+                    <span class="portal-text-muted">{{ inv.created_at.strftime('%d.%m.%Y') }}</span>
+                </div>
+                <div class="portal-list-item-actions">
+                    {% if inv.status == 'paid' %}
+                    <span class="portal-badge portal-badge-success">Bezahlt</span>
+                    {% elif inv.status == 'sent' %}
+                    <span class="portal-badge portal-badge-warning">Offen: CHF {{ '%.2f' | format(inv.amount_open) }}</span>
+                    {% elif inv.status == 'overdue' %}
+                    <span class="portal-badge portal-badge-danger">Überfällig</span>
+                    {% else %}
+                    <span class="portal-badge portal-badge-muted">{{ inv.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% else %}
+    <div class="portal-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        <p>Noch keine Dokumente vorhanden.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

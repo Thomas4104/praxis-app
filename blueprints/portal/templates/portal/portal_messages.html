@@ -1,0 +1,43 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Nachrichten{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <div class="portal-page-header">
+        <h1>Nachrichten</h1>
+        <a href="{{ url_for('portal.new_message') }}" class="portal-btn portal-btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Neue Nachricht
+        </a>
+    </div>
+
+    {% if messages %}
+    <div class="portal-messages-list">
+        {% for msg in messages %}
+        <div class="portal-message {% if msg.sender_type == 'patient' %}portal-message-sent{% else %}portal-message-received{% endif %}">
+            <div class="portal-message-header">
+                <strong>
+                    {% if msg.sender_type == 'patient' %}
+                    Sie
+                    {% else %}
+                    {{ msg.sender_name or 'Praxisteam' }}
+                    {% endif %}
+                </strong>
+                <span class="portal-text-muted">{{ msg.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            {% if msg.subject %}
+            <div class="portal-message-subject">{{ msg.subject }}</div>
+            {% endif %}
+            <div class="portal-message-body">{{ msg.body }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="portal-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        <p>Noch keine Nachrichten.</p>
+        <a href="{{ url_for('portal.new_message') }}" class="portal-btn portal-btn-primary">Nachricht senden</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
