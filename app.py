@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timedelta, date, time
 from flask import Flask
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
@@ -21,6 +22,7 @@ from config import config
 
 
 login_manager = LoginManager()
+migrate = Migrate()
 csrf = CSRFProtect()
 
 
@@ -34,6 +36,7 @@ def create_app(config_name=None):
 
     # Erweiterungen initialisieren
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Bitte melden Sie sich an.'
@@ -133,7 +136,15 @@ def create_app(config_name=None):
     # Datenbank erstellen und Demo-Daten laden
     with app.app_context():
         db.create_all()
+        if app.config.get('DEBUG'):
+            seed_demo_data()
+
+    # CLI-Befehl fuer Demo-Daten
+    @app.cli.command('seed-demo')
+    def seed_demo_command():
+        """Demo-Daten erstellen (nur fuer Entwicklung/Test)"""
         seed_demo_data()
+        print('Demo-Daten erstellt.')
 
     return app
 
