@@ -1,0 +1,972 @@
+/* ============================================================
+   Behandlungsplan & Serien — CSS
+   ============================================================ */
+
+/* --- Filter --- */
+.treatment-filters {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.filter-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 180px;
+}
+
+/* --- Serien-Tabelle --- */
+.serien-liste .data-table {
+    width: 100%;
+}
+
+.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.clickable-row:hover {
+    background-color: #f0f7ff;
+}
+
+.diagnose-code {
+    font-weight: 600;
+    color: #4a90d9;
+    font-size: 0.85em;
+}
+
+.progress-mini {
+    width: 80px;
+    height: 6px;
+    background: #e8e8e8;
+    border-radius: 3px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+.progress-mini-bar {
+    height: 100%;
+    background: #4a90d9;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.8em;
+    color: #666;
+}
+
+/* --- Badge --- */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge-success { background: #e8f5e9; color: #2e7d32; }
+.badge-info { background: #e3f2fd; color: #1565c0; }
+.badge-warning { background: #fff3e0; color: #e65100; }
+.badge-danger { background: #fce4ec; color: #c62828; }
+.badge-secondary { background: #f5f5f5; color: #666; }
+
+/* --- Drei-Spalten-Layout Serie-Detail --- */
+.serie-detail-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 280px;
+    gap: 16px;
+    align-items: start;
+}
+
+@media (max-width: 1200px) {
+    .serie-detail-layout {
+        grid-template-columns: 220px 1fr;
+    }
+    .serie-col-right {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .serie-detail-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.serie-col {
+    min-width: 0;
+}
+
+/* --- Panel --- */
+.panel {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.panel-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #333;
+}
+
+.panel-body {
+    padding: 16px;
+}
+
+/* --- Terminliste (linke Spalte) --- */
+.termin-liste {
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+}
+
+.termin-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.termin-item:hover {
+    background-color: #f8f9fa;
+}
+
+.termin-item.active {
+    background-color: #e8f0fe;
+    border-left: 3px solid #4a90d9;
+}
+
+.termin-item-status { flex-shrink: 0; }
+
+.status-icon {
+    display: inline-block;
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+}
+
+.status-completed { color: #27ae60; }
+.status-cancelled { color: #e74c3c; }
+.status-noshow { color: #f39c12; }
+.status-scheduled { color: #4a90d9; }
+
+.termin-item-info { flex: 1; min-width: 0; }
+
+.termin-item-datum {
+    font-weight: 600;
+    font-size: 0.85em;
+    color: #333;
+}
+
+.termin-item-zeit {
+    font-size: 0.78em;
+    color: #888;
+}
+
+.termin-item-soap {
+    flex-shrink: 0;
+    color: #4a90d9;
+    opacity: 0.6;
+}
+
+/* --- SOAP-Notes (mittlere Spalte) --- */
+.termin-kopf {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.info-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.info-item label {
+    display: block;
+    font-size: 0.75em;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.info-item span {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #333;
+}
+
+.soap-section {
+    margin-bottom: 16px;
+}
+
+.soap-section h4,
+.notes-section h4 {
+    font-size: 0.88em;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.soap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 900px) {
+    .soap-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.soap-field { position: relative; }
+
+.soap-label {
+    display: block;
+    font-size: 0.78em;
+    font-weight: 700;
+    margin-bottom: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.soap-s { background: #3498db; }
+.soap-o { background: #27ae60; }
+.soap-a { background: #e67e22; }
+.soap-p { background: #8e44ad; }
+
+.soap-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.88em;
+    resize: vertical;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.soap-textarea:focus {
+    outline: none;
+    border-color: #4a90d9;
+    box-shadow: 0 0 0 2px rgba(74,144,217,0.15);
+}
+
+.notes-section {
+    margin-bottom: 12px;
+}
+
+.soap-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+}
+
+.auto-save-indicator {
+    font-size: 0.82em;
+    color: #27ae60;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- Serien-Info (rechte Spalte) --- */
+.serie-info-content {
+    padding: 14px 16px;
+}
+
+.info-block {
+    margin-bottom: 10px;
+}
+
+.info-block label {
+    display: block;
+    font-size: 0.72em;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.info-block span,
+.info-block a {
+    font-size: 0.88em;
+    color: #333;
+}
+
+.info-block a {
+    color: #4a90d9;
+    text-decoration: none;
+}
+
+.info-block a:hover {
+    text-decoration: underline;
+}
+
+.info-divider {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 12px 0;
+}
+
+/* --- Heilungsphasen Mini --- */
+.healing-phases-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.phase-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    opacity: 0.4;
+}
+
+.phase-dot:hover {
+    transform: scale(1.2);
+}
+
+.phase-dot.phase-active {
+    opacity: 1;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.1);
+    transform: scale(1.15);
+}
+
+.phase-label {
+    font-size: 0.8em;
+    color: #666;
+    margin-left: 4px;
+}
+
+/* --- Serie-Aktionen --- */
+.serie-aktionen {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.btn-block {
+    width: 100%;
+    text-align: center;
+}
+
+/* --- Links --- */
+.serie-links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.action-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4a90d9;
+    text-decoration: none;
+    font-size: 0.85em;
+    padding: 6px 0;
+    transition: color 0.15s;
+}
+
+.action-link:hover {
+    color: #2d6cb4;
+}
+
+/* ============================================================
+   Behandlungsplan Seite
+   ============================================================ */
+
+.treatment-plan {
+    max-width: 1200px;
+}
+
+.plan-section {
+    margin-bottom: 20px;
+}
+
+/* --- Diagnose --- */
+.diagnose-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.diagnose-code-tag {
+    display: inline-block;
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.85em;
+    font-family: monospace;
+}
+
+.ki-vorschlag-box {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.88em;
+    margin-top: 8px;
+}
+
+/* --- Therapieziele --- */
+.ziel-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.ziel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ziel-beschreibung {
+    font-weight: 500;
+    font-size: 0.92em;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.ziel-werte {
+    display: flex;
+    gap: 12px;
+    font-size: 0.78em;
+    color: #888;
+}
+
+.ziel-fortschritt {
+    width: 150px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.progress-success { background: #27ae60; }
+.progress-warning { background: #f39c12; }
+.progress-danger { background: #e74c3c; }
+
+.progress-label {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #555;
+    min-width: 36px;
+    text-align: right;
+}
+
+.ziel-status {
+    flex-shrink: 0;
+}
+
+.ziel-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #888;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-icon:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.btn-icon-danger:hover {
+    background: #fce4ec;
+    color: #c62828;
+}
+
+/* --- Heilungsphasen Timeline (Behandlungsplan-Seite) --- */
+.healing-timeline {
+    margin-bottom: 16px;
+}
+
+.healing-timeline-label {
+    font-size: 0.82em;
+    color: #888;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.healing-phases {
+    display: flex;
+    gap: 4px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.healing-phase-block {
+    flex: 1;
+    padding: 14px 12px;
+    background: color-mix(in srgb, var(--phase-color) 12%, white);
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.healing-phase-block:hover {
+    background: color-mix(in srgb, var(--phase-color) 20%, white);
+}
+
+.healing-phase-block.phase-current {
+    background: color-mix(in srgb, var(--phase-color) 20%, white);
+    border-bottom-color: var(--phase-color);
+}
+
+.phase-block-name {
+    display: block;
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #333;
+}
+
+.phase-block-indicator {
+    display: block;
+    font-size: 0.72em;
+    color: var(--phase-color);
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+/* --- Meilenstein Timeline --- */
+.timeline-track {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    position: relative;
+    padding: 20px 0 10px;
+    overflow-x: auto;
+}
+
+.timeline-track::before {
+    content: '';
+    position: absolute;
+    top: 32px;
+    left: 20px;
+    right: 20px;
+    height: 3px;
+    background: #e0e0e0;
+    border-radius: 2px;
+}
+
+.timeline-point {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+    position: relative;
+    padding: 0 8px;
+}
+
+.timeline-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    position: relative;
+    z-index: 1;
+    border: 3px solid #e0e0e0;
+    background: #fff;
+    transition: all 0.2s;
+}
+
+.point-achieved .timeline-dot {
+    background: #27ae60;
+    border-color: #27ae60;
+}
+
+.point-current .timeline-dot {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    box-shadow: 0 0 0 4px rgba(74,144,217,0.2);
+}
+
+.point-open .timeline-dot {
+    background: #fff;
+    border-color: #ccc;
+}
+
+.timeline-name {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.timeline-date {
+    font-size: 0.72em;
+    color: #888;
+}
+
+.timeline-achieved {
+    font-size: 0.7em;
+    color: #27ae60;
+    font-weight: 500;
+}
+
+/* --- Messungen --- */
+.measurement-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 6px 16px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.82em;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.15s;
+}
+
+.tab-btn:hover {
+    background: #f5f5f5;
+}
+
+.tab-btn.active {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    color: #fff;
+}
+
+.measurement-chart-container {
+    position: relative;
+    margin-bottom: 16px;
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.measurement-chart-container canvas {
+    display: block;
+    width: 100%;
+}
+
+/* --- Modals --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    width: 90%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1em;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.4em;
+    cursor: pointer;
+    color: #999;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.modal-close:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* --- Formulare --- */
+.form-group {
+    margin-bottom: 14px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.82em;
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+.form-row {
+    display: flex;
+    gap: 12px;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.88em;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: #4a90d9;
+    box-shadow: 0 0 0 2px rgba(74,144,217,0.15);
+}
+
+.form-textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.input-group .form-input {
+    flex: 1;
+}
+
+/* --- Buttons --- */
+.btn {
+    display: inline-block;
+    padding: 8px 18px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85em;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background: #4a90d9;
+    color: #fff;
+    border-color: #4a90d9;
+}
+
+.btn-primary:hover {
+    background: #3a7bc8;
+}
+
+.btn-outline {
+    background: #fff;
+    color: #4a90d9;
+    border-color: #4a90d9;
+}
+
+.btn-outline:hover {
+    background: #f0f7ff;
+}
+
+.btn-success {
+    background: #27ae60;
+    color: #fff;
+    border-color: #27ae60;
+}
+
+.btn-success:hover {
+    background: #219a52;
+}
+
+.btn-danger {
+    background: #e74c3c;
+    color: #fff;
+    border-color: #e74c3c;
+}
+
+.btn-danger:hover {
+    background: #d43c2c;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 0.78em;
+}
+
+/* --- Tabelle --- */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88em;
+}
+
+.data-table th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid #e0e0e0;
+    font-size: 0.78em;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #333;
+}
+
+.data-table tbody tr:hover {
+    background-color: #fafafa;
+}
+
+/* --- Hilfsklassen --- */
+.empty-state {
+    text-align: center;
+    padding: 30px 20px;
+    color: #999;
+    font-size: 0.9em;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 40px 20px;
+    color: #888;
+}
+
+.termin-status-info {
+    display: flex;
+    align-items: center;
+}
+
+#terminDetailContent {
+    padding: 16px;
+}
+
+@media (max-width: 768px) {
+    .ziel-item {
+        flex-wrap: wrap;
+    }
+    .ziel-fortschritt {
+        width: 100%;
+    }
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    .healing-phases {
+        flex-direction: column;
+    }
+    .timeline-track {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .timeline-track::before {
+        display: none;
+    }
+}

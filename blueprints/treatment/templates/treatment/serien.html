@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Behandlungsserien{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<span>Behandlung</span>
+{% endblock %}
+
+{% block page_title %}Behandlungsserien{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="treatment-filters">
+    <div class="filter-row">
+        <div class="filter-group">
+            <input type="text" id="serienSuche" class="form-input" placeholder="Patient, Diagnose suchen...">
+        </div>
+        <div class="filter-group">
+            <select id="filterStatus" class="form-select">
+                <option value="">Alle Status</option>
+                <option value="active">Aktiv</option>
+                <option value="completed">Abgeschlossen</option>
+                <option value="cancelled">Abgebrochen</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select id="filterTherapeut" class="form-select">
+                <option value="">Alle Therapeuten</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select id="filterStandort" class="form-select">
+                <option value="">Alle Standorte</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="serien-liste" id="serienListe">
+    <div class="loading-spinner">Lade Serien...</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let suchTimer = null;
+
+    // Filter-Optionen laden
+    fetch('/treatment/api/filter-optionen')
+        .then(r => r.json())
+        .then(data => {
+            const tSelect = document.getElementById('filterTherapeut');
+            data.therapeuten.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name;
+                tSelect.appendChild(opt);
+            });
+            const sSelect = document.getElementById('filterStandort');
+            data.standorte.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                sSelect.appendChild(opt);
+            });
+        });
+
+    function ladeSerien() {
+        const params = new URLSearchParams();
+        const status = document.getElementById('filterStatus').value;
+        const therapeut = document.getElementById('filterTherapeut').value;
+        const standort = document.getElementById('filterStandort').value;
+        const suche = document.getElementById('serienSuche').value.trim();
+
+        if (status) params.set('status', status);
+        if (therapeut) params.set('therapeut_id', therapeut);
+        if (standort) params.set('standort_id', standort);
+        if (suche) params.set('suche', suche);
+
+        fetch('/treatment/api/serien?' + params.toString())
+            .then(r => r.json())
+            .then(serien => {
+                const container = document.getElementById('serienListe');
+
+                if (serien.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>Keine Behandlungsserien gefunden.</p></div>';
+                    return;
+                }
+
+                let html = '<table class="data-table"><thead><tr>' +
+                    '<th>Patient</th><th>Vorlage</th><th>Therapeut</th>' +
+                    '<th>Diagnose</th><th>Status</th><th>Fortschritt</th><th>Aktion</th>' +
+                    '</tr></thead><tbody>';
+
+                serien.forEach(s => {
+                    const statusClass = s.status === 'active' ? 'badge-success' :
+                                       s.status === 'completed' ? 'badge-info' : 'badge-warning';
+                    const statusText = s.status === 'active' ? 'Aktiv' :
+                                      s.status === 'completed' ? 'Abgeschlossen' : 'Abgebrochen';
+
+                    const pct = s.fortschritt_total > 0
+                        ? Math.round(s.fortschritt_aktuell / s.fortschritt_total * 100)
+                        : 0;
+
+                    html += '<tr class="clickable-row" data-href="/treatment/serie/' + s.id + '">' +
+                        '<td><strong>' + escHtml(s.patient_name) + '</strong></td>' +
+                        '<td>' + escHtml(s.vorlage) + '</td>' +
+                        '<td>' + escHtml(s.therapeut) + '</td>' +
+                        '<td><span class="diagnose-code">' + escHtml(s.diagnose_code) + '</span> ' +
+                            escHtml(s.diagnose_text) + '</td>' +
+                        '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>' +
+                        '<td>' +
+                            '<div class="progress-mini">' +
+                                '<div class="progress-mini-bar" style="width:' + pct + '%"></div>' +
+                            '</div>' +
+                            '<span class="progress-text">' + s.fortschritt_aktuell + '/' + s.fortschritt_total + '</span>' +
+                        '</td>' +
+                        '<td><a href="/treatment/serie/' + s.id + '" class="btn btn-sm btn-outline">Öffnen</a></td>' +
+                        '</tr>';
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+
+                // Klickbare Zeilen
+                container.querySelectorAll('.clickable-row').forEach(row => {
+                    row.addEventListener('click', function(e) {
+                        if (e.target.tagName !== 'A') {
+                            window.location.href = this.dataset.href;
+                        }
+                    });
+                });
+            });
+    }
+
+    function escHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    // Event-Listener
+    document.getElementById('filterStatus').addEventListener('change', ladeSerien);
+    document.getElementById('filterTherapeut').addEventListener('change', ladeSerien);
+    document.getElementById('filterStandort').addEventListener('change', ladeSerien);
+    document.getElementById('serienSuche').addEventListener('input', function() {
+        clearTimeout(suchTimer);
+        suchTimer = setTimeout(ladeSerien, 300);
+    });
+
+    // Initial laden
+    ladeSerien();
+});
+</script>
+{% endblock %}

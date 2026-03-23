@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}Serie #{{ serie.id }} — {{ serie.patient.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+<span>Serie #{{ serie.id }}</span>
+{% endblock %}
+
+{% block page_title %}
+Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie.diagnosis_text or 'Ohne Diagnose' }}
+{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('treatment.treatment_plan', patient_id=serie.patient_id) }}" class="btn btn-outline">
+    Behandlungsplan
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="serie-detail-layout">
+    <!-- Linke Spalte: Terminliste -->
+    <div class="serie-col serie-col-left">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Termine</h3>
+                <span class="badge badge-info" id="termineCount">{{ termine|length }}</span>
+            </div>
+            <div class="termin-liste" id="terminListe">
+                {% for t in termine %}
+                <div class="termin-item {% if loop.first %}active{% endif %}"
+                     data-termin-id="{{ t.id }}"
+                     onclick="ladeTermin({{ t.id }}, this)">
+                    <div class="termin-item-status">
+                        {% if t.status == 'completed' %}
+                            <span class="status-icon status-completed" title="Abgeschlossen">&#10003;</span>
+                        {% elif t.status == 'cancelled' %}
+                            <span class="status-icon status-cancelled" title="Abgesagt">&#10007;</span>
+                        {% elif t.status == 'no_show' %}
+                            <span class="status-icon status-noshow" title="Nicht erschienen">&#9888;</span>
+                        {% else %}
+                            <span class="status-icon status-scheduled" title="Geplant">&#9679;</span>
+                        {% endif %}
+                    </div>
+                    <div class="termin-item-info">
+                        <div class="termin-item-datum">{{ t.start_time.strftime('%d.%m.%Y') }}</div>
+                        <div class="termin-item-zeit">{{ t.start_time.strftime('%H:%M') }} – {{ t.end_time.strftime('%H:%M') }}</div>
+                    </div>
+                    {% if t.soap_subjective or t.soap_objective or t.soap_assessment or t.soap_plan %}
+                    <div class="termin-item-soap" title="SOAP-Notes vorhanden">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Mittlere Spalte: Termin-Details / Dokumentation -->
+    <div class="serie-col serie-col-center">
+        <div class="panel" id="terminDetailPanel">
+            <div class="panel-header">
+                <h3 id="terminDetailTitle">Termin-Details</h3>
+                <div class="termin-status-info" id="terminStatusInfo"></div>
+            </div>
+            <div class="termin-detail-content" id="terminDetailContent">
+                {% if termine %}
+                <div class="termin-kopf" id="terminKopf">
+                    <div class="info-grid-2">
+                        <div class="info-item">
+                            <label>Datum</label>
+                            <span id="detailDatum">—</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Uhrzeit</label>
+                            <span id="detailUhrzeit">—</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Therapeut</label>
+                            <span id="detailTherapeut">—</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Raum</label>
+                            <span id="detailRaum">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="soap-section">
+                    <h4>SOAP-Notes</h4>
+                    <div class="soap-grid">
+                        <div class="soap-field">
+                            <label class="soap-label soap-s">S — Subjektiv</label>
+                            <textarea id="soapS" class="soap-textarea" placeholder="Was berichtet der Patient?"></textarea>
+                        </div>
+                        <div class="soap-field">
+                            <label class="soap-label soap-o">O — Objektiv</label>
+                            <textarea id="soapO" class="soap-textarea" placeholder="Was stellt der Therapeut fest?"></textarea>
+                        </div>
+                        <div class="soap-field">
+                            <label class="soap-label soap-a">A — Assessment</label>
+                            <textarea id="soapA" class="soap-textarea" placeholder="Beurteilung"></textarea>
+                        </div>
+                        <div class="soap-field">
+                            <label class="soap-label soap-p">P — Plan</label>
+                            <textarea id="soapP" class="soap-textarea" placeholder="Weiteres Vorgehen"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="notes-section">
+                    <h4>Notizen</h4>
+                    <textarea id="terminNotizen" class="form-textarea" placeholder="Allgemeine Notizen zum Termin..."></textarea>
+                </div>
+
+                <div class="soap-actions">
+                    <button class="btn btn-primary" id="soapSpeichern" onclick="speichereSoap()">Speichern</button>
+                    <span class="auto-save-indicator" id="autoSaveIndicator" style="display:none">
+                        &#10003; Automatisch gespeichert
+                    </span>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>Keine Termine in dieser Serie vorhanden.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Rechte Spalte: Serien-Info & Aktionen -->
+    <div class="serie-col serie-col-right">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Serien-Info</h3>
+            </div>
+            <div class="serie-info-content">
+                <div class="info-block">
+                    <label>Vorlage</label>
+                    <span>{{ serie.template.name if serie.template else '-' }}</span>
+                </div>
+                <div class="info-block">
+                    <label>Patient</label>
+                    <a href="{{ url_for('patients.detail', patient_id=serie.patient_id) }}">
+                        {{ serie.patient.first_name }} {{ serie.patient.last_name }}
+                    </a>
+                </div>
+                <div class="info-block">
+                    <label>Therapeut</label>
+                    <span>{{ serie.therapist.user.first_name }} {{ serie.therapist.user.last_name if serie.therapist and serie.therapist.user else '-' }}</span>
+                </div>
+                <div class="info-block">
+                    <label>Diagnose</label>
+                    <span>
+                        {% if serie.diagnosis_code %}<strong>{{ serie.diagnosis_code }}</strong> — {% endif %}
+                        {{ serie.diagnosis_text or '-' }}
+                    </span>
+                </div>
+
+                <hr class="info-divider">
+
+                <div class="info-block">
+                    <label>Verordnung</label>
+                    <span>
+                        {% if serie.prescribing_doctor %}
+                            {{ serie.prescribing_doctor.salutation }} {{ serie.prescribing_doctor.first_name }} {{ serie.prescribing_doctor.last_name }}
+                        {% else %}-{% endif %}
+                    </span>
+                </div>
+                <div class="info-block">
+                    <label>Verordnungsdatum</label>
+                    <span>{{ serie.prescription_date.strftime('%d.%m.%Y') if serie.prescription_date else '-' }}</span>
+                </div>
+                <div class="info-block">
+                    <label>Verordnungstyp</label>
+                    <span>{{ serie.prescription_type or 'Erstverordnung' }}</span>
+                </div>
+
+                <hr class="info-divider">
+
+                <div class="info-block">
+                    <label>Versicherung</label>
+                    <span>{{ serie.insurance_type or '-' }}</span>
+                </div>
+                <div class="info-block">
+                    <label>Abrechnungsmodell</label>
+                    <span>{{ 'Tiers Garant' if serie.billing_model == 'tiers_garant' else 'Tiers Payant' if serie.billing_model == 'tiers_payant' else serie.billing_model or '-' }}</span>
+                </div>
+                <div class="info-block">
+                    <label>Krankenkasse</label>
+                    <span>{{ serie.patient.insurance_provider.name if serie.patient and serie.patient.insurance_provider else '-' }}</span>
+                </div>
+
+                <hr class="info-divider">
+
+                <!-- Heilungsphasen -->
+                <div class="info-block">
+                    <label>Heilungsphase</label>
+                    <div class="healing-phases-mini" id="healingPhasesMini">
+                        {% set phasen = ['initial', 'treatment', 'consolidation', 'autonomy'] %}
+                        {% set phasen_namen = {'initial': 'Initial', 'treatment': 'Behandlung', 'consolidation': 'Konsolidierung', 'autonomy': 'Autonomie'} %}
+                        {% set phasen_farben = {'initial': '#e74c3c', 'treatment': '#e67e22', 'consolidation': '#f1c40f', 'autonomy': '#27ae60'} %}
+                        {% for p in phasen %}
+                        <span class="phase-dot {% if serie.healing_phase == p %}phase-active{% endif %}"
+                              style="background: {{ phasen_farben[p] }}"
+                              title="{{ phasen_namen[p] }}"
+                              onclick="setzeHeilungsphase('{{ p }}')"
+                              data-phase="{{ p }}">
+                        </span>
+                        {% endfor %}
+                        <span class="phase-label" id="phaseLabel">
+                            {{ phasen_namen.get(serie.healing_phase, 'Nicht gesetzt') }}
+                        </span>
+                    </div>
+                </div>
+
+                <hr class="info-divider">
+
+                <!-- Status & Aktionen -->
+                <div class="info-block">
+                    <label>Status</label>
+                    {% if serie.status == 'active' %}
+                        <span class="badge badge-success">Aktiv</span>
+                    {% elif serie.status == 'completed' %}
+                        <span class="badge badge-info">Abgeschlossen</span>
+                    {% else %}
+                        <span class="badge badge-warning">Abgebrochen</span>
+                    {% endif %}
+                </div>
+
+                {% if serie.status == 'active' %}
+                <div class="serie-aktionen">
+                    <button class="btn btn-success btn-block" onclick="serieStatus('completed')">
+                        Serie abschliessen
+                    </button>
+                    <button class="btn btn-danger btn-block btn-sm" onclick="serieStatus('cancelled')">
+                        Serie abbrechen
+                    </button>
+                </div>
+                {% endif %}
+
+                <hr class="info-divider">
+
+                <div class="serie-links">
+                    <a href="{{ url_for('treatment.treatment_plan', patient_id=serie.patient_id) }}" class="action-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                        </svg>
+                        Behandlungsplan
+                    </a>
+                    <a href="{{ url_for('calendar.index') }}" class="action-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Termin hinzufügen
+                    </a>
+                    <a href="{{ url_for('patients.detail', patient_id=serie.patient_id) }}" class="action-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                        Patientenakte
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const SERIE_ID = {{ serie.id }};
+let aktuellerTerminId = null;
+let autoSaveTimer = null;
+
+// Ersten Termin laden
+document.addEventListener('DOMContentLoaded', function() {
+    const ersterTermin = document.querySelector('.termin-item');
+    if (ersterTermin) {
+        ladeTermin(parseInt(ersterTermin.dataset.terminId), ersterTermin);
+    }
+
+    // Auto-Save fuer SOAP-Notes (5 Sekunden Inaktivitaet)
+    ['soapS', 'soapO', 'soapA', 'soapP', 'terminNotizen'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', function() {
+                clearTimeout(autoSaveTimer);
+                autoSaveTimer = setTimeout(() => {
+                    speichereSoap(true);
+                }, 5000);
+            });
+        }
+    });
+});
+
+function ladeTermin(terminId, element) {
+    aktuellerTerminId = terminId;
+
+    // Aktiv-Markierung setzen
+    document.querySelectorAll('.termin-item').forEach(el => el.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    fetch('/treatment/api/termin/' + terminId)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('detailDatum').textContent = data.datum;
+            document.getElementById('detailUhrzeit').textContent = data.uhrzeit + ' – ' + data.end_zeit;
+            document.getElementById('detailTherapeut').textContent = data.therapeut;
+            document.getElementById('detailRaum').textContent = data.raum;
+
+            // Status anzeigen
+            const statusInfo = document.getElementById('terminStatusInfo');
+            const statusMap = {
+                'scheduled': '<span class="badge badge-info">Geplant</span>',
+                'confirmed': '<span class="badge badge-info">Bestätigt</span>',
+                'completed': '<span class="badge badge-success">Abgeschlossen</span>',
+                'cancelled': '<span class="badge badge-warning">Abgesagt</span>',
+                'no_show': '<span class="badge badge-danger">Nicht erschienen</span>'
+            };
+            statusInfo.innerHTML = statusMap[data.status] || data.status;
+
+            // SOAP-Notes fuellen
+            document.getElementById('soapS').value = data.soap_subjective;
+            document.getElementById('soapO').value = data.soap_objective;
+            document.getElementById('soapA').value = data.soap_assessment;
+            document.getElementById('soapP').value = data.soap_plan;
+            document.getElementById('terminNotizen').value = data.notes;
+
+            // Auto-Save-Indikator zuruecksetzen
+            document.getElementById('autoSaveIndicator').style.display = 'none';
+        });
+}
+
+function speichereSoap(isAutoSave) {
+    if (!aktuellerTerminId) return;
+
+    const data = {
+        soap_subjective: document.getElementById('soapS').value,
+        soap_objective: document.getElementById('soapO').value,
+        soap_assessment: document.getElementById('soapA').value,
+        soap_plan: document.getElementById('soapP').value,
+        notes: document.getElementById('terminNotizen').value
+    };
+
+    fetch('/treatment/api/termin/' + aktuellerTerminId + '/soap', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            const indicator = document.getElementById('autoSaveIndicator');
+            indicator.style.display = 'inline';
+            if (isAutoSave) {
+                setTimeout(() => { indicator.style.display = 'none'; }, 3000);
+            }
+
+            // SOAP-Icon in Terminliste aktualisieren
+            const terminItem = document.querySelector('.termin-item[data-termin-id="' + aktuellerTerminId + '"]');
+            if (terminItem && !terminItem.querySelector('.termin-item-soap')) {
+                const hasSoap = data.soap_subjective || data.soap_objective || data.soap_assessment || data.soap_plan;
+                if (hasSoap) {
+                    const icon = document.createElement('div');
+                    icon.className = 'termin-item-soap';
+                    icon.title = 'SOAP-Notes vorhanden';
+                    icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+                    terminItem.appendChild(icon);
+                }
+            }
+        }
+    });
+}
+
+function serieStatus(neuerStatus) {
+    const msg = neuerStatus === 'completed'
+        ? 'Möchten Sie diese Serie wirklich abschliessen?'
+        : 'Möchten Sie diese Serie wirklich abbrechen?';
+
+    if (!confirm(msg)) return;
+
+    fetch('/treatment/api/serie/' + SERIE_ID + '/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: neuerStatus})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            window.location.reload();
+        }
+    });
+}
+
+function setzeHeilungsphase(phase) {
+    fetch('/treatment/api/heilungsphase', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({serie_id: SERIE_ID, phase_type: phase})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            // Phase-Dots aktualisieren
+            document.querySelectorAll('.phase-dot').forEach(dot => {
+                dot.classList.remove('phase-active');
+                if (dot.dataset.phase === phase) {
+                    dot.classList.add('phase-active');
+                }
+            });
+            const namen = {
+                'initial': 'Initialphase',
+                'treatment': 'Behandlungsphase',
+                'consolidation': 'Konsolidierungsphase',
+                'autonomy': 'Autonomiephase'
+            };
+            document.getElementById('phaseLabel').textContent = namen[phase] || phase;
+        }
+    });
+}
+</script>
+{% endblock %}

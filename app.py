@@ -7,7 +7,8 @@ from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
-    Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList
+    Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList, \
+    TherapyGoal, Milestone, Measurement, HealingPhase
 from config import config
 
 
@@ -46,6 +47,7 @@ def create_app(config_name=None):
     from blueprints.patients import patients_bp
     from blueprints.addresses import addresses_bp
     from blueprints.calendar import calendar_bp
+    from blueprints.treatment import treatment_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -56,6 +58,7 @@ def create_app(config_name=None):
     app.register_blueprint(patients_bp, url_prefix='/patients')
     app.register_blueprint(addresses_bp, url_prefix='/addresses')
     app.register_blueprint(calendar_bp, url_prefix='/calendar')
+    app.register_blueprint(treatment_bp, url_prefix='/treatment')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -66,6 +69,7 @@ def create_app(config_name=None):
     csrf.exempt(patients_bp)
     csrf.exempt(addresses_bp)
     csrf.exempt(calendar_bp)
+    csrf.exempt(treatment_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -888,6 +892,157 @@ def seed_demo_data():
         notes='Flexible Zeiten, kein bevorzugter Therapeut',
         status='waiting'
     ))
+
+    # === Behandlungsplan: Therapieziele ===
+    # 3 Ziele fuer Serie 1 (Max Huber, Kreuzschmerz)
+    ziel1 = TherapyGoal(
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        description='Schmerzreduktion auf NPRS ≤ 3',
+        target_value='NPRS ≤ 3',
+        current_value='NPRS 4',
+        achievement_percent=60,
+        status='in_progress'
+    )
+    ziel2 = TherapyGoal(
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        description='Volle Beweglichkeit LWS',
+        target_value='ROM Flexion 60°, Extension 25°',
+        current_value='Flexion 45°, Extension 15°',
+        achievement_percent=40,
+        status='in_progress'
+    )
+    ziel3 = TherapyGoal(
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        description='Rückkehr zur Arbeit',
+        target_value='Volle Arbeitsfähigkeit',
+        current_value='50% Arbeitsfähigkeit',
+        achievement_percent=20,
+        status='open'
+    )
+    db.session.add_all([ziel1, ziel2, ziel3])
+
+    # === Behandlungsplan: NPRS-Messungen fuer Max Huber ===
+    messung1 = Measurement(
+        patient_id=patients[0].id,
+        series_id=serien[0].id,
+        measurement_type='nprs',
+        name='NPRS (Schmerzskala)',
+        value_json=json.dumps({'value': 7}),
+        unit='Punkte',
+        measured_at=datetime.combine(today - timedelta(days=14), time(8, 30)),
+        measured_by_id=thomas_emp.id
+    )
+    messung2 = Measurement(
+        patient_id=patients[0].id,
+        series_id=serien[0].id,
+        measurement_type='nprs',
+        name='NPRS (Schmerzskala)',
+        value_json=json.dumps({'value': 6}),
+        unit='Punkte',
+        measured_at=datetime.combine(today - timedelta(days=9), time(9, 0)),
+        measured_by_id=thomas_emp.id
+    )
+    messung3 = Measurement(
+        patient_id=patients[0].id,
+        series_id=serien[0].id,
+        measurement_type='nprs',
+        name='NPRS (Schmerzskala)',
+        value_json=json.dumps({'value': 4}),
+        unit='Punkte',
+        measured_at=datetime.combine(today - timedelta(days=4), time(8, 30)),
+        measured_by_id=thomas_emp.id
+    )
+    messung4 = Measurement(
+        patient_id=patients[0].id,
+        series_id=serien[0].id,
+        measurement_type='nprs',
+        name='NPRS (Schmerzskala)',
+        value_json=json.dumps({'value': 3}),
+        unit='Punkte',
+        measured_at=datetime.combine(today, time(8, 30)),
+        measured_by_id=thomas_emp.id
+    )
+    db.session.add_all([messung1, messung2, messung3, messung4])
+
+    # === Behandlungsplan: Meilensteine fuer Serie 1 ===
+    ms1 = Milestone(
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        name='Schmerzfrei im Alltag',
+        description='Patient kann Alltagsaktivitäten ohne relevante Schmerzen durchführen',
+        target_date=today - timedelta(days=3),
+        achieved_date=today - timedelta(days=3),
+        criteria='NPRS ≤ 3 bei Alltagsbelastung',
+        status='achieved',
+        sort_order=0
+    )
+    ms2 = Milestone(
+        series_id=serien[0].id,
+        patient_id=patients[0].id,
+        name='Sport möglich',
+        description='Patient kann leichte sportliche Aktivitäten aufnehmen',
+        target_date=today + timedelta(days=14),
+        criteria='Volle ROM, NPRS ≤ 2 bei Belastung',
+        status='open',
+        sort_order=1
+    )
+    db.session.add_all([ms1, ms2])
+
+    # === Behandlungsplan: Heilungsphasen fuer Serie 1 ===
+    phase_initial = HealingPhase(
+        series_id=serien[0].id,
+        phase_type='initial',
+        start_date=today - timedelta(days=14),
+        end_date=today - timedelta(days=7),
+        notes='Schmerzlinderung und Entzündungshemmung'
+    )
+    phase_behandlung = HealingPhase(
+        series_id=serien[0].id,
+        phase_type='treatment',
+        start_date=today - timedelta(days=7),
+        notes='Aktive Mobilisation und Kräftigung'
+    )
+    db.session.add_all([phase_initial, phase_behandlung])
+
+    # Heilungsphase auf der Serie setzen
+    serien[0].healing_phase = 'treatment'
+
+    # === Behandlungsplan: SOAP-Notes fuer 3 abgeschlossene Termine ===
+    # Termine der Serie 1 (Max Huber) updaten
+    serie1_termine = Appointment.query.filter_by(series_id=serien[0].id).order_by(Appointment.start_time).limit(3).all()
+    soap_daten = [
+        {
+            'soap_subjective': 'Patient berichtet über starke Schmerzen im unteren Rücken, besonders beim Bücken. Schmerzausstrahlung ins linke Bein. Schlaf gestört.',
+            'soap_objective': 'LWS Flexion eingeschränkt (ca. 40°), Extension schmerzhaft. Druckdolenz L4/L5. Lasègue links positiv bei 60°. NPRS 7/10.',
+            'soap_assessment': 'Akute Lumbalgie mit radikulärer Symptomatik L5 links. Deutliche Funktionseinschränkung.',
+            'soap_plan': 'Manuelle Mobilisation L4/L5, Nervenmobilisation, Edukation. Nächster Termin in 2 Tagen.',
+            'status': 'completed'
+        },
+        {
+            'soap_subjective': 'Patient gibt leichte Besserung an. Beinschmerz hat nachgelassen. Schlaf etwas besser. NPRS 6/10.',
+            'soap_objective': 'LWS Flexion verbessert (ca. 50°). Lasègue links negativ. Muskeltonus paravertebral noch erhöht.',
+            'soap_assessment': 'Positive Entwicklung. Radikuläre Symptomatik rückläufig. Beweglichkeit verbessert sich.',
+            'soap_plan': 'Weiter manuelle Therapie, Beginn aktive Übungen. Heimübungsprogramm: 3x täglich Beckenkippen.',
+            'status': 'completed'
+        },
+        {
+            'soap_subjective': 'Deutliche Verbesserung. Kann wieder normal gehen. Nur noch Beschwerden bei längerem Sitzen. NPRS 4/10.',
+            'soap_objective': 'LWS Flexion fast normalisiert (55°). Kein radikuläres Zeichen. Kernstabilität noch defizitär.',
+            'soap_assessment': 'Guter Fortschritt. Übergang in aktive Rehabilitationsphase möglich.',
+            'soap_plan': 'Schwerpunkt auf Kernstabilität und Haltungsschulung. MTT-Programm aufbauen. Arbeitsplatzergonomie besprechen.',
+            'status': 'completed'
+        }
+    ]
+    for i, termin in enumerate(serie1_termine):
+        if i < len(soap_daten):
+            termin.soap_subjective = soap_daten[i]['soap_subjective']
+            termin.soap_objective = soap_daten[i]['soap_objective']
+            termin.soap_assessment = soap_daten[i]['soap_assessment']
+            termin.soap_plan = soap_daten[i]['soap_plan']
+            termin.status = soap_daten[i]['status']
 
     db.session.commit()
 

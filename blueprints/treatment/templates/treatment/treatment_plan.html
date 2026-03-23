@@ -1,0 +1,650 @@
+{% extends "base.html" %}
+
+{% block title %}Behandlungsplan — {{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+<span>Behandlungsplan {{ patient.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}Behandlungsplan: {{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('patients.detail', patient_id=patient.id) }}" class="btn btn-outline">Patientenakte</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="treatment-plan">
+
+    <!-- Serien-Uebersicht -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Behandlungsserien</h3>
+            </div>
+            <div class="panel-body">
+                {% if serien %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Vorlage</th>
+                            <th>Diagnose</th>
+                            <th>Therapeut</th>
+                            <th>Status</th>
+                            <th>Phase</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in serien %}
+                        <tr>
+                            <td>{{ s.template.name if s.template else '-' }}</td>
+                            <td>
+                                {% if s.diagnosis_code %}<strong>{{ s.diagnosis_code }}</strong> — {% endif %}
+                                {{ s.diagnosis_text or '-' }}
+                            </td>
+                            <td>{{ s.therapist.user.first_name }} {{ s.therapist.user.last_name if s.therapist and s.therapist.user else '-' }}</td>
+                            <td>
+                                {% if s.status == 'active' %}
+                                    <span class="badge badge-success">Aktiv</span>
+                                {% elif s.status == 'completed' %}
+                                    <span class="badge badge-info">Abgeschlossen</span>
+                                {% else %}
+                                    <span class="badge badge-warning">Abgebrochen</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set phasen_namen = {'initial': 'Initialphase', 'treatment': 'Behandlung', 'consolidation': 'Konsolidierung', 'autonomy': 'Autonomie'} %}
+                                {{ phasen_namen.get(s.healing_phase, '-') }}
+                            </td>
+                            <td><a href="{{ url_for('treatment.serie_detail', serie_id=s.id) }}" class="btn btn-sm btn-outline">Öffnen</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state"><p>Keine Behandlungsserien vorhanden.</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnosen -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Diagnosen</h3>
+            </div>
+            <div class="panel-body">
+                <div class="diagnose-liste" id="diagnoseListe">
+                    {% set diagnosen_set = [] %}
+                    {% for s in serien %}
+                        {% if s.diagnosis_code and s.diagnosis_code not in diagnosen_set %}
+                        <div class="diagnose-item">
+                            <span class="diagnose-code-tag">{{ s.diagnosis_code }}</span>
+                            <span class="diagnose-text">{{ s.diagnosis_text or '' }}</span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="diagnose-ki-vorschlag" style="margin-top: 12px">
+                    <div class="input-group">
+                        <input type="text" id="freitextDiagnose" class="form-input"
+                               placeholder="Freitext-Diagnose eingeben für KI-Vorschlag...">
+                        <button class="btn btn-outline btn-sm" onclick="kiDiagnoseVorschlag()">
+                            KI-Vorschlag
+                        </button>
+                    </div>
+                    <div id="kiVorschlagErgebnis" style="display:none" class="ki-vorschlag-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Therapieziele -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Therapieziele</h3>
+                <button class="btn btn-sm btn-primary" onclick="zielHinzufuegenDialog()">+ Ziel hinzufügen</button>
+            </div>
+            <div class="panel-body">
+                <div class="ziele-liste" id="zieleListe">
+                    {% for z in ziele %}
+                    <div class="ziel-item" data-id="{{ z.id }}">
+                        <div class="ziel-info">
+                            <div class="ziel-beschreibung">{{ z.description }}</div>
+                            <div class="ziel-werte">
+                                <span class="ziel-zielwert">Ziel: {{ z.target_value or '-' }}</span>
+                                <span class="ziel-aktuell">Aktuell: {{ z.current_value or '-' }}</span>
+                            </div>
+                        </div>
+                        <div class="ziel-fortschritt">
+                            <div class="progress-bar">
+                                <div class="progress-fill
+                                    {% if z.achievement_percent >= 100 %}progress-success
+                                    {% elif z.achievement_percent >= 50 %}progress-warning
+                                    {% else %}progress-danger{% endif %}"
+                                     style="width: {{ z.achievement_percent }}%">
+                                </div>
+                            </div>
+                            <span class="progress-label">{{ z.achievement_percent }}%</span>
+                        </div>
+                        <div class="ziel-status">
+                            {% if z.status == 'achieved' %}
+                                <span class="badge badge-success">Erreicht</span>
+                            {% elif z.status == 'in_progress' %}
+                                <span class="badge badge-info">In Arbeit</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Offen</span>
+                            {% endif %}
+                        </div>
+                        <div class="ziel-actions">
+                            <button class="btn-icon" onclick="zielBearbeiten({{ z.id }})" title="Bearbeiten">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button class="btn-icon btn-icon-danger" onclick="zielLoeschen({{ z.id }})" title="Löschen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if not ziele %}
+                <div class="empty-state"><p>Noch keine Therapieziele definiert.</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Heilungsphasen-Timeline -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Heilungsphasen</h3>
+            </div>
+            <div class="panel-body">
+                {% for s in serien if s.status == 'active' %}
+                <div class="healing-timeline" data-serie-id="{{ s.id }}">
+                    <div class="healing-timeline-label">{{ s.template.name if s.template else 'Serie' }} #{{ s.id }}</div>
+                    <div class="healing-phases">
+                        {% set phasen = [
+                            ('initial', 'Initialphase', '#e74c3c'),
+                            ('treatment', 'Behandlungsphase', '#e67e22'),
+                            ('consolidation', 'Konsolidierungsphase', '#f1c40f'),
+                            ('autonomy', 'Autonomiephase', '#27ae60')
+                        ] %}
+                        {% for key, name, farbe in phasen %}
+                        <div class="healing-phase-block {% if s.healing_phase == key %}phase-current{% endif %}"
+                             style="--phase-color: {{ farbe }}"
+                             onclick="setzeHeilungsphaseGlobal({{ s.id }}, '{{ key }}')"
+                             title="{{ name }}">
+                            <div class="phase-block-inner">
+                                <span class="phase-block-name">{{ name }}</span>
+                                {% if s.healing_phase == key %}
+                                <span class="phase-block-indicator">&#9679; Aktuell</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Meilensteine -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Meilensteine</h3>
+                <button class="btn btn-sm btn-primary" onclick="meilensteinHinzufuegenDialog()">+ Meilenstein</button>
+            </div>
+            <div class="panel-body">
+                <div class="meilenstein-timeline" id="meilensteinTimeline">
+                    {% if meilensteine %}
+                    <div class="timeline-track">
+                        {% for m in meilensteine %}
+                        <div class="timeline-point
+                             {% if m.status == 'achieved' %}point-achieved
+                             {% elif m.status == 'current' %}point-current
+                             {% else %}point-open{% endif %}"
+                             data-id="{{ m.id }}">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-name">{{ m.name }}</div>
+                                {% if m.target_date %}
+                                <div class="timeline-date">{{ m.target_date.strftime('%d.%m.%Y') }}</div>
+                                {% endif %}
+                                {% if m.status == 'achieved' and m.achieved_date %}
+                                <div class="timeline-achieved">Erreicht: {{ m.achieved_date.strftime('%d.%m.%Y') }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state"><p>Noch keine Meilensteine definiert.</p></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messungen / Assessments -->
+    <div class="plan-section">
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Messungen / Assessments</h3>
+                <button class="btn btn-sm btn-primary" onclick="messungHinzufuegenDialog()">+ Messung erfassen</button>
+            </div>
+            <div class="panel-body">
+                <!-- Messwert-Typ-Filter -->
+                <div class="measurement-tabs" id="measurementTabs">
+                    <button class="tab-btn active" data-typ="nprs" onclick="wechsleMesTyp('nprs', this)">NPRS</button>
+                    <button class="tab-btn" data-typ="vas" onclick="wechsleMesTyp('vas', this)">VAS</button>
+                    <button class="tab-btn" data-typ="odi" onclick="wechsleMesTyp('odi', this)">ODI</button>
+                    <button class="tab-btn" data-typ="ndi" onclick="wechsleMesTyp('ndi', this)">NDI</button>
+                    <button class="tab-btn" data-typ="dash" onclick="wechsleMesTyp('dash', this)">DASH</button>
+                </div>
+
+                <!-- Verlaufsgrafik -->
+                <div class="measurement-chart-container">
+                    <canvas id="measurementChart" width="800" height="300"></canvas>
+                </div>
+
+                <!-- Messwerttabelle -->
+                <div class="measurement-table" id="measurementTable">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Datum</th><th>Wert</th><th>Gemessen von</th><th>Notizen</th></tr>
+                        </thead>
+                        <tbody id="measurementTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Ziel hinzufuegen -->
+<div class="modal-overlay" id="zielModal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="zielModalTitle">Therapieziel hinzufügen</h3>
+            <button class="modal-close" onclick="schliesseModal('zielModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="zielEditId" value="">
+            <div class="form-group">
+                <label>Serie</label>
+                <select id="zielSerieId" class="form-select">
+                    {% for s in serien if s.status == 'active' %}
+                    <option value="{{ s.id }}">{{ s.template.name if s.template else 'Serie' }} — {{ s.diagnosis_text or '-' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Beschreibung *</label>
+                <textarea id="zielBeschreibung" class="form-textarea" required></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Zielwert</label>
+                    <input type="text" id="zielZielwert" class="form-input" placeholder="z.B. NPRS ≤ 3">
+                </div>
+                <div class="form-group">
+                    <label>Aktueller Wert</label>
+                    <input type="text" id="zielAktuell" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Erreichung (%)</label>
+                    <input type="number" id="zielProzent" class="form-input" min="0" max="100" value="0">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="schliesseModal('zielModal')">Abbrechen</button>
+            <button class="btn btn-primary" onclick="zielSpeichern()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Meilenstein hinzufuegen -->
+<div class="modal-overlay" id="meilensteinModal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Meilenstein hinzufügen</h3>
+            <button class="modal-close" onclick="schliesseModal('meilensteinModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Serie</label>
+                <select id="msSerieId" class="form-select">
+                    {% for s in serien if s.status == 'active' %}
+                    <option value="{{ s.id }}">{{ s.template.name if s.template else 'Serie' }} — {{ s.diagnosis_text or '-' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" id="msName" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Beschreibung</label>
+                <textarea id="msBeschreibung" class="form-textarea"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Zieldatum</label>
+                    <input type="date" id="msZieldatum" class="form-input">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Erreichungskriterien</label>
+                <textarea id="msKriterien" class="form-textarea"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="schliesseModal('meilensteinModal')">Abbrechen</button>
+            <button class="btn btn-primary" onclick="meilensteinSpeichern()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Messung erfassen -->
+<div class="modal-overlay" id="messungModal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Messung erfassen</h3>
+            <button class="modal-close" onclick="schliesseModal('messungModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Messtyp *</label>
+                    <select id="messTyp" class="form-select">
+                        <option value="nprs">NPRS (Schmerzskala 0-10)</option>
+                        <option value="vas">VAS (Visuelle Analogskala 0-100)</option>
+                        <option value="odi">ODI (Oswestry Disability Index)</option>
+                        <option value="ndi">NDI (Neck Disability Index)</option>
+                        <option value="dash">DASH</option>
+                        <option value="custom">Benutzerdefiniert</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Datum *</label>
+                    <input type="date" id="messDatum" class="form-input" value="{{ today.isoformat() }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Wert *</label>
+                    <input type="number" id="messWert" class="form-input" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>Einheit</label>
+                    <input type="text" id="messEinheit" class="form-input" placeholder="z.B. Punkte">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Notizen</label>
+                <textarea id="messNotizen" class="form-textarea"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="schliesseModal('messungModal')">Abbrechen</button>
+            <button class="btn btn-primary" onclick="messungSpeichern()">Erfassen</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/measurements.js') }}"></script>
+<script>
+const PATIENT_ID = {{ patient.id }};
+let aktuellerMesTyp = 'nprs';
+
+document.addEventListener('DOMContentLoaded', function() {
+    ladeMessungen('nprs');
+});
+
+// === Modal-Helfer ===
+function schliesseModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+// === Therapieziele ===
+function zielHinzufuegenDialog() {
+    document.getElementById('zielEditId').value = '';
+    document.getElementById('zielModalTitle').textContent = 'Therapieziel hinzufügen';
+    document.getElementById('zielBeschreibung').value = '';
+    document.getElementById('zielZielwert').value = '';
+    document.getElementById('zielAktuell').value = '';
+    document.getElementById('zielProzent').value = '0';
+    document.getElementById('zielModal').style.display = 'flex';
+}
+
+function zielBearbeiten(id) {
+    fetch('/treatment/api/ziele/' + PATIENT_ID)
+        .then(r => r.json())
+        .then(ziele => {
+            const z = ziele.find(x => x.id === id);
+            if (!z) return;
+            document.getElementById('zielEditId').value = z.id;
+            document.getElementById('zielModalTitle').textContent = 'Therapieziel bearbeiten';
+            document.getElementById('zielBeschreibung').value = z.beschreibung;
+            document.getElementById('zielZielwert').value = z.zielwert;
+            document.getElementById('zielAktuell').value = z.aktueller_wert;
+            document.getElementById('zielProzent').value = z.erreichung;
+            if (z.series_id) {
+                document.getElementById('zielSerieId').value = z.series_id;
+            }
+            document.getElementById('zielModal').style.display = 'flex';
+        });
+}
+
+function zielSpeichern() {
+    const editId = document.getElementById('zielEditId').value;
+    const data = {
+        patient_id: PATIENT_ID,
+        series_id: parseInt(document.getElementById('zielSerieId').value) || null,
+        beschreibung: document.getElementById('zielBeschreibung').value,
+        zielwert: document.getElementById('zielZielwert').value,
+        aktueller_wert: document.getElementById('zielAktuell').value,
+        erreichung: parseInt(document.getElementById('zielProzent').value) || 0
+    };
+
+    if (!data.beschreibung) { alert('Bitte Beschreibung eingeben.'); return; }
+
+    const url = editId ? '/treatment/api/ziel/' + editId : '/treatment/api/ziel';
+    const method = editId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(() => { schliesseModal('zielModal'); window.location.reload(); });
+}
+
+function zielLoeschen(id) {
+    if (!confirm('Therapieziel wirklich löschen?')) return;
+    fetch('/treatment/api/ziel/' + id, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(() => window.location.reload());
+}
+
+// === Meilensteine ===
+function meilensteinHinzufuegenDialog() {
+    document.getElementById('msName').value = '';
+    document.getElementById('msBeschreibung').value = '';
+    document.getElementById('msZieldatum').value = '';
+    document.getElementById('msKriterien').value = '';
+    document.getElementById('meilensteinModal').style.display = 'flex';
+}
+
+function meilensteinSpeichern() {
+    const data = {
+        patient_id: PATIENT_ID,
+        series_id: parseInt(document.getElementById('msSerieId').value) || null,
+        name: document.getElementById('msName').value,
+        beschreibung: document.getElementById('msBeschreibung').value,
+        zieldatum: document.getElementById('msZieldatum').value,
+        kriterien: document.getElementById('msKriterien').value
+    };
+
+    if (!data.name) { alert('Bitte Name eingeben.'); return; }
+
+    fetch('/treatment/api/meilenstein', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(() => { schliesseModal('meilensteinModal'); window.location.reload(); });
+}
+
+// === Messungen ===
+function messungHinzufuegenDialog() {
+    document.getElementById('messWert').value = '';
+    document.getElementById('messNotizen').value = '';
+    document.getElementById('messungModal').style.display = 'flex';
+}
+
+function messungSpeichern() {
+    const data = {
+        patient_id: PATIENT_ID,
+        typ: document.getElementById('messTyp').value,
+        werte: { value: parseFloat(document.getElementById('messWert').value) },
+        datum: document.getElementById('messDatum').value + 'T00:00:00',
+        einheit: document.getElementById('messEinheit').value,
+        notizen: document.getElementById('messNotizen').value
+    };
+
+    if (isNaN(data.werte.value)) { alert('Bitte gültigen Wert eingeben.'); return; }
+
+    fetch('/treatment/api/messung', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(() => {
+        schliesseModal('messungModal');
+        ladeMessungen(aktuellerMesTyp);
+    });
+}
+
+function wechsleMesTyp(typ, btn) {
+    aktuellerMesTyp = typ;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ladeMessungen(typ);
+}
+
+function ladeMessungen(typ) {
+    fetch('/treatment/api/messungen/' + PATIENT_ID + '?typ=' + typ)
+        .then(r => r.json())
+        .then(messungen => {
+            // Tabelle fuellen
+            const tbody = document.getElementById('measurementTableBody');
+            if (messungen.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Keine Messungen vorhanden</td></tr>';
+            } else {
+                tbody.innerHTML = messungen.map(m => {
+                    const wert = m.werte.value !== undefined ? m.werte.value : JSON.stringify(m.werte);
+                    return '<tr><td>' + m.datum + '</td><td><strong>' + wert + '</strong> ' + m.einheit + '</td>' +
+                           '<td>' + m.gemessen_von + '</td><td>' + m.notizen + '</td></tr>';
+                }).join('');
+            }
+
+            // Chart zeichnen
+            const canvas = document.getElementById('measurementChart');
+            if (messungen.length > 0) {
+                const labels = messungen.map(m => m.datum);
+                const values = messungen.map(m => m.werte.value !== undefined ? m.werte.value : 0);
+
+                const typConfig = {
+                    'nprs': { label: 'NPRS (Schmerzskala)', min: 0, max: 10, color: '#e74c3c' },
+                    'vas': { label: 'VAS', min: 0, max: 100, color: '#e67e22' },
+                    'odi': { label: 'ODI', min: 0, max: 100, color: '#3498db' },
+                    'ndi': { label: 'NDI', min: 0, max: 100, color: '#9b59b6' },
+                    'dash': { label: 'DASH', min: 0, max: 100, color: '#1abc9c' }
+                };
+                const cfg = typConfig[typ] || { label: typ.toUpperCase(), min: 0, max: 100, color: '#4a90d9' };
+
+                drawMeasurementChart(canvas, labels, values, cfg);
+            } else {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#999';
+                ctx.font = '14px system-ui';
+                ctx.textAlign = 'center';
+                ctx.fillText('Keine Daten vorhanden', canvas.width / 2, canvas.height / 2);
+            }
+        });
+}
+
+// === Heilungsphasen ===
+function setzeHeilungsphaseGlobal(serieId, phase) {
+    fetch('/treatment/api/heilungsphase', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({serie_id: serieId, phase_type: phase})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            window.location.reload();
+        }
+    });
+}
+
+// === KI-Diagnose-Vorschlag ===
+function kiDiagnoseVorschlag() {
+    const freitext = document.getElementById('freitextDiagnose').value.trim();
+    if (!freitext) { alert('Bitte Freitext eingeben.'); return; }
+
+    const ergebnisBox = document.getElementById('kiVorschlagErgebnis');
+    ergebnisBox.style.display = 'block';
+    ergebnisBox.innerHTML = '<em>KI analysiert...</em>';
+
+    // Sende an Chat-API
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            message: 'Schlage mir einen passenden ICD-10 Code vor fuer folgende Diagnose: ' + freitext +
+                     '. Antworte nur mit dem Code und der Bezeichnung, kurz und knapp.'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        ergebnisBox.innerHTML = '<strong>KI-Vorschlag:</strong> ' + (data.response || data.message || 'Kein Vorschlag');
+    })
+    .catch(() => {
+        ergebnisBox.innerHTML = '<em>KI-Funktion nicht verfügbar.</em>';
+    });
+}
+</script>
+{% endblock %}

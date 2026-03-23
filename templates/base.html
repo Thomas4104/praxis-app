@@ -107,7 +107,7 @@
                 </svg>
                 <span class="nav-label">Mitarbeiter</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="{{ url_for('treatment.index') }}" class="nav-item {% if request.blueprint == 'treatment' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                 </svg>

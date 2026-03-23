@@ -767,6 +767,82 @@ class WaitingList(db.Model):
 # Audit
 # ============================================================
 
+class TherapyGoal(db.Model):
+    """Therapieziele pro Serie/Patient"""
+    __tablename__ = 'therapy_goals'
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
+    description = db.Column(db.Text, nullable=False)
+    target_value = db.Column(db.String(100))
+    current_value = db.Column(db.String(100))
+    achievement_percent = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default='open')  # open, in_progress, achieved
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    series = db.relationship('TreatmentSeries', backref=db.backref('goals', lazy='dynamic'))
+    patient = db.relationship('Patient', backref=db.backref('therapy_goals', lazy='dynamic'))
+
+
+class Milestone(db.Model):
+    """Meilensteine im Behandlungsverlauf"""
+    __tablename__ = 'milestones'
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    target_date = db.Column(db.Date)
+    achieved_date = db.Column(db.Date)
+    criteria = db.Column(db.Text)
+    status = db.Column(db.String(20), default='open')  # open, current, achieved
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    series = db.relationship('TreatmentSeries', backref=db.backref('milestones', lazy='dynamic'))
+    patient = db.relationship('Patient', backref=db.backref('milestones', lazy='dynamic'))
+
+
+class Measurement(db.Model):
+    """Messwerte und Assessments"""
+    __tablename__ = 'measurements'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
+    measurement_type = db.Column(db.String(50), nullable=False)  # nprs, vas, odi, ndi, dash, custom
+    name = db.Column(db.String(200))
+    value_json = db.Column(db.Text)  # {"value": 7} oder {"systolic": 120, "diastolic": 80}
+    unit = db.Column(db.String(50))
+    measured_at = db.Column(db.DateTime, nullable=False)
+    measured_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref=db.backref('measurements', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', backref=db.backref('measurements', lazy='dynamic'))
+    appointment = db.relationship('Appointment', backref=db.backref('measurements', lazy='dynamic'))
+    measured_by = db.relationship('Employee', backref=db.backref('measurements_taken', lazy='dynamic'))
+
+
+class HealingPhase(db.Model):
+    """Heilungsphasen einer Behandlungsserie"""
+    __tablename__ = 'healing_phases'
+    id = db.Column(db.Integer, primary_key=True)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=False)
+    phase_type = db.Column(db.String(30), nullable=False)  # initial, treatment, consolidation, autonomy
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    series = db.relationship('TreatmentSeries', backref=db.backref('healing_phases', lazy='dynamic'))
+
+
+# ============================================================
+# Audit
+# ============================================================
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)
