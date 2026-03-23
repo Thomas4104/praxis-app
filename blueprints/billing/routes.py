@@ -15,6 +15,7 @@ from services.billing_service import (
 from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
 from utils.auth import check_org, get_org_id
+from services.audit_service import log_action
 
 
 # ============================================================
@@ -225,6 +226,7 @@ def create():
                     invoice.amount_total = round(invoice.amount_total + amt + vat_amt, 2)
                     invoice.amount_open = round(invoice.amount_open + amt + vat_amt, 2)
 
+            log_action('create', 'invoice', invoice.id)
             db.session.commit()
             flash(f'Rechnung {invoice.invoice_number} wurde erstellt.', 'success')
             return redirect(url_for('billing.detail', id=invoice.id))

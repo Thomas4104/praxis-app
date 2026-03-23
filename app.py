@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta, date, time
-from flask import Flask, session
+from flask import Flask, session, render_template
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -126,6 +126,28 @@ def create_app(config_name=None):
         if not app.debug:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
+
+    # Health Check
+    @app.route('/health')
+    def health_check():
+        try:
+            db.session.execute(db.text('SELECT 1'))
+            return {'status': 'healthy', 'database': 'connected'}, 200
+        except Exception as e:
+            return {'status': 'unhealthy', 'error': str(e)}, 503
+
+    # Error Pages
+    @app.errorhandler(404)
+    def not_found(e):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return render_template('errors/500.html'), 500
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        return render_template('errors/403.html'), 403
 
     # Datenbank erstellen und Demo-Daten laden
     with app.app_context():

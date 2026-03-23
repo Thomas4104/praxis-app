@@ -13,6 +13,7 @@ from models import db, Patient, InsuranceProvider, Doctor, Employee, \
     Location, Email, Organization
 from sqlalchemy import func
 from utils.auth import check_org
+from services.audit_service import log_action
 
 
 # ============================================================
@@ -305,6 +306,10 @@ def _save_patient(patient):
 
     if is_new:
         db.session.add(patient)
+        db.session.flush()
+        log_action('create', 'patient', patient.id)
+    else:
+        log_action('update', 'patient', patient.id)
 
     db.session.commit()
     flash('Patient erfolgreich gespeichert.' if not is_new else 'Patient erfolgreich erstellt.', 'success')
@@ -321,6 +326,7 @@ def detail(patient_id):
     """Patientendetail mit Tabs"""
     patient = Patient.query.get_or_404(patient_id)
     check_org(patient)
+    log_action('read', 'patient', patient.id)
     tab = request.args.get('tab', 'overview')
 
     # Uebersicht-Daten
@@ -495,6 +501,8 @@ def download_document(doc_id):
     # IDOR-Schutz: Patient des Dokuments muss zur Organisation gehoeren
     patient = Patient.query.get_or_404(doc.patient_id)
     check_org(patient)
+    log_action('download', 'document', doc.id)
+    db.session.commit()
     directory = os.path.dirname(doc.file_path)
     return send_from_directory(directory, doc.filename,
                                download_name=doc.original_filename,

@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash
 from blueprints.auth import auth_bp
 from models import db, User
 from app import limiter
+from services.audit_service import log_action
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -26,11 +27,14 @@ def login():
 
             login_user(user, remember=True)
             user.last_login = datetime.utcnow()
+            log_action('login', 'user', user.id)
             db.session.commit()
 
             next_page = request.args.get('next')
             return redirect(next_page or url_for('dashboard.index'))
         else:
+            log_action('login_failed', 'user', 0)
+            db.session.commit()
             flash('Ungültige Anmeldedaten.', 'error')
 
     return render_template('auth/login.html')
@@ -39,6 +43,8 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    log_action('logout', 'user', current_user.id)
+    db.session.commit()
     logout_user()
     flash('Sie wurden erfolgreich abgemeldet.', 'success')
     return redirect(url_for('auth.login'))
