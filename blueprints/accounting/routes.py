@@ -12,6 +12,7 @@ from services.accounting_service import (
     generate_balance_sheet, generate_income_statement, generate_vat_report,
     get_open_debtors, get_open_creditors, get_liquidity
 )
+from utils.auth import check_org
 
 
 # ============================================================
@@ -145,6 +146,7 @@ def create_account():
 def edit_account(id):
     """Konto bearbeiten"""
     account = Account.query.get_or_404(id)
+    check_org(account)
     account.name = request.form.get('name', account.name).strip()
     account.account_type = request.form.get('account_type', account.account_type)
     account.vat_code = request.form.get('vat_code', '') or None
@@ -159,6 +161,7 @@ def edit_account(id):
 def account_statement(id):
     """Kontoauszug anzeigen"""
     account = Account.query.get_or_404(id)
+    check_org(account)
     von = request.args.get('von', date(date.today().year, 1, 1).isoformat())
     bis = request.args.get('bis', date.today().isoformat())
 
@@ -320,6 +323,8 @@ def create_booking():
 @login_required
 def storno_booking(id):
     """Buchung stornieren"""
+    entry_obj = JournalEntry.query.get_or_404(id)
+    check_org(entry_obj)
     entry, error = storno_entry(id, created_by_id=current_user.id)
     if error:
         flash(error, 'error')
@@ -459,6 +464,7 @@ def create_creditor():
 def approve_creditor(id):
     """Kreditoren-Rechnung freigeben"""
     creditor = CreditorInvoice.query.get_or_404(id)
+    check_org(creditor)
     creditor.status = 'approved'
     db.session.commit()
     flash('Rechnung wurde freigegeben.', 'success')
@@ -471,6 +477,7 @@ def pay_creditor(id):
     """Kreditoren-Rechnung als bezahlt markieren"""
     org_id = current_user.organization_id
     creditor = CreditorInvoice.query.get_or_404(id)
+    check_org(creditor)
 
     # Buchung: Kreditoren an Bank
     kreditoren_account = Account.query.filter_by(
@@ -800,11 +807,12 @@ def lock_year():
 @login_required
 def api_account_balance(account_id):
     """API: Kontostand abfragen"""
+    account = Account.query.get_or_404(account_id)
+    check_org(account)
     balance = get_account_balance(account_id)
-    account = Account.query.get(account_id)
     return jsonify({
-        'account_number': account.account_number if account else '',
-        'name': account.name if account else '',
+        'account_number': account.account_number,
+        'name': account.name,
         'balance': balance
     })
 

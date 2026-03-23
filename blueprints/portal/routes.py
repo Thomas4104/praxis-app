@@ -10,6 +10,7 @@ from models import db, Patient, PatientDocument, Appointment, TreatmentSeries, \
     PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence, Email
 from blueprints.portal import portal_bp
 from app import limiter
+from utils.auth import check_org
 
 
 # ============================================================
@@ -543,7 +544,7 @@ def new_message():
                 recipient='praxis@intern',
                 folder='inbox',
                 is_read=False,
-                organization_id=1
+                organization_id=patient.organization_id
             )
             db.session.add(email)
         except Exception:
@@ -613,22 +614,27 @@ def profile():
 def admin():
     """Portal-Verwaltung (fuer Praxis-Mitarbeiter)"""
     # Statistiken
-    total_accounts = PortalAccount.query.count()
-    active_accounts = PortalAccount.query.filter_by(is_active=True).count()
-    pending_accounts = PortalAccount.query.filter_by(is_active=False).count()
-    pending_bookings = OnlineBookingRequest.query.filter_by(status='pending').count()
-    total_messages = PortalMessage.query.count()
-    unread_messages = PortalMessage.query.filter_by(
-        sender_type='patient'
+    org_id = current_user.organization_id
+    total_accounts = PortalAccount.query.join(Patient).filter(Patient.organization_id == org_id).count()
+    active_accounts = PortalAccount.query.join(Patient).filter(Patient.organization_id == org_id, PortalAccount.is_active == True).count()
+    pending_accounts = PortalAccount.query.join(Patient).filter(Patient.organization_id == org_id, PortalAccount.is_active == False).count()
+    pending_bookings = OnlineBookingRequest.query.join(Patient).filter(Patient.organization_id == org_id, OnlineBookingRequest.status == 'pending').count()
+    total_messages = PortalMessage.query.join(Patient).filter(Patient.organization_id == org_id).count()
+    unread_messages = PortalMessage.query.join(Patient).filter(
+        Patient.organization_id == org_id,
+        PortalMessage.sender_type == 'patient'
     ).filter(PortalMessage.read_at.is_(None)).count()
 
     # Letzte Buchungsanfragen
-    recent_bookings = OnlineBookingRequest.query \
-        .order_by(OnlineBookingRequest.created_at.desc()).limit(10).all()
+    recent_bookings = OnlineBookingRequest.query.join(Patient).filter(
+        Patient.organization_id == org_id
+    ).order_by(OnlineBookingRequest.created_at.desc()).limit(10).all()
 
     # Letzte Portal-Nachrichten
-    recent_messages = PortalMessage.query.filter_by(sender_type='patient') \
-        .order_by(PortalMessage.created_at.desc()).limit(10).all()
+    recent_messages = PortalMessage.query.join(Patient).filter(
+        Patient.organization_id == org_id,
+        PortalMessage.sender_type == 'patient'
+    ).order_by(PortalMessage.created_at.desc()).limit(10).all()
 
     return render_template('portal/portal_admin.html',
                            total_accounts=total_accounts,
@@ -646,6 +652,7 @@ def admin():
 def toggle_account(account_id):
     """Portal-Account aktivieren/deaktivieren"""
     account = PortalAccount.query.get_or_404(account_id)
+    check_org(account.patient)
     account.is_active = not account.is_active
     account.is_verified = account.is_active
     db.session.commit()
@@ -665,6 +672,7 @@ def toggle_account(account_id):
 def confirm_booking(booking_id):
     """Online-Buchung bestaetigen"""
     booking = OnlineBookingRequest.query.get_or_404(booking_id)
+    check_org(Patient.query.get(booking.patient_id))
     booking.status = 'confirmed'
     db.session.commit()
     flash('Buchungsanfrage wurde bestätigt.', 'success')
@@ -676,6 +684,7 @@ def confirm_booking(booking_id):
 def reject_booking(booking_id):
     """Online-Buchung ablehnen"""
     booking = OnlineBookingRequest.query.get_or_404(booking_id)
+    check_org(Patient.query.get(booking.patient_id))
     booking.status = 'rejected'
     db.session.commit()
     flash('Buchungsanfrage wurde abgelehnt.', 'success')
@@ -687,6 +696,7 @@ def reject_booking(booking_id):
 def send_practice_message(patient_id):
     """Nachricht von Praxis an Patient senden"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     subject = request.form.get('subject', '').strip()
     body = request.form.get('body', '').strip()
 

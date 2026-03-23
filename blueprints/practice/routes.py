@@ -5,6 +5,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.practice import practice_bp
 from models import db, Organization, Location, BankAccount, Holiday, TreatmentSeriesTemplate, TaxPointValue, InsuranceProvider
+from utils.auth import check_org
 
 
 # ============================================================
@@ -153,6 +154,7 @@ def create_location():
 def edit_location(location_id):
     """Standort bearbeiten"""
     location = Location.query.get_or_404(location_id)
+    check_org(location)
     if request.method == 'POST':
         return _save_location(location)
     return render_template('practice/location_form.html', location=location)
@@ -163,6 +165,7 @@ def edit_location(location_id):
 def toggle_location(location_id):
     """Standort aktivieren/deaktivieren"""
     location = Location.query.get_or_404(location_id)
+    check_org(location)
     location.is_active = not location.is_active
     db.session.commit()
     status_text = 'aktiviert' if location.is_active else 'deaktiviert'
@@ -295,6 +298,7 @@ def add_holiday():
 def delete_holiday(holiday_id):
     """Feiertag loeschen"""
     holiday = Holiday.query.get_or_404(holiday_id)
+    check_org(holiday)
     year = holiday.date.year
     name = holiday.name
     db.session.delete(holiday)
@@ -443,6 +447,7 @@ def create_bank_account():
 def edit_bank_account(account_id):
     """Bankkonto bearbeiten"""
     account = BankAccount.query.get_or_404(account_id)
+    check_org(account)
     if request.method == 'POST':
         return _save_bank_account(account)
     return render_template('practice/bank_account_form.html', account=account)
@@ -453,6 +458,7 @@ def edit_bank_account(account_id):
 def toggle_bank_account(account_id):
     """Bankkonto aktivieren/deaktivieren"""
     account = BankAccount.query.get_or_404(account_id)
+    check_org(account)
     account.is_active = not account.is_active
     db.session.commit()
     status_text = 'aktiviert' if account.is_active else 'deaktiviert'
@@ -470,6 +476,7 @@ def set_default_bank_account(account_id):
     ).update({'is_default': False})
 
     account = BankAccount.query.get_or_404(account_id)
+    check_org(account)
     account.is_default = True
     db.session.commit()
 
@@ -567,6 +574,7 @@ def create_template():
 def edit_template(template_id):
     """Serienvorlage bearbeiten"""
     template = TreatmentSeriesTemplate.query.get_or_404(template_id)
+    check_org(template)
     if request.method == 'POST':
         return _save_template(template)
     locations = Location.query.filter_by(
@@ -580,6 +588,7 @@ def edit_template(template_id):
 def toggle_template(template_id):
     """Serienvorlage aktivieren/deaktivieren"""
     template = TreatmentSeriesTemplate.query.get_or_404(template_id)
+    check_org(template)
     template.is_active = not template.is_active
     db.session.commit()
     status_text = 'aktiviert' if template.is_active else 'deaktiviert'
@@ -729,6 +738,7 @@ def add_tax_point():
 def delete_tax_point(tp_id):
     """Taxpunktwert loeschen"""
     tp = TaxPointValue.query.get_or_404(tp_id)
+    check_org(tp)
     tariff = tp.tariff_type
     db.session.delete(tp)
     db.session.commit()
@@ -742,6 +752,7 @@ def delete_tax_point(tp_id):
 def edit_tax_point(tp_id):
     """Taxpunktwert bearbeiten"""
     tp = TaxPointValue.query.get_or_404(tp_id)
+    check_org(tp)
 
     tariff_type = request.form.get('tariff_type', '').strip()
     value_str = request.form.get('value', '').strip()

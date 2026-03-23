@@ -7,6 +7,7 @@ from blueprints.settings import settings_bp
 from models import db, Organization, User, Employee, Location, Permission, \
     AISettings, EmailTemplate, PrintTemplate, SystemSetting
 from services.settings_service import get_setting, set_setting, get_settings_by_category, invalidate_cache
+from utils.auth import check_org
 
 
 # ============================================================
@@ -282,6 +283,7 @@ def create_email_template():
 def edit_email_template(template_id):
     """E-Mail-Vorlage bearbeiten"""
     template = EmailTemplate.query.get_or_404(template_id)
+    check_org(template)
 
     template.name = request.form.get('name', template.name).strip()
     template.template_type = request.form.get('template_type', template.template_type)
@@ -299,6 +301,7 @@ def edit_email_template(template_id):
 def delete_email_template(template_id):
     """E-Mail-Vorlage loeschen"""
     template = EmailTemplate.query.get_or_404(template_id)
+    check_org(template)
     name = template.name
     db.session.delete(template)
     db.session.commit()
@@ -313,6 +316,7 @@ def delete_email_template(template_id):
 def toggle_email_template(template_id):
     """E-Mail-Vorlage aktivieren/deaktivieren"""
     template = EmailTemplate.query.get_or_404(template_id)
+    check_org(template)
     template.is_active = not template.is_active
     db.session.commit()
 
@@ -368,7 +372,7 @@ def _users_category(org):
     ).order_by(User.last_name, User.first_name).all()
 
     # Berechtigungen laden
-    permissions = Permission.query.all()
+    permissions = Permission.query.filter_by(organization_id=org.id).all()
     permissions_matrix = {}
     for p in permissions:
         if p.role not in permissions_matrix:
@@ -404,6 +408,7 @@ def save_permissions():
                 is_allowed = request.form.get(key) == 'on'
 
                 perm = Permission.query.filter_by(
+                    organization_id=current_user.organization_id,
                     role=role, module=module, action=action
                 ).first()
 
@@ -411,6 +416,7 @@ def save_permissions():
                     perm.is_allowed = is_allowed
                 else:
                     perm = Permission(
+                        organization_id=current_user.organization_id,
                         role=role, module=module, action=action,
                         is_allowed=is_allowed
                     )
@@ -465,6 +471,7 @@ def create_print_template():
 def edit_print_template(template_id):
     """Druckvorlage bearbeiten"""
     template = PrintTemplate.query.get_or_404(template_id)
+    check_org(template)
 
     template.name = request.form.get('name', template.name).strip()
     template.template_type = request.form.get('template_type', template.template_type)
@@ -481,6 +488,7 @@ def edit_print_template(template_id):
 def delete_print_template(template_id):
     """Druckvorlage loeschen"""
     template = PrintTemplate.query.get_or_404(template_id)
+    check_org(template)
     name = template.name
     db.session.delete(template)
     db.session.commit()
@@ -495,6 +503,7 @@ def delete_print_template(template_id):
 def toggle_print_template(template_id):
     """Druckvorlage aktivieren/deaktivieren"""
     template = PrintTemplate.query.get_or_404(template_id)
+    check_org(template)
     template.is_active = not template.is_active
     db.session.commit()
 
@@ -562,6 +571,7 @@ def save_location_visibility():
 def api_get_email_template(template_id):
     """E-Mail-Vorlage als JSON zurueckgeben"""
     template = EmailTemplate.query.get_or_404(template_id)
+    check_org(template)
     placeholders = []
     if template.placeholders_json:
         try:
@@ -586,6 +596,7 @@ def api_get_email_template(template_id):
 def api_get_print_template(template_id):
     """Druckvorlage als JSON zurueckgeben"""
     template = PrintTemplate.query.get_or_404(template_id)
+    check_org(template)
     return jsonify({
         'id': template.id,
         'name': template.name,

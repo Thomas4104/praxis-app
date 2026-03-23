@@ -3,6 +3,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.products import products_bp
 from models import db, Product, ProductPriceHistory, TreatmentSeries
+from utils.auth import check_org
 
 
 @products_bp.route('/')
@@ -76,6 +77,7 @@ def create():
 def detail(product_id):
     """Produkt-Detailansicht"""
     product = Product.query.get_or_404(product_id)
+    check_org(product)
 
     # Preis-Historie laden
     price_history = ProductPriceHistory.query.filter_by(
@@ -97,6 +99,7 @@ def detail(product_id):
 def edit(product_id):
     """Produkt bearbeiten"""
     product = Product.query.get_or_404(product_id)
+    check_org(product)
 
     if request.method == 'POST':
         return _save_product(product)
@@ -109,6 +112,7 @@ def edit(product_id):
 def toggle_active(product_id):
     """Produkt aktivieren/deaktivieren"""
     product = Product.query.get_or_404(product_id)
+    check_org(product)
     product.is_active = not product.is_active
     db.session.commit()
 

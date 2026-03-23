@@ -13,6 +13,7 @@ from services.reporting_service import (
     get_new_patients_chart_data
 )
 from blueprints.reporting import reporting_bp
+from utils.auth import check_org
 
 
 # ============================================================
@@ -291,6 +292,11 @@ def api_scorecard():
 
     if not employee_id:
         return jsonify({'error': 'Bitte wählen Sie einen Therapeuten.'}), 400
+
+    # IDOR-Schutz: Pruefen ob Therapeut zur eigenen Organisation gehoert
+    emp = Employee.query.get(int(employee_id))
+    if emp:
+        check_org(emp)
 
     today = date.today()
     if period == 'month':

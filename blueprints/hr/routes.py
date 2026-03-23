@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from blueprints.hr import hr_bp
 from models import db, Employee, User, EmployeeContract, EmployeeSalary, EmployeeChild, \
     PayrollRun, Payslip, TimeEntry, OvertimeAccount, Expense, Certificate, AbsenceQuota, Absence
+from utils.auth import check_org
 
 
 # ============================================================
@@ -74,6 +75,7 @@ def index():
 def personnel_file(employee_id):
     """Personalakte eines Mitarbeiters"""
     emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
     user = emp.user
 
     # Vertragsdaten
@@ -124,6 +126,7 @@ def personnel_file(employee_id):
 def save_contract(employee_id):
     """Vertragsdaten speichern"""
     emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
 
     contract = EmployeeContract.query.filter_by(employee_id=emp.id).order_by(
         EmployeeContract.start_date.desc()
@@ -155,6 +158,7 @@ def save_contract(employee_id):
 def save_salary(employee_id):
     """Lohndaten speichern"""
     emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
 
     # Pruefen ob sich der Lohn aendert
     current_salary = EmployeeSalary.query.filter(
@@ -205,6 +209,7 @@ def save_salary(employee_id):
 def save_child(employee_id):
     """Kind hinzufuegen"""
     emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
 
     child = EmployeeChild(employee_id=emp.id)
     child.first_name = request.form.get('first_name', '')
@@ -224,6 +229,8 @@ def save_child(employee_id):
 @login_required
 def delete_child(employee_id, child_id):
     """Kind entfernen"""
+    emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
     child = EmployeeChild.query.get_or_404(child_id)
     db.session.delete(child)
     db.session.commit()
@@ -275,6 +282,7 @@ def payroll_create():
 def payroll_detail(run_id):
     """Lohnlauf-Detail"""
     run = PayrollRun.query.get_or_404(run_id)
+    check_org(run)
     payslips = Payslip.query.filter_by(payroll_run_id=run.id).join(Employee).join(User).all()
 
     from services.payroll_service import MONTH_NAMES
@@ -289,6 +297,7 @@ def payroll_detail(run_id):
 def payroll_approve(run_id):
     """Lohnlauf freigeben"""
     run = PayrollRun.query.get_or_404(run_id)
+    check_org(run)
     run.status = 'approved'
     run.approved_by_id = current_user.id
     run.approved_at = datetime.now()
@@ -302,6 +311,7 @@ def payroll_approve(run_id):
 def payroll_pay(run_id):
     """Lohnlauf als ausbezahlt markieren und buchen"""
     run = PayrollRun.query.get_or_404(run_id)
+    check_org(run)
     run.status = 'paid'
     run.paid_at = datetime.now()
 
@@ -332,6 +342,7 @@ def payroll_pay(run_id):
 def payroll_recalculate(run_id):
     """Lohnlauf neu berechnen"""
     run = PayrollRun.query.get_or_404(run_id)
+    check_org(run)
     if run.status not in ('draft', 'calculated'):
         flash('Freigegebene Lohnläufe können nicht neu berechnet werden.', 'error')
         return redirect(url_for('hr.payroll_detail', run_id=run.id))
@@ -394,6 +405,7 @@ def payroll_recalculate(run_id):
 def payslip_detail(payslip_id):
     """Lohnabrechnung Detail"""
     payslip = Payslip.query.get_or_404(payslip_id)
+    check_org(payslip.payroll_run)
     run = payslip.payroll_run
     emp = Employee.query.get(payslip.employee_id)
     user = emp.user
@@ -494,6 +506,9 @@ def clock_in_out():
         flash('Kein Mitarbeiter zugeordnet.', 'error')
         return redirect(url_for('hr.time_tracking'))
 
+    emp = Employee.query.get_or_404(employee_id)
+    check_org(emp)
+
     today = date.today()
     now = datetime.now().time()
 
@@ -535,6 +550,9 @@ def clock_in_out():
 def time_manual():
     """Manuelle Zeiterfassung"""
     employee_id = request.form.get('employee_id', type=int)
+    if employee_id:
+        emp = Employee.query.get_or_404(employee_id)
+        check_org(emp)
     date_str = request.form.get('date')
     clock_in_str = request.form.get('clock_in')
     clock_out_str = request.form.get('clock_out')
@@ -612,6 +630,10 @@ def expense_create():
     if not employee_id and current_user.employee:
         employee_id = current_user.employee.id
 
+    if employee_id:
+        emp = Employee.query.get_or_404(employee_id)
+        check_org(emp)
+
     date_str = request.form.get('date')
     expense = Expense(
         employee_id=employee_id,
@@ -635,6 +657,9 @@ def expense_create():
 def expense_approve(expense_id):
     """Spese genehmigen"""
     expense = Expense.query.get_or_404(expense_id)
+    emp = Employee.query.get(expense.employee_id)
+    if emp:
+        check_org(emp)
     expense.status = 'approved'
     expense.approved_by_id = current_user.id
     expense.approved_at = datetime.now()
@@ -648,6 +673,9 @@ def expense_approve(expense_id):
 def expense_reject(expense_id):
     """Spese ablehnen"""
     expense = Expense.query.get_or_404(expense_id)
+    emp = Employee.query.get(expense.employee_id)
+    if emp:
+        check_org(emp)
     expense.status = 'rejected'
     expense.approved_by_id = current_user.id
     expense.approved_at = datetime.now()

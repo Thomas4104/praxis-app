@@ -3,6 +3,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.resources import resources_bp
 from models import db, Resource, ResourceBooking, MaintenanceRecord, Location, Appointment, Employee, User
+from utils.auth import check_org
 
 
 @resources_bp.route('/')
@@ -78,6 +79,7 @@ def create():
 def detail(resource_id):
     """Ressource-Detailansicht"""
     resource = Resource.query.get_or_404(resource_id)
+    check_org(resource)
 
     # Wartungshistorie (nur fuer Geraete)
     maintenance_records = []
@@ -99,6 +101,7 @@ def detail(resource_id):
 def edit(resource_id):
     """Ressource bearbeiten"""
     resource = Resource.query.get_or_404(resource_id)
+    check_org(resource)
 
     if request.method == 'POST':
         return _save_resource(resource)
@@ -115,6 +118,7 @@ def edit(resource_id):
 def toggle_active(resource_id):
     """Ressource aktivieren/deaktivieren"""
     resource = Resource.query.get_or_404(resource_id)
+    check_org(resource)
     resource.is_active = not resource.is_active
     db.session.commit()
 
@@ -128,6 +132,7 @@ def toggle_active(resource_id):
 def add_maintenance(resource_id):
     """Wartungseintrag hinzufuegen"""
     resource = Resource.query.get_or_404(resource_id)
+    check_org(resource)
 
     performed_at_str = request.form.get('performed_at', '')
     try:
@@ -198,6 +203,8 @@ def calendar():
 
     if resource_id:
         selected_resource = Resource.query.get(resource_id)
+        if selected_resource:
+            check_org(selected_resource)
     elif resources:
         selected_resource = resources[0]
         resource_id = selected_resource.id
