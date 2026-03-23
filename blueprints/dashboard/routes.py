@@ -8,6 +8,7 @@ from models import (db, Appointment, Patient, Employee, Task, ChatMessage,
                     Absence, User)
 from ai.coordinator import Coordinator
 from sqlalchemy import func, case
+from sqlalchemy.orm import joinedload, selectinload
 from utils.auth import check_org
 
 
@@ -59,8 +60,14 @@ def dashboard_stats():
     org_id = current_user.organization_id
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    # Termine heute (Multi-Tenancy: ueber Employee filtern)
-    termine_query = Appointment.query.join(
+    # Termine heute, Ersttermine, Patienten — eine einzige Aggregations-Query
+    termine_base = db.session.query(
+        func.count(Appointment.id).label('total'),
+        func.count(case(
+            (Appointment.appointment_type == 'initial', Appointment.id),
+        )).label('ersttermine'),
+        func.count(func.distinct(Appointment.patient_id)).label('patienten')
+    ).join(
         Employee, Appointment.employee_id == Employee.id
     ).filter(
         Employee.organization_id == org_id,
@@ -69,27 +76,12 @@ def dashboard_stats():
         Appointment.status.in_(['scheduled', 'confirmed'])
     )
     if employee and current_user.role == 'therapist':
-        termine_query = termine_query.filter(Appointment.employee_id == employee.id)
+        termine_base = termine_base.filter(Appointment.employee_id == employee.id)
 
-    termine_heute = termine_query.count()
-
-    # Ersttermine heute (appointment_type == 'initial')
-    ersttermine = termine_query.filter(
-        Appointment.appointment_type == 'initial'
-    ).count()
-
-    # Patienten heute (eindeutig)
-    pat_query = db.session.query(Appointment.patient_id).join(
-        Employee, Appointment.employee_id == Employee.id
-    ).filter(
-        Employee.organization_id == org_id,
-        Appointment.start_time >= today,
-        Appointment.start_time <= today_end,
-        Appointment.status.in_(['scheduled', 'confirmed'])
-    )
-    if employee and current_user.role == 'therapist':
-        pat_query = pat_query.filter(Appointment.employee_id == employee.id)
-    patienten_heute = pat_query.distinct().count()
+    stats_row = termine_base.one()
+    termine_heute = stats_row.total
+    ersttermine = stats_row.ersttermine
+    patienten_heute = stats_row.patienten
 
     # Offene Aufgaben
     aufgaben_query = Task.query.filter(
@@ -151,7 +143,11 @@ def dashboard_termine_heute():
     org_id = current_user.organization_id
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    query = Appointment.query.join(
+    query = Appointment.query.options(
+        joinedload(Appointment.patient),
+        joinedload(Appointment.employee).joinedload(Employee.user),
+        joinedload(Appointment.resource)
+    ).join(
         Employee, Appointment.employee_id == Employee.id
     ).filter(
         Employee.organization_id == org_id,
@@ -166,8 +162,8 @@ def dashboard_termine_heute():
 
     result = []
     for t in termine:
-        emp = Employee.query.get(t.employee_id)
-        emp_user = User.query.get(emp.user_id) if emp else None
+        emp = t.employee
+        emp_user = emp.user if emp else None
         result.append({
             'id': t.id,
             'start_time': t.start_time.strftime('%H:%M'),
@@ -313,22 +309,22 @@ def dashboard_auslastung():
     today_end = today.replace(hour=23, minute=59, second=59)
     wochentag = today.weekday()  # 0=Montag
 
-    therapeuten = Employee.query.filter_by(organization_id=current_user.organization_id, is_active=True).all()
+    therapeuten = Employee.query.options(
+        joinedload(Employee.user),
+        selectinload(Employee.work_schedules)
+    ).filter_by(organization_id=current_user.organization_id, is_active=True).all()
     result = []
 
     for emp in therapeuten:
-        emp_user = User.query.get(emp.user_id)
+        emp_user = emp.user
         if not emp_user:
             continue
 
-        # Arbeitszeit heute (WorkSchedule)
-        schedules = WorkSchedule.query.filter_by(
-            employee_id=emp.id,
-            day_of_week=wochentag
-        ).all()
-
+        # Arbeitszeit heute (aus vorgeladenen WorkSchedules filtern)
         arbeitszeit_minuten = 0
-        for ws in schedules:
+        for ws in emp.work_schedules:
+            if ws.day_of_week != wochentag:
+                continue
             start_dt = datetime.combine(date.today(), ws.start_time)
             end_dt = datetime.combine(date.today(), ws.end_time)
             arbeitszeit_minuten += (end_dt - start_dt).total_seconds() / 60
@@ -414,7 +410,9 @@ def dashboard_absenzen():
     org_id = current_user.organization_id
 
     def get_absenzen(tag):
-        absenzen = Absence.query.join(
+        absenzen = Absence.query.options(
+            joinedload(Absence.employee).joinedload(Employee.user)
+        ).join(
             Employee, Absence.employee_id == Employee.id
         ).filter(
             Employee.organization_id == org_id,
@@ -424,8 +422,8 @@ def dashboard_absenzen():
         ).all()
         result = []
         for a in absenzen:
-            emp = Employee.query.get(a.employee_id)
-            emp_user = User.query.get(emp.user_id) if emp else None
+            emp = a.employee
+            emp_user = emp.user if emp else None
             if emp_user:
                 grund_map = {
                     'vacation': 'Ferien',
@@ -460,7 +458,9 @@ def dashboard_patientenverlauf():
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
     # Letzte Termine des Benutzers (absteigend, Multi-Tenancy)
-    query = Appointment.query.join(
+    query = Appointment.query.options(
+        joinedload(Appointment.patient)
+    ).join(
         Employee, Appointment.employee_id == Employee.id
     ).filter(
         Employee.organization_id == current_user.organization_id,
@@ -495,47 +495,36 @@ def dashboard_offene_rechnungen():
     org_id = current_user.organization_id
     heute = date.today()
 
-    offene = Invoice.query.filter(
-        Invoice.organization_id == org_id,
-        Invoice.status.in_(['sent', 'partially_paid']),
-        Invoice.amount_open > 0
-    )
-
-    anzahl_offen = offene.count()
-    betrag_offen = db.session.query(
+    # Offene: count + sum in einer Query
+    offen_row = db.session.query(
+        func.count(Invoice.id),
         func.coalesce(func.sum(Invoice.amount_open), 0)
     ).filter(
         Invoice.organization_id == org_id,
         Invoice.status.in_(['sent', 'partially_paid']),
         Invoice.amount_open > 0
-    ).scalar() or 0
+    ).one()
+    anzahl_offen = offen_row[0]
+    betrag_offen = offen_row[1]
 
-    ueberfaellige = Invoice.query.filter(
-        Invoice.organization_id == org_id,
-        db.or_(
-            Invoice.status == 'overdue',
-            db.and_(
-                Invoice.status.in_(['sent', 'partially_paid']),
-                Invoice.due_date < heute,
-                Invoice.amount_open > 0
-            )
+    # Ueberfaellige: count + sum in einer Query
+    ueberfaellig_filter = db.or_(
+        Invoice.status == 'overdue',
+        db.and_(
+            Invoice.status.in_(['sent', 'partially_paid']),
+            Invoice.due_date < heute,
+            Invoice.amount_open > 0
         )
     )
-
-    anzahl_ueberfaellig = ueberfaellige.count()
-    betrag_ueberfaellig = db.session.query(
+    ueberfaellig_row = db.session.query(
+        func.count(Invoice.id),
         func.coalesce(func.sum(Invoice.amount_open), 0)
     ).filter(
         Invoice.organization_id == org_id,
-        db.or_(
-            Invoice.status == 'overdue',
-            db.and_(
-                Invoice.status.in_(['sent', 'partially_paid']),
-                Invoice.due_date < heute,
-                Invoice.amount_open > 0
-            )
-        )
-    ).scalar() or 0
+        ueberfaellig_filter
+    ).one()
+    anzahl_ueberfaellig = ueberfaellig_row[0]
+    betrag_ueberfaellig = ueberfaellig_row[1]
 
     return jsonify({
         'anzahl_offen': anzahl_offen,
@@ -586,8 +575,13 @@ def dashboard_ki_tagesuebersicht():
     today_end = datetime.combine(heute, time(23, 59, 59))
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    # Daten sammeln (Multi-Tenancy: ueber Employee filtern)
-    termine_query = Appointment.query.join(
+    # Daten sammeln — Termine + Ersttermine in einer Query
+    ki_termine_base = db.session.query(
+        func.count(Appointment.id).label('total'),
+        func.count(case(
+            (Appointment.appointment_type == 'initial', Appointment.id),
+        )).label('ersttermine')
+    ).join(
         Employee, Appointment.employee_id == Employee.id
     ).filter(
         Employee.organization_id == org_id,
@@ -596,10 +590,11 @@ def dashboard_ki_tagesuebersicht():
         Appointment.status.in_(['scheduled', 'confirmed'])
     )
     if employee and current_user.role == 'therapist':
-        termine_query = termine_query.filter(Appointment.employee_id == employee.id)
+        ki_termine_base = ki_termine_base.filter(Appointment.employee_id == employee.id)
 
-    termine_heute = termine_query.count()
-    ersttermine = termine_query.filter(Appointment.appointment_type == 'initial').count()
+    ki_stats = ki_termine_base.one()
+    termine_heute = ki_stats.total
+    ersttermine = ki_stats.ersttermine
 
     # Warteliste (ueber Patient filtern)
     try:
@@ -635,9 +630,11 @@ def dashboard_ki_tagesuebersicht():
         )
     ).count()
 
-    # Absenzen morgen (nur eigene Organisation)
+    # Absenzen morgen (nur eigene Organisation) — joinedload statt N+1
     morgen = heute + timedelta(days=1)
-    absenzen_morgen = Absence.query.join(
+    absenzen_morgen = Absence.query.options(
+        joinedload(Absence.employee).joinedload(Employee.user)
+    ).join(
         Employee, Absence.employee_id == Employee.id
     ).filter(
         Employee.organization_id == org_id,
@@ -662,8 +659,8 @@ def dashboard_ki_tagesuebersicht():
         hinweise.append(f'Achtung: {ueberfaellige} Rechnungen überfällig')
 
     for a in absenzen_morgen:
-        emp = Employee.query.get(a.employee_id)
-        emp_user = User.query.get(emp.user_id) if emp else None
+        emp = a.employee
+        emp_user = emp.user if emp else None
         if emp_user:
             hinweise.append(f'{emp_user.first_name} ist morgen abwesend')
 
