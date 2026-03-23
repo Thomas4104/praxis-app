@@ -10,5 +10,6 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
     ANTHROPIC_MODEL = 'claude-sonnet-4-20250514'
+    WTF_CSRF_ENABLED = False
     # Organisation-Einstellungen
     APP_NAME = 'OMNIA Praxissoftware'
