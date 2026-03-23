@@ -143,6 +143,7 @@
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                 </svg>
                 <span class="nav-label">Aufgaben</span>
+                <span class="nav-badge" id="taskBadge" style="display:none"></span>
             </a>
             <a href="#" class="nav-item">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -329,7 +330,29 @@
                 .catch(function() {});
         }
         loadUnreadCount();
-        setInterval(loadUnreadCount, 60000); // Alle 60 Sekunden aktualisieren
+        setInterval(loadUnreadCount, 60000);
+    })();
+    // Offene Aufgaben laden (Badge in Navigation)
+    (function() {
+        function loadTaskCount() {
+            fetch('/tasks/api/open-count')
+                .then(r => r.json())
+                .then(data => {
+                    var count = data.count || 0;
+                    var badge = document.getElementById('taskBadge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count;
+                            badge.style.display = 'inline-flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(function() {});
+        }
+        loadTaskCount();
+        setInterval(loadTaskCount, 60000);
     })();
     </script>
     {% block extra_js %}{% endblock %}

@@ -224,6 +224,17 @@ def detail_api(id):
     })
 
 
+@tasks_bp.route('/api/open-count')
+@login_required
+def open_count():
+    """Anzahl offener Aufgaben fuer Badge"""
+    count = Task.query.filter(
+        Task.organization_id == current_user.organization_id,
+        Task.status.in_(['open', 'in_progress'])
+    ).count()
+    return jsonify({'count': count})
+
+
 @tasks_bp.route('/api/generate', methods=['POST'])
 @login_required
 def generate_tasks():

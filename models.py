@@ -738,6 +738,7 @@ class Email(db.Model):
     linked_patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     linked_series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     linked_invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
+    linked_cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
     has_attachments = db.Column(db.Boolean, default=False)
     read_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)

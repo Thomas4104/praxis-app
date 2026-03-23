@@ -1058,7 +1058,7 @@ def seed_demo_data():
     _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users)
 
     # === Einstellungen: Demo-Daten ===
-    _seed_settings_demo_data(org)
+    _seed_settings_demo_data(org, patients)
 
 
 def _seed_billing_demo_data(org, patients, serien, insurances, employees, created_users):
@@ -1491,7 +1491,7 @@ def _seed_gutsprachen_demo_data(org, patients, serien, insurances, doctors, empl
     db.session.commit()
 
 
-def _seed_settings_demo_data(org):
+def _seed_settings_demo_data(org, patients):
     """Erstellt Demo-Daten fuer den Einstellungen-Bereich"""
 
     # Standard-Systemeinstellungen
@@ -1694,7 +1694,26 @@ th { background: #f5f5f5; }
         read_at=datetime.utcnow() - timedelta(days=5),
         created_at=datetime.utcnow() - timedelta(days=7)
     )
-    db.session.add_all([email_inbox_read, email_inbox_unread, email_sent, email_draft, email_archive])
+    # E-Mail 6: Gutsprache-bezogene E-Mail (gesendet an Versicherung)
+    gs_sent = CostApproval.query.filter_by(organization_id=org.id, status='sent').first()
+    if gs_sent:
+        email_gs = Email(
+            organization_id=org.id,
+            from_address='info@omnia-health.ch',
+            to_address='leistungen@css.ch',
+            subject='Kostengutsprache ' + (gs_sent.approval_number or '') + ' - Antrag',
+            body_html='<p>Sehr geehrte Damen und Herren,</p><p>Anbei senden wir Ihnen den Antrag auf Kostengutsprache für die oben genannte Patientin.</p><p>Bitte um Prüfung und Rückmeldung.</p><p>Freundliche Grüsse<br>OMNIA Health Services AG</p>',
+            body_text='Kostengutsprache-Antrag für Patientin. Bitte um Prüfung.',
+            status='sent',
+            folder='sent',
+            linked_patient_id=gs_sent.patient_id,
+            linked_cost_approval_id=gs_sent.id,
+            sent_at=datetime.utcnow() - timedelta(days=3),
+            created_at=datetime.utcnow() - timedelta(days=3)
+        )
+        db.session.add_all([email_inbox_read, email_inbox_unread, email_sent, email_draft, email_archive, email_gs])
+    else:
+        db.session.add_all([email_inbox_read, email_inbox_unread, email_sent, email_draft, email_archive])
 
     # Rollen-Berechtigungen
     modules = ['dashboard', 'kalender', 'patienten', 'mitarbeiter', 'behandlung',

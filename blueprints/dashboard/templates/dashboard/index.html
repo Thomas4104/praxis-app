@@ -63,6 +63,20 @@ Guten {{ tageszeit }}, {{ current_user.first_name }}!
         </div>
     </a>
 
+    <a href="{{ url_for('billing.index', status='overdue') }}" class="stat-card" style="text-decoration:none; color:inherit;">
+        <div class="stat-icon stat-icon-error">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </div>
+        <div class="stat-content">
+            <span class="stat-value">{{ ueberfaellige_rechnungen }}</span>
+            <span class="stat-label">Rechnungen überfällig</span>
+        </div>
+    </a>
+
     <a href="{{ url_for('cost_approvals.index', status='sent') }}" class="stat-card" style="text-decoration:none; color:inherit;">
         <div class="stat-icon stat-icon-info">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

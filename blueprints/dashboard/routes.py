@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 from blueprints.dashboard import dashboard_bp
-from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries, CostApproval, Email
+from models import db, Appointment, Patient, Employee, Task, ChatMessage, TreatmentSeries, CostApproval, Email, Invoice
 from ai.coordinator import Coordinator
 
 
@@ -81,6 +81,20 @@ def index():
         folder='inbox'
     ).filter(Email.read_at.is_(None)).count()
 
+    # Ueberfaellige Rechnungen
+    from datetime import date as date_type
+    ueberfaellige_rechnungen = Invoice.query.filter(
+        Invoice.organization_id == current_user.organization_id,
+        db.or_(
+            Invoice.status == 'overdue',
+            db.and_(
+                Invoice.status.in_(['sent', 'partially_paid']),
+                Invoice.due_date < date_type.today(),
+                Invoice.amount_open > 0
+            )
+        )
+    ).count()
+
     return render_template('dashboard/index.html',
                            termine_heute=termine_heute,
                            patienten_heute=patienten_heute,
@@ -88,7 +102,8 @@ def index():
                            aktive_serien=aktive_serien,
                            ausstehende_gutsprachen=ausstehende_gutsprachen,
                            naechste_termine=naechste_termine,
-                           ungelesene_emails=ungelesene_emails)
+                           ungelesene_emails=ungelesene_emails,
+                           ueberfaellige_rechnungen=ueberfaellige_rechnungen)
 
 
 # === Chat API ===
