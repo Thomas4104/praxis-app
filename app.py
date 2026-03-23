@@ -25,13 +25,6 @@ def create_app():
     login_manager.login_message_category = 'warning'
     csrf.init_app(app)
 
-    # CSRF für API-Endpunkte deaktivieren
-    @app.before_request
-    def csrf_exempt_api():
-        from flask import request
-        if request.path.startswith('/api/'):
-            csrf._exempt_views.add(request.endpoint)
-
     # User-Loader für Flask-Login
     @login_manager.user_loader
     def load_user(user_id):
@@ -61,6 +54,7 @@ def create_app():
 
     # API-Routen umleiten (Dashboard-Chat-API global verfügbar machen)
     @app.route('/api/chat', methods=['POST'])
+    @csrf.exempt
     def api_chat():
         from blueprints.dashboard.routes import chat
         return chat()
@@ -71,6 +65,7 @@ def create_app():
         return chat_history()
 
     @app.route('/api/chat/clear', methods=['POST'])
+    @csrf.exempt
     def api_chat_clear():
         from blueprints.dashboard.routes import chat_clear
         return chat_clear()
@@ -81,16 +76,19 @@ def create_app():
         return api_appointments()
 
     @app.route('/api/calendar/appointments', methods=['POST'])
+    @csrf.exempt
     def api_calendar_create():
         from blueprints.calendar.routes import api_create_appointment
         return api_create_appointment()
 
     @app.route('/api/calendar/appointments/<int:id>', methods=['PUT'])
+    @csrf.exempt
     def api_calendar_update(id):
         from blueprints.calendar.routes import api_update_appointment
         return api_update_appointment(id)
 
     @app.route('/api/calendar/appointments/<int:id>', methods=['DELETE'])
+    @csrf.exempt
     def api_calendar_delete(id):
         from blueprints.calendar.routes import api_delete_appointment
         return api_delete_appointment(id)
