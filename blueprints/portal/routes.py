@@ -7,7 +7,7 @@ from flask import render_template, request, redirect, url_for, flash, session, j
 from flask_login import login_required, current_user
 from models import db, Patient, PatientDocument, Appointment, TreatmentSeries, \
     TreatmentSeriesTemplate, Employee, Location, Invoice, Task, \
-    PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence
+    PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence, Email
 from blueprints.portal import portal_bp
 
 
@@ -531,6 +531,21 @@ def new_message():
             body=body
         )
         db.session.add(msg)
+        # Portal-Nachricht auch im Mailing als Eingang anzeigen
+        try:
+            email = Email(
+                subject=f'[Portal] {subject}',
+                body=body,
+                sender=f'{patient.first_name} {patient.last_name} (Portal)',
+                sender_email=f'portal-{patient.id}@intern',
+                recipient='praxis@intern',
+                folder='inbox',
+                is_read=False,
+                organization_id=1
+            )
+            db.session.add(email)
+        except Exception:
+            pass
         db.session.commit()
 
         flash('Ihre Nachricht wurde erfolgreich gesendet.', 'success')

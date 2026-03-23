@@ -13,6 +13,7 @@ from services.billing_service import (
     run_dunning_batch, generate_invoice_pdf, get_tax_point_value
 )
 from services.settings_service import get_setting
+from services.accounting_service import book_invoice, book_payment
 
 
 # ============================================================
@@ -275,6 +276,11 @@ def send_invoice(id):
     invoice.sent_at = datetime.utcnow()
     invoice.sent_via = send_via
     db.session.commit()
+    # Automatische Buchung in FiBu
+    try:
+        book_invoice(invoice, current_user.organization_id)
+    except Exception:
+        pass  # FiBu-Buchung optional, Rechnung trotzdem gesendet
     flash(f'Rechnung wurde als "{send_via}" gesendet.', 'success')
     return redirect(url_for('billing.detail', id=id))
 
@@ -317,6 +323,11 @@ def add_payment(id):
     if error:
         flash(f'Fehler: {error}', 'error')
     else:
+        # Automatische Buchung in FiBu
+        try:
+            book_payment(payment, current_user.organization_id)
+        except Exception:
+            pass  # FiBu-Buchung optional, Zahlung trotzdem erfasst
         flash(f'Zahlung von CHF {amount:.2f} wurde erfasst.', 'success')
 
     return redirect(url_for('billing.detail', id=id))

@@ -81,6 +81,7 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <nav class="sidebar-nav">
+            {# === Alle Rollen: Dashboard, Kalender, Patienten, Aufgaben === #}
             <a href="{{ url_for('dashboard.index') }}" class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="7" height="7"></rect>
@@ -108,18 +109,47 @@
                 </svg>
                 <span class="nav-label">Patienten</span>
             </a>
+
+            {# === Admin + Therapeut: Behandlung === #}
+            {% if current_user.role in ('admin', 'therapeut') %}
+            <a href="{{ url_for('treatment.index') }}" class="nav-item {% if request.blueprint == 'treatment' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+                <span class="nav-label">Behandlung</span>
+            </a>
+            {% endif %}
+
+            {# === Alle Rollen: Aufgaben === #}
+            <a href="{{ url_for('tasks.index') }}" class="nav-item {% if request.blueprint == 'tasks' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 11 12 14 22 4"></polyline>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                <span class="nav-label">Aufgaben</span>
+                <span class="nav-badge" id="taskBadge" style="display:none"></span>
+            </a>
+
+            {# === Admin + Empfang: Kommunikation === #}
+            {% if current_user.role in ('admin', 'empfang') %}
+            <a href="{{ url_for('mailing.index') }}" class="nav-item {% if request.blueprint == 'mailing' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <span class="nav-label">Kommunikation</span>
+                <span class="nav-badge" id="mailBadge" style="display:none"></span>
+            </a>
+            {% endif %}
+
+            {# === Nur Admin: alle weiteren Module === #}
+            {% if current_user.role == 'admin' %}
             <a href="{{ url_for('employees.index') }}" class="nav-item {% if request.blueprint == 'employees' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
                 </svg>
                 <span class="nav-label">Mitarbeiter</span>
-            </a>
-            <a href="{{ url_for('treatment.index') }}" class="nav-item {% if request.blueprint == 'treatment' %}active{% endif %}">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg>
-                <span class="nav-label">Behandlung</span>
             </a>
             <a href="{{ url_for('billing.index') }}" class="nav-item {% if request.blueprint == 'billing' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -137,15 +167,6 @@
                 </svg>
                 <span class="nav-label">Gutsprachen</span>
             </a>
-            <a href="{{ url_for('tasks.index') }}" class="nav-item {% if request.blueprint == 'tasks' %}active{% endif %}">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 11 12 14 22 4"></polyline>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                </svg>
-                <span class="nav-label">Aufgaben</span>
-                <span class="nav-badge" id="taskBadge" style="display:none"></span>
-            </a>
-            {% if current_user.role == 'admin' %}
             <a href="{{ url_for('accounting.index') }}" class="nav-item {% if request.blueprint == 'accounting' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -162,7 +183,6 @@
                 </svg>
                 <span class="nav-label">HR</span>
             </a>
-            {% endif %}
             <div class="nav-group {% if request.blueprint == 'reporting' %}open{% endif %}">
                 <a href="{{ url_for('reporting.index') }}" class="nav-item {% if request.blueprint == 'reporting' %}active{% endif %}">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -229,14 +249,6 @@
                 </div>
                 {% endif %}
             </div>
-            <a href="{{ url_for('mailing.index') }}" class="nav-item {% if request.blueprint == 'mailing' %}active{% endif %}">
-                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
-                <span class="nav-label">Kommunikation</span>
-                <span class="nav-badge" id="mailBadge" style="display:none"></span>
-            </a>
             <a href="{{ url_for('addresses.index') }}" class="nav-item {% if request.blueprint == 'addresses' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 17H2a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1zM6 11V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"></path>
@@ -244,17 +256,25 @@
                 </svg>
                 <span class="nav-label">Adressen</span>
             </a>
+            <a href="{{ url_for('practice.index') }}" class="nav-item {% if request.blueprint == 'practice' %}active{% endif %}">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span class="nav-label">Praxis</span>
+            </a>
             <a href="{{ url_for('portal.admin') }}" class="nav-item {% if request.blueprint == 'portal' and request.endpoint == 'portal.admin' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                 </svg>
                 <span class="nav-label">Portal</span>
             </a>
+            {% endif %}
 
             <div class="nav-spacer"></div>
 
             {% if current_user.role == 'admin' %}
-            <a href="{{ url_for('settings.index') }}" class="nav-item {% if request.blueprint == 'settings' or request.blueprint == 'practice' %}active{% endif %}">
+            <a href="{{ url_for('settings.index') }}" class="nav-item {% if request.blueprint == 'settings' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
