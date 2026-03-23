@@ -29,6 +29,7 @@ class Organization(db.Model):
     default_language = db.Column(db.String(5), default='de')
     opening_hours_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     locations = db.relationship('Location', backref='organization', lazy='dynamic')
     users = db.relationship('User', backref='organization', lazy='dynamic')
@@ -48,6 +49,9 @@ class Organization(db.Model):
 
 class Location(db.Model):
     __tablename__ = 'locations'
+    __table_args__ = (
+        db.Index('ix_loc_org_active', 'organization_id', 'is_active'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -60,6 +64,7 @@ class Location(db.Model):
     holidays_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     resources = db.relationship('Resource', backref='location', lazy='dynamic')
     work_schedules = db.relationship('WorkSchedule', backref='location', lazy='dynamic')
@@ -71,6 +76,10 @@ class Location(db.Model):
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
+    __table_args__ = (
+        db.Index('ix_user_org_active', 'organization_id', 'is_active'),
+        db.Index('ix_user_role', 'organization_id', 'role'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -86,6 +95,7 @@ class User(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, default=True)
     last_login = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     employee = db.relationship('Employee', backref='user', uselist=False)
     chat_messages = db.relationship('ChatMessage', backref='user', lazy='dynamic')
@@ -99,6 +109,9 @@ class User(UserMixin, db.Model):
 
 class Employee(db.Model):
     __tablename__ = 'employees'
+    __table_args__ = (
+        db.Index('ix_emp_org_active', 'organization_id', 'is_active'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
@@ -114,6 +127,7 @@ class Employee(db.Model):
     default_room_id = db.Column(db.Integer, db.ForeignKey('resources.id'))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     default_location = db.relationship('Location', foreign_keys=[default_location_id])
     default_room = db.relationship('Resource', foreign_keys=[default_room_id])
@@ -125,6 +139,9 @@ class Employee(db.Model):
 
 class WorkSchedule(db.Model):
     __tablename__ = 'work_schedules'
+    __table_args__ = (
+        db.Index('ix_schedule_emp_day', 'employee_id', 'day_of_week'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
@@ -141,6 +158,9 @@ class WorkSchedule(db.Model):
 
 class Absence(db.Model):
     __tablename__ = 'absences'
+    __table_args__ = (
+        db.Index('ix_absence_emp_dates', 'employee_id', 'start_date', 'end_date'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     absence_type = db.Column(db.String(30), nullable=False)
@@ -187,12 +207,16 @@ class AbsenceQuota(db.Model):
 
 class Permission(db.Model):
     __tablename__ = 'permissions'
+    __table_args__ = (
+        db.Index('ix_perm_org_role', 'organization_id', 'role'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     role = db.Column(db.String(20), nullable=False)
     module = db.Column(db.String(50), nullable=False)
     action = db.Column(db.String(50), nullable=False)
     is_allowed = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ============================================================
@@ -203,6 +227,8 @@ class Patient(db.Model):
     __tablename__ = 'patients'
     __table_args__ = (
         db.UniqueConstraint('organization_id', 'patient_number', name='uix_org_patient_number'),
+        db.Index('ix_patient_org_active', 'organization_id', 'is_active'),
+        db.Index('ix_patient_name', 'last_name', 'first_name'),
     )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
@@ -232,6 +258,7 @@ class Patient(db.Model):
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Erweiterte Versicherungsfelder
     case_number = db.Column(db.String(30))  # Fallnummer bei UVG/IVG
@@ -248,15 +275,18 @@ class Patient(db.Model):
 
     insurance_provider = db.relationship('InsuranceProvider', backref='patients')
     preferred_therapist = db.relationship('Employee', foreign_keys=[preferred_therapist_id])
-    treatment_series = db.relationship('TreatmentSeries', backref='patient', lazy='dynamic')
-    appointments = db.relationship('Appointment', backref='patient', lazy='dynamic')
-    invoices = db.relationship('Invoice', backref='patient', lazy='dynamic')
-    documents = db.relationship('PatientDocument', backref='patient', lazy='dynamic')
+    treatment_series = db.relationship('TreatmentSeries', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
+    appointments = db.relationship('Appointment', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
+    invoices = db.relationship('Invoice', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
+    documents = db.relationship('PatientDocument', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class PatientDocument(db.Model):
     """Dokumente die einem Patienten zugeordnet sind"""
     __tablename__ = 'patient_documents'
+    __table_args__ = (
+        db.Index('ix_patdoc_patient', 'patient_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
@@ -342,6 +372,9 @@ class Contact(db.Model):
 
 class Product(db.Model):
     __tablename__ = 'products'
+    __table_args__ = (
+        db.Index('ix_product_org_active', 'organization_id', 'is_active'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     name = db.Column(db.String(200), nullable=False)
@@ -358,10 +391,15 @@ class Product(db.Model):
     min_stock = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Resource(db.Model):
     __tablename__ = 'resources'
+    __table_args__ = (
+        db.Index('ix_resource_org_active', 'organization_id', 'is_active'),
+        db.Index('ix_resource_loc', 'location_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
@@ -372,6 +410,7 @@ class Resource(db.Model):
     equipment_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     bookings = db.relationship('ResourceBooking', backref='resource', lazy='dynamic')
 
@@ -409,6 +448,9 @@ class MaintenanceRecord(db.Model):
 
 class ResourceBooking(db.Model):
     __tablename__ = 'resource_bookings'
+    __table_args__ = (
+        db.Index('ix_resbooking_resource_time', 'resource_id', 'start_time', 'end_time'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     resource_id = db.Column(db.Integer, db.ForeignKey('resources.id'), nullable=False)
     appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'))
@@ -449,6 +491,11 @@ class TreatmentSeriesTemplate(db.Model):
 
 class TreatmentSeries(db.Model):
     __tablename__ = 'treatment_series'
+    __table_args__ = (
+        db.Index('ix_series_patient', 'patient_id'),
+        db.Index('ix_series_therapist', 'therapist_id'),
+        db.Index('ix_series_status', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))
@@ -467,16 +514,24 @@ class TreatmentSeries(db.Model):
     notes = db.Column(db.Text)
     cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
 
     template = db.relationship('TreatmentSeriesTemplate', backref='series')
     location = db.relationship('Location', foreign_keys=[location_id])
-    appointments = db.relationship('Appointment', backref='series', lazy='dynamic')
+    appointments = db.relationship('Appointment', backref='series', lazy='dynamic', cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='series', lazy='dynamic')
 
 
 class Appointment(db.Model):
     __tablename__ = 'appointments'
+    __table_args__ = (
+        db.Index('ix_appt_emp_start', 'employee_id', 'start_time'),
+        db.Index('ix_appt_loc_start', 'location_id', 'start_time'),
+        db.Index('ix_appt_patient', 'patient_id', 'start_time'),
+        db.Index('ix_appt_series', 'series_id'),
+        db.Index('ix_appt_status', 'status', 'start_time'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
@@ -500,6 +555,7 @@ class Appointment(db.Model):
     domicile_address = db.Column(db.String(300))
     travel_time_minutes = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     location = db.relationship('Location', foreign_keys=[location_id])
     resource = db.relationship('Resource', foreign_keys=[resource_id])
@@ -514,6 +570,9 @@ class Invoice(db.Model):
     __tablename__ = 'invoices'
     __table_args__ = (
         db.UniqueConstraint('organization_id', 'invoice_number', name='uix_org_invoice_number'),
+        db.Index('ix_invoice_org_status', 'organization_id', 'status'),
+        db.Index('ix_invoice_patient', 'patient_id'),
+        db.Index('ix_invoice_due', 'due_date', 'status'),
     )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
@@ -540,10 +599,11 @@ class Invoice(db.Model):
     notes = db.Column(db.Text)
     pdf_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     insurance_provider = db.relationship('InsuranceProvider', backref='invoices')
-    items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic')
-    payments = db.relationship('Payment', backref='invoice', lazy='dynamic')
+    items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic', cascade='all, delete-orphan')
+    payments = db.relationship('Payment', backref='invoice', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class InvoiceItem(db.Model):
@@ -559,6 +619,7 @@ class InvoiceItem(db.Model):
     amount = db.Column(db.Float, default=0.0)
     vat_rate = db.Column(db.Float, default=0.0)
     vat_amount = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Payment(db.Model):
@@ -639,6 +700,10 @@ class Holiday(db.Model):
 
 class CostApproval(db.Model):
     __tablename__ = 'cost_approvals'
+    __table_args__ = (
+        db.Index('ix_costappr_org_status', 'organization_id', 'status'),
+        db.Index('ix_costappr_patient', 'patient_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     approval_number = db.Column(db.String(30))
@@ -667,6 +732,7 @@ class CostApproval(db.Model):
     pdf_path = db.Column(db.String(500))
     prescription_document_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic')
     patient = db.relationship('Patient', backref='cost_approvals')
@@ -685,6 +751,7 @@ class CostApprovalItem(db.Model):
     quantity = db.Column(db.Float, default=1.0)
     amount = db.Column(db.Float, default=0.0)
     comment = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ============================================================
@@ -693,6 +760,10 @@ class CostApprovalItem(db.Model):
 
 class Task(db.Model):
     __tablename__ = 'tasks'
+    __table_args__ = (
+        db.Index('ix_task_org_status', 'organization_id', 'status'),
+        db.Index('ix_task_assigned', 'assigned_to_id', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     task_type = db.Column(db.String(30))
@@ -710,13 +781,14 @@ class Task(db.Model):
     completed_at = db.Column(db.DateTime)
     auto_generated = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     related_patient = db.relationship('Patient', backref='tasks')
     related_series = db.relationship('TreatmentSeries', backref='tasks')
     related_invoice = db.relationship('Invoice', backref='tasks')
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='assigned_tasks')
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref='created_tasks')
-    comments = db.relationship('TaskComment', backref='task', lazy='dynamic', order_by='TaskComment.created_at')
+    comments = db.relationship('TaskComment', backref='task', lazy='dynamic', order_by='TaskComment.created_at', cascade='all, delete-orphan')
 
 
 class TaskComment(db.Model):
@@ -737,6 +809,9 @@ class TaskComment(db.Model):
 
 class Email(db.Model):
     __tablename__ = 'emails'
+    __table_args__ = (
+        db.Index('ix_email_org_folder', 'organization_id', 'folder'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     from_address = db.Column(db.String(200))
@@ -756,6 +831,7 @@ class Email(db.Model):
     read_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     attachments = db.relationship('EmailAttachment', backref='email', lazy='dynamic')
 
@@ -785,6 +861,9 @@ class EmailFolder(db.Model):
 
 class ChatMessage(db.Model):
     __tablename__ = 'chat_messages'
+    __table_args__ = (
+        db.Index('ix_chat_user', 'user_id', 'created_at'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -930,6 +1009,7 @@ class SystemSetting(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint('organization_id', 'key', name='uix_org_setting_key'),
+        db.Index('ix_setting_org_category', 'organization_id', 'category'),
     )
 
 
@@ -965,6 +1045,11 @@ class PrintTemplate(db.Model):
 
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
+    __table_args__ = (
+        db.Index('ix_audit_org_entity', 'organization_id', 'entity_type', 'entity_id'),
+        db.Index('ix_audit_created', 'created_at'),
+        db.Index('ix_audit_user', 'user_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -985,6 +1070,9 @@ class AuditLog(db.Model):
 class Account(db.Model):
     """Kontenplan fuer doppelte Buchhaltung nach Schweizer KMU-Kontenrahmen"""
     __tablename__ = 'accounts'
+    __table_args__ = (
+        db.Index('ix_account_org_number', 'organization_id', 'account_number'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     account_number = db.Column(db.String(10), nullable=False)
@@ -1003,6 +1091,10 @@ class Account(db.Model):
 class JournalEntry(db.Model):
     """Buchungsjournal-Eintrag (Kopf)"""
     __tablename__ = 'journal_entries'
+    __table_args__ = (
+        db.Index('ix_journal_org_date', 'organization_id', 'date'),
+        db.Index('ix_journal_source', 'source', 'source_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     entry_number = db.Column(db.String(20))
@@ -1038,6 +1130,7 @@ class JournalEntryLine(db.Model):
     vat_amount = db.Column(db.Float, default=0)
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
     description = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class CreditorInvoice(db.Model):
@@ -1113,6 +1206,7 @@ class PeriodLock(db.Model):
     month = db.Column(db.Integer, nullable=False)  # 0 = ganzes Jahr
     locked_at = db.Column(db.DateTime)
     locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     organization = db.relationship('Organization', backref=db.backref('period_locks', lazy='dynamic'))
     locked_by = db.relationship('User', backref='period_locks')
@@ -1238,6 +1332,7 @@ class Payslip(db.Model):
     # Details
     pdf_path = db.Column(db.String(500))
     details_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship('Employee', backref=db.backref('payslips', lazy='dynamic'))
 
@@ -1245,6 +1340,9 @@ class Payslip(db.Model):
 class TimeEntry(db.Model):
     """Zeiterfassungs-Eintraege"""
     __tablename__ = 'time_entries'
+    __table_args__ = (
+        db.Index('ix_timeentry_emp_date', 'employee_id', 'date'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
@@ -1270,6 +1368,7 @@ class OvertimeAccount(db.Model):
     actual_minutes = db.Column(db.Integer, default=0)  # Ist
     overtime_minutes = db.Column(db.Integer, default=0)  # Differenz
     cumulative_overtime = db.Column(db.Integer, default=0)  # Kumuliert
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship('Employee', backref=db.backref('overtime_accounts', lazy='dynamic'))
 
@@ -1347,6 +1446,10 @@ class SubscriptionTemplate(db.Model):
 class Subscription(db.Model):
     """Fitness-Abonnemente der Patienten"""
     __tablename__ = 'subscriptions'
+    __table_args__ = (
+        db.Index('ix_sub_org_status', 'organization_id', 'status'),
+        db.Index('ix_sub_patient', 'patient_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
@@ -1370,6 +1473,10 @@ class Subscription(db.Model):
 class FitnessVisit(db.Model):
     """Fitness-Besuche (Check-in/Check-out)"""
     __tablename__ = 'fitness_visits'
+    __table_args__ = (
+        db.Index('ix_fitvisit_sub', 'subscription_id', 'check_in'),
+        db.Index('ix_fitvisit_patient', 'patient_id', 'check_in'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'), nullable=False)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
