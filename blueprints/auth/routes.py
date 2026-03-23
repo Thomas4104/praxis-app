@@ -4,9 +4,11 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from blueprints.auth import auth_bp
 from models import db, User
+from app import limiter
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
@@ -52,8 +54,8 @@ def change_password():
 
         if not current_user.check_password(current_password):
             flash('Aktuelles Passwort ist falsch.', 'error')
-        elif len(new_password) < 4:
-            flash('Neues Passwort muss mindestens 4 Zeichen haben.', 'error')
+        elif len(new_password) < 12:
+            flash('Neues Passwort muss mindestens 12 Zeichen haben.', 'error')
         elif new_password != confirm_password:
             flash('Passwörter stimmen nicht überein.', 'error')
         else:

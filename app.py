@@ -1,10 +1,12 @@
 import os
 import json
 from datetime import datetime, timedelta, date, time
-from flask import Flask
+from flask import Flask, session
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
@@ -24,6 +26,7 @@ from config import config
 login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
+limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
 def create_app(config_name=None):
@@ -42,6 +45,7 @@ def create_app(config_name=None):
     login_manager.login_message = 'Bitte melden Sie sich an.'
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
+    limiter.init_app(app)
 
     # Blueprints registrieren
     from blueprints.auth import auth_bp
@@ -106,6 +110,22 @@ def create_app(config_name=None):
             'timedelta': timedelta,
             'today': date.today()
         }
+
+    # Session permanent machen
+    @app.before_request
+    def make_session_permanent():
+        session.permanent = True
+
+    # Security Headers
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if not app.debug:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
 
     # Datenbank erstellen und Demo-Daten laden
     with app.app_context():

@@ -9,6 +9,7 @@ from models import db, Patient, PatientDocument, Appointment, TreatmentSeries, \
     TreatmentSeriesTemplate, Employee, Location, Invoice, Task, \
     PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence, Email
 from blueprints.portal import portal_bp
+from app import limiter
 
 
 # ============================================================
@@ -41,6 +42,7 @@ def portal_login_required(f):
 # ============================================================
 
 @portal_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def login():
     """Portal-Login fuer Patienten"""
     # Falls bereits eingeloggt
@@ -92,8 +94,8 @@ def register():
         errors = []
         if not email:
             errors.append('Bitte geben Sie Ihre E-Mail-Adresse ein.')
-        if not password or len(password) < 6:
-            errors.append('Das Passwort muss mindestens 6 Zeichen lang sein.')
+        if not password or len(password) < 8:
+            errors.append('Das Passwort muss mindestens 8 Zeichen lang sein.')
         if password != password_confirm:
             errors.append('Die Passwörter stimmen nicht überein.')
         if not first_name or not last_name:
@@ -587,8 +589,8 @@ def profile():
 
             if not account.check_password(current_pw):
                 flash('Das aktuelle Passwort ist ungültig.', 'error')
-            elif len(new_pw) < 6:
-                flash('Das neue Passwort muss mindestens 6 Zeichen lang sein.', 'error')
+            elif len(new_pw) < 8:
+                flash('Das neue Passwort muss mindestens 8 Zeichen lang sein.', 'error')
             elif new_pw != confirm_pw:
                 flash('Die neuen Passwörter stimmen nicht überein.', 'error')
             else:
