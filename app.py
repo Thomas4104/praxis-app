@@ -2008,6 +2008,7 @@ def seed_accounting_data(org, loc_zh, loc_wt, created_users):
         # 2xxx Passiven
         ('2000', 'Kreditoren', 'liability'),
         ('2200', 'MwSt-Schuld', 'liability'),
+        ('2270', 'SV-Verbindlichkeiten', 'liability'),
         ('2400', 'Langfristige Darlehen', 'liability'),
         ('2800', 'Eigenkapital', 'equity'),
         ('2900', 'Gewinnvortrag', 'equity'),
