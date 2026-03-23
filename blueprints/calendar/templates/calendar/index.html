@@ -271,6 +271,10 @@
         currentDate: '{{ current_date.isoformat() }}',
         locationId: {{ current_location_id or 'null' }},
         viewType: 'day',
+        timeGrid: {{ calendar_settings.time_grid }},
+        dayStart: '{{ calendar_settings.day_start }}',
+        dayEnd: '{{ calendar_settings.day_end }}',
+        defaultDuration: {{ calendar_settings.default_duration }},
         employees: [
             {% for emp in employees %}
             {

@@ -793,19 +793,6 @@ def seed_demo_data():
     ]
     db.session.add_all(kontakte)
 
-    # === KI-Einstellungen ===
-    db.session.add(AISettings(
-        organization_id=org.id,
-        intensity_level='medium',
-        budget_monthly=100.0,
-        features_enabled_json=json.dumps({
-            'chat': True,
-            'auto_dokumentation': False,
-            'terminvorschlaege': True,
-            'proaktive_hinweise': False
-        })
-    ))
-
     # === Abgesagte Termine ===
     # Termin 1: Patient hat abgesagt (gestern)
     cancel_date = today - timedelta(days=1)

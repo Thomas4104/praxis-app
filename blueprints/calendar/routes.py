@@ -7,6 +7,7 @@ from models import db, Appointment, Employee, Patient, Location, Resource, \
     WorkSchedule, Absence, Holiday, TreatmentSeries, TreatmentSeriesTemplate, \
     WaitingList, ResourceBooking
 from blueprints.calendar import calendar_bp
+from services.settings_service import get_setting
 
 
 # ============================================================
@@ -51,13 +52,23 @@ def index():
     # Serienvorlagen fuer Quick-Add
     templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
 
+    # Kalender-Einstellungen aus Settings-Service laden
+    org_id = current_user.organization_id
+    calendar_settings = {
+        'time_grid': get_setting(org_id, 'calendar_time_grid', 15),
+        'day_start': get_setting(org_id, 'calendar_day_start', '07:00'),
+        'day_end': get_setting(org_id, 'calendar_day_end', '19:00'),
+        'default_duration': get_setting(org_id, 'calendar_default_duration', 30),
+    }
+
     return render_template('calendar/index.html',
                            current_date=current_date,
                            locations=locations,
                            current_location_id=location_id,
                            employees=employees,
                            rooms=rooms,
-                           templates=templates)
+                           templates=templates,
+                           calendar_settings=calendar_settings)
 
 
 @calendar_bp.route('/week')
@@ -89,6 +100,15 @@ def week():
     rooms = Resource.query.filter_by(resource_type='room', is_active=True).all()
     templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
 
+    # Kalender-Einstellungen
+    org_id = current_user.organization_id
+    calendar_settings = {
+        'time_grid': get_setting(org_id, 'calendar_time_grid', 15),
+        'day_start': get_setting(org_id, 'calendar_day_start', '07:00'),
+        'day_end': get_setting(org_id, 'calendar_day_end', '19:00'),
+        'default_duration': get_setting(org_id, 'calendar_default_duration', 30),
+    }
+
     return render_template('calendar/week.html',
                            current_date=current_date,
                            monday=monday,
@@ -96,7 +116,8 @@ def week():
                            current_employee_id=employee_id,
                            locations=locations,
                            rooms=rooms,
-                           templates=templates)
+                           templates=templates,
+                           calendar_settings=calendar_settings)
 
 
 @calendar_bp.route('/month')
@@ -121,10 +142,20 @@ def month():
         else:
             location_id = locations[0].id
 
+    # Kalender-Einstellungen
+    org_id = current_user.organization_id
+    calendar_settings = {
+        'time_grid': get_setting(org_id, 'calendar_time_grid', 15),
+        'day_start': get_setting(org_id, 'calendar_day_start', '07:00'),
+        'day_end': get_setting(org_id, 'calendar_day_end', '19:00'),
+        'default_duration': get_setting(org_id, 'calendar_default_duration', 30),
+    }
+
     return render_template('calendar/month.html',
                            current_date=current_date,
                            locations=locations,
-                           current_location_id=location_id)
+                           current_location_id=location_id,
+                           calendar_settings=calendar_settings)
 
 
 @calendar_bp.route('/serie-planen')

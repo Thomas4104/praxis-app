@@ -6,8 +6,8 @@
     'use strict';
 
     const CFG = window.CALENDAR_CONFIG || {};
-    const START_HOUR = 6;
-    const END_HOUR = 20;
+    const START_HOUR = CFG.dayStart ? parseInt(CFG.dayStart.split(':')[0]) : 6;
+    const END_HOUR = CFG.dayEnd ? parseInt(CFG.dayEnd.split(':')[0]) + 1 : 20;
     const SLOT_HEIGHT = 60; // px pro Stunde
     const QUARTER_HEIGHT = SLOT_HEIGHT / 4; // 15px pro 15 Min
     const BASE_URL = '/calendar';

@@ -65,7 +65,11 @@
     window.CALENDAR_CONFIG = {
         currentDate: '{{ current_date.isoformat() }}',
         locationId: {{ current_location_id or 'null' }},
-        viewType: 'month'
+        viewType: 'month',
+        timeGrid: {{ calendar_settings.time_grid }},
+        dayStart: '{{ calendar_settings.day_start }}',
+        dayEnd: '{{ calendar_settings.day_end }}',
+        defaultDuration: {{ calendar_settings.default_duration }}
     };
 </script>
 {% endblock %}
