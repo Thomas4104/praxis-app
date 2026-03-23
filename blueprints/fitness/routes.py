@@ -197,8 +197,8 @@ def subscription_new():
         badge_number = request.form.get('badge_number', '').strip()
         notes = request.form.get('notes', '').strip()
 
-        vorlage = SubscriptionTemplate.query.get(template_id)
-        patient = Patient.query.get(patient_id)
+        vorlage = SubscriptionTemplate.query.filter_by(id=template_id, organization_id=org_id).first()
+        patient = Patient.query.filter_by(id=patient_id, organization_id=org_id).first()
         if not vorlage or not patient:
             flash('Bitte Vorlage und Patient auswählen.', 'error')
             return redirect(url_for('fitness.subscription_new'))

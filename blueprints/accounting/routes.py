@@ -423,7 +423,7 @@ def create_creditor():
         kreditoren_account = Account.query.filter_by(
             organization_id=org_id, account_number='2000'
         ).first()
-        aufwand_account = Account.query.get(int(account_id))
+        aufwand_account = Account.query.filter_by(id=int(account_id), organization_id=org_id).first()
 
         if kreditoren_account and aufwand_account:
             lines = [

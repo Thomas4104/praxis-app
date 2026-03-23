@@ -301,8 +301,9 @@ def api_create_appointment():
         loc = Location.query.get_or_404(data['location_id'])
         check_org(loc)
 
-    # Doppelbuchungs-Pruefung
-    existing = Appointment.query.filter(
+    # Doppelbuchungs-Pruefung (Employee ist bereits org-geprueft)
+    existing = Appointment.query.join(Employee).filter(
+        Employee.organization_id == org_id,
         Appointment.employee_id == data['employee_id'],
         Appointment.status.notin_(['cancelled', 'no_show']),
         Appointment.start_time < end,
@@ -424,7 +425,8 @@ def api_move_appointment(appointment_id):
     new_end = new_start + timedelta(minutes=appointment.duration_minutes)
 
     # Doppelbuchungs-Pruefung (eigenen Termin ausschliessen)
-    existing = Appointment.query.filter(
+    existing = Appointment.query.join(Employee).filter(
+        Employee.organization_id == current_user.organization_id,
         Appointment.employee_id == new_employee_id,
         Appointment.id != appointment_id,
         Appointment.status.notin_(['cancelled', 'no_show']),

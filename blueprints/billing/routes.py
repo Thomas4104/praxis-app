@@ -209,7 +209,7 @@ def create():
     )
 
     patients = Patient.query.filter_by(organization_id=org_id, is_active=True).order_by(Patient.last_name).all()
-    insurances = InsuranceProvider.query.filter_by(is_active=True).all()
+    insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True).all()
 
     default_model = get_setting(org_id, 'billing_default_model', 'tiers_garant')
     default_term = get_setting(org_id, 'billing_payment_term', '30')
