@@ -116,15 +116,15 @@
                     <span class="detail-label">Lagerbestand</span>
                     <span class="detail-value">
                         {% if product.min_stock > 0 and product.stock_quantity < product.min_stock %}
-                            <span class="badge badge-error">{{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}</span>
+                            <span class="badge badge-error">{{ product.stock_quantity }} {{ product.unit_type or 'Stück' }}</span>
                         {% else %}
-                            {{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}
+                            {{ product.stock_quantity }} {{ product.unit_type or 'Stück' }}
                         {% endif %}
                     </span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Mindestbestand</span>
-                    <span class="detail-value">{{ product.min_stock }} {{ product.unit_type or 'Stueck' }}</span>
+                    <span class="detail-value">{{ product.min_stock }} {{ product.unit_type or 'Stück' }}</span>
                 </div>
                 {% if product.supplier %}
                 <div class="detail-item">

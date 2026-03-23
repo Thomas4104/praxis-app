@@ -11,7 +11,7 @@
     <!-- Kopfzeile -->
     <header class="header">
         <div class="header-left">
-            <button class="sidebar-toggle" id="sidebarToggle" title="Menue ein-/ausklappen">
+            <button class="sidebar-toggle" id="sidebarToggle" title="Menü ein-/ausklappen">
                 <span class="hamburger-icon">
                     <span></span><span></span><span></span>
                 </span>
@@ -56,13 +56,13 @@
                         <span class="user-role">{{ current_user.role }}</span>
                     </div>
                     <div class="dropdown-divider"></div>
-                    <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">Passwort aendern</a>
+                    <a href="{{ url_for('auth.change_password') }}" class="dropdown-item">Passwort ändern</a>
                     <div class="dropdown-divider"></div>
                     <a href="{{ url_for('auth.logout') }}" class="dropdown-item dropdown-item-danger">Abmelden</a>
                 </div>
             </div>
 
-            <button class="header-btn chat-toggle-btn" id="chatToggleBtn" title="KI-Chat oeffnen">
+            <button class="header-btn chat-toggle-btn" id="chatToggleBtn" title="KI-Chat öffnen">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -235,7 +235,7 @@
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                     </svg>
                 </button>
-                <button class="chat-header-btn" id="chatCloseBtn" title="Chat schliessen">
+                <button class="chat-header-btn" id="chatCloseBtn" title="Chat schließen">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -268,7 +268,7 @@
     </aside>
 
     <!-- Mobile Chat FAB -->
-    <button class="chat-fab" id="chatFab" title="KI-Chat oeffnen">
+    <button class="chat-fab" id="chatFab" title="KI-Chat öffnen">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
         </svg>

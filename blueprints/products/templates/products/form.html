@@ -36,7 +36,7 @@
             <div class="form-group">
                 <label for="category" class="form-label">Kategorie</label>
                 <select id="category" name="category" class="form-select">
-                    <option value="">-- Kategorie waehlen --</option>
+                    <option value="">-- Kategorie wählen --</option>
                     {% for cat in ['Therapiematerial', 'Verbrauchsmaterial', 'Retail', 'Sonstiges'] %}
                     <option value="{{ cat }}" {% if product and product.category == cat %}selected{% endif %}>{{ cat }}</option>
                     {% endfor %}
@@ -65,8 +65,8 @@
                 <div class="form-group">
                     <label for="unit_type" class="form-label">Einheit</label>
                     <select id="unit_type" name="unit_type" class="form-select">
-                        <option value="">-- Einheit waehlen --</option>
-                        {% for unit in ['Stueck', 'cm', 'm', 'Tage', 'Monate', 'Packung', 'ml', 'l'] %}
+                        <option value="">-- Einheit wählen --</option>
+                        {% for unit in ['Stück', 'cm', 'm', 'Tage', 'Monate', 'Packung', 'ml', 'l'] %}
                         <option value="{{ unit }}" {% if product and product.unit_type == unit %}selected{% endif %}>{{ unit }}</option>
                         {% endfor %}
                     </select>

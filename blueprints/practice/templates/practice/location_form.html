@@ -68,7 +68,7 @@
             </div>
         </div>
 
-        <!-- Rechte Spalte: Oeffnungszeiten -->
+        <!-- Rechte Spalte: Öffnungszeiten -->
         <div class="form-section">
             <h3 class="form-section-title">Eigene Öffnungszeiten</h3>
             <p class="form-hint" style="margin-bottom: var(--spacing-md);">
@@ -140,7 +140,7 @@ function toggleLocDay(day, closed) {
 }
 
 {% if location and location.opening_hours_json %}
-// Oeffnungszeiten aus JSON laden
+// Öffnungszeiten aus JSON laden
 document.addEventListener('DOMContentLoaded', function() {
     try {
         var oh = JSON.parse('{{ location.opening_hours_json | safe }}');

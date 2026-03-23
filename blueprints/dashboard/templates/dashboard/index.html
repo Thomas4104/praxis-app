@@ -65,10 +65,10 @@ Guten {{ tageszeit }}, {{ current_user.first_name }}!
 
 <!-- Hauptbereich -->
 <div class="dashboard-grid">
-    <!-- Naechste Termine -->
+    <!-- Nächste Termine -->
     <div class="card">
         <div class="card-header">
-            <h3>Naechste Termine</h3>
+            <h3>Nächste Termine</h3>
         </div>
         <div class="card-body">
             {% if naechste_termine %}
@@ -92,7 +92,7 @@ Guten {{ tageszeit }}, {{ current_user.first_name }}!
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted">Keine weiteren Termine fuer heute.</p>
+                <p class="text-muted">Keine weiteren Termine für heute.</p>
             {% endif %}
         </div>
     </div>

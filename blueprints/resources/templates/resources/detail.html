@@ -43,7 +43,7 @@
     {% set today = import('datetime').date.today() if false else none %}
     {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
     <div class="alert alert-error">
-        <strong>Wartung ueberfaellig!</strong> Die naechste Wartung war faellig am {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}.
+        <strong>Wartung überfällig!</strong> Die nächste Wartung war fällig am {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}.
     </div>
     {% endif %}
 {% endif %}
@@ -75,7 +75,7 @@
                 </div>
                 {% endif %}
                 <div class="detail-item">
-                    <span class="detail-label">Kapazitaet</span>
+                    <span class="detail-label">Kapazität</span>
                     <span class="detail-value">{{ resource.capacity }} {% if resource.capacity > 1 %}Personen{% else %}Person{% endif %}</span>
                 </div>
                 {% if resource.equipment_json %}
@@ -102,7 +102,7 @@
         </div>
     </div>
 
-    <!-- Wartung (nur fuer Geraete) -->
+    <!-- Wartung (nur für Geräte) -->
     {% if resource.resource_type in ('device', 'Geraet', 'Fahrzeug') %}
     <div class="card">
         <div class="card-header">
@@ -117,10 +117,10 @@
                 </div>
                 {% if latest_maintenance.next_due %}
                 <div class="detail-item">
-                    <span class="detail-label">Naechste Wartung</span>
+                    <span class="detail-label">Nächste Wartung</span>
                     <span class="detail-value">
                         {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
-                            <span class="badge badge-error">{{ latest_maintenance.next_due.strftime('%d.%m.%Y') }} (ueberfaellig)</span>
+                            <span class="badge badge-error">{{ latest_maintenance.next_due.strftime('%d.%m.%Y') }} (überfällig)</span>
                         {% else %}
                             {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}
                         {% endif %}
@@ -135,10 +135,10 @@
                 {% endif %}
             </div>
             {% else %}
-            <p class="text-muted">Noch keine Wartungseintraege vorhanden.</p>
+            <p class="text-muted">Noch keine Wartungseinträge vorhanden.</p>
             {% endif %}
 
-            <!-- Wartungseintrag hinzufuegen -->
+            <!-- Wartungseintrag hinzufügen -->
             <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--color-gray-200);">
                 <h4 style="margin-bottom: var(--spacing-md);">Wartung eintragen</h4>
                 <form method="POST" action="{{ url_for('resources.add_maintenance', resource_id=resource.id) }}">
@@ -155,7 +155,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="performed_by" class="form-label">Durchgefuehrt von</label>
+                        <label for="performed_by" class="form-label">Durchgeführt von</label>
                         <input type="text" id="performed_by" name="performed_by" class="form-input"
                                placeholder="Name des Technikers">
                     </div>
@@ -185,8 +185,8 @@
                     <tr>
                         <th>Datum</th>
                         <th>Beschreibung</th>
-                        <th>Durchgefuehrt von</th>
-                        <th>Naechste Wartung</th>
+                        <th>Durchgeführt von</th>
+                        <th>Nächste Wartung</th>
                     </tr>
                 </thead>
                 <tbody>

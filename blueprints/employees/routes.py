@@ -528,7 +528,7 @@ def delete_absence(absence_id):
 
     db.session.delete(absence)
     db.session.commit()
-    flash('Absenz wurde geloescht.', 'success')
+    flash('Absenz wurde gelöscht.', 'success')
     return redirect(url_for('employees.absences', employee_id=emp_id))
 
 
@@ -570,7 +570,7 @@ def create_certificate(employee_id):
     db.session.add(cert)
     db.session.commit()
 
-    flash(f'Zertifikat "{name}" wurde hinzugefuegt.', 'success')
+    flash(f'Zertifikat "{name}" wurde hinzugefügt.', 'success')
     return redirect(url_for('employees.detail', employee_id=employee_id))
 
 
@@ -582,7 +582,7 @@ def delete_certificate(cert_id):
     emp_id = cert.employee_id
     db.session.delete(cert)
     db.session.commit()
-    flash('Zertifikat wurde geloescht.', 'success')
+    flash('Zertifikat wurde gelöscht.', 'success')
     return redirect(url_for('employees.detail', employee_id=emp_id))
 
 

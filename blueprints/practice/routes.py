@@ -108,7 +108,7 @@ def _tax_points_tab(org):
 def edit_base():
     """Basisdaten der Organisation bearbeiten"""
     if current_user.role != 'admin':
-        flash('Nur Administratoren duerfen die Basisdaten bearbeiten.', 'error')
+        flash('Nur Administratoren dürfen die Basisdaten bearbeiten.', 'error')
         return redirect(url_for('practice.index', tab='base'))
 
     org = Organization.query.get(current_user.organization_id)
@@ -229,7 +229,7 @@ def _save_location(location):
 def save_opening_hours():
     """Oeffnungszeiten der Organisation speichern"""
     if current_user.role != 'admin':
-        flash('Nur Administratoren duerfen die Oeffnungszeiten bearbeiten.', 'error')
+        flash('Nur Administratoren dürfen die Öffnungszeiten bearbeiten.', 'error')
         return redirect(url_for('practice.index', tab='opening_hours'))
 
     org = Organization.query.get(current_user.organization_id)

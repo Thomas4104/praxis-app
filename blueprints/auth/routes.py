@@ -29,7 +29,7 @@ def login():
             next_page = request.args.get('next')
             return redirect(next_page or url_for('dashboard.index'))
         else:
-            flash('Ungueltige Anmeldedaten.', 'error')
+            flash('Ungültige Anmeldedaten.', 'error')
 
     return render_template('auth/login.html')
 
@@ -55,11 +55,11 @@ def change_password():
         elif len(new_password) < 4:
             flash('Neues Passwort muss mindestens 4 Zeichen haben.', 'error')
         elif new_password != confirm_password:
-            flash('Passwoerter stimmen nicht ueberein.', 'error')
+            flash('Passwörter stimmen nicht überein.', 'error')
         else:
             current_user.set_password(new_password)
             db.session.commit()
-            flash('Passwort erfolgreich geaendert.', 'success')
+            flash('Passwort erfolgreich geändert.', 'success')
             return redirect(url_for('dashboard.index'))
 
     return render_template('auth/change_password.html')
