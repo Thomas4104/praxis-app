@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Einsatzplanung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Einsatzplanung</span>
+{% endblock %}
+
+{% block page_title %}Einsatzplanung{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Wochennavigation -->
+    <div class="deployment-nav">
+        {% set prev_week = week_start - timedelta(days=7) %}
+        {% set next_week = week_start + timedelta(days=7) %}
+        <a href="{{ url_for('employees.deployment', date=prev_week.strftime('%Y-%m-%d')) }}"
+           class="btn btn-sm btn-secondary">&larr; Vorherige Woche</a>
+        <h2 class="deployment-title">
+            KW {{ week_start.isocalendar()[1] }}: {{ week_start.strftime('%d.%m.') }} - {{ (week_start + timedelta(days=4)).strftime('%d.%m.%Y') }}
+        </h2>
+        <a href="{{ url_for('employees.deployment', date=next_week.strftime('%Y-%m-%d')) }}"
+           class="btn btn-sm btn-secondary">Nächste Woche &rarr;</a>
+    </div>
+
+    <!-- Einsatzplan-Tabelle -->
+    <div class="table-responsive">
+        <table class="data-table deployment-table">
+            <thead>
+                <tr>
+                    <th>Mitarbeiter</th>
+                    {% set day_labels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'] %}
+                    {% for d in week_dates %}
+                    <th class="{% if d == today %}today-col{% endif %}">
+                        {{ day_labels[loop.index0] }}<br>
+                        <small>{{ d.strftime('%d.%m.') }}</small>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td class="deploy-name-cell">
+                        <div class="cal-emp-avatar" style="background-color: {{ emp.color_code or '#4a90d9' }}">
+                            {{ emp.user.first_name[0] }}{{ emp.user.last_name[0] }}
+                        </div>
+                        <div>
+                            <strong>{{ emp.user.first_name }} {{ emp.user.last_name[0] }}.</strong>
+                            <small class="text-muted">{{ emp.user.role }}</small>
+                        </div>
+                    </td>
+                    {% for d in week_dates %}
+                    {% set day_key = (emp.id, d) %}
+                    {% set appts = appointment_map.get(day_key, []) %}
+                    {% set schedules = schedule_map.get((emp.id, d.weekday()), []) %}
+                    {% set is_absent = day_key in absence_dates %}
+                    <td class="deploy-cell {% if d == today %}today-col{% endif %} {% if is_absent %}cell-absent{% endif %}">
+                        {% if is_absent %}
+                            {% set abs = absence_dates[day_key] %}
+                            <div class="deploy-absent">
+                                {% if abs.absence_type == 'vacation' %}Ferien
+                                {% elif abs.absence_type == 'sick' %}Krank
+                                {% elif abs.absence_type == 'training' %}WB
+                                {% else %}Abwesend{% endif %}
+                            </div>
+                        {% elif schedules %}
+                            {% for ws in schedules %}
+                            <div class="deploy-schedule">
+                                <small>{{ ws.start_time.strftime('%H:%M') }}-{{ ws.end_time.strftime('%H:%M') }}</small>
+                                {% if ws.location %}
+                                <small class="text-muted">{{ ws.location.name | replace('OMNIA ', '') }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                            {% if appts %}
+                            <div class="deploy-appointments {% if appts|length >= 6 %}deploy-high{% elif appts|length >= 4 %}deploy-medium{% else %}deploy-low{% endif %}">
+                                {{ appts|length }} Termin{{ 'e' if appts|length != 1 }}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Legende -->
+    <div class="deployment-legend">
+        <span class="legend-item"><span class="legend-color deploy-legend-low"></span>1-3 Termine</span>
+        <span class="legend-item"><span class="legend-color deploy-legend-medium"></span>4-5 Termine</span>
+        <span class="legend-item"><span class="legend-color deploy-legend-high"></span>6+ Termine</span>
+        <span class="legend-item"><span class="legend-color deploy-legend-absent"></span>Abwesend</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.deployment-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-gray-200);
+}
+.deployment-title { margin: 0; font-size: var(--font-size-lg); }
+.deployment-table th { text-align: center; }
+.deploy-name-cell {
+    display: flex; align-items: center; gap: var(--spacing-sm); white-space: nowrap;
+}
+.deploy-name-cell small { display: block; }
+.deploy-cell { text-align: center; vertical-align: top; padding: var(--spacing-xs) !important; min-width: 120px; }
+.today-col { background: #e3f2fd; }
+.cell-absent { background: #fff3e0; }
+.deploy-schedule { font-size: var(--font-size-xs); margin-bottom: 2px; }
+.deploy-appointments {
+    padding: 2px 6px; border-radius: var(--radius-sm); font-size: var(--font-size-xs);
+    font-weight: 500; margin-top: 4px;
+}
+.deploy-low { background: #e8f5e9; color: #2e7d32; }
+.deploy-medium { background: #fff3e0; color: #e65100; }
+.deploy-high { background: #ffebee; color: #c62828; }
+.deploy-absent { font-size: var(--font-size-xs); color: var(--color-warning); font-weight: 500; }
+.deployment-legend {
+    display: flex; gap: var(--spacing-md); padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-gray-200); flex-wrap: wrap;
+}
+.deploy-legend-low { background: #e8f5e9; border: 1px solid #a5d6a7; }
+.deploy-legend-medium { background: #fff3e0; border: 1px solid #ffcc80; }
+.deploy-legend-high { background: #ffebee; border: 1px solid #ef9a9a; }
+.deploy-legend-absent { background: #fff3e0; border: 1px solid #ffb74d; }
+.cal-emp-avatar {
+    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 10px; font-weight: 600; flex-shrink: 0;
+}
+</style>
+{% endblock %}

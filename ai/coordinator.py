@@ -5,6 +5,7 @@ from ai.context import ContextManager
 from ai.agents.allgemein_agent import AllgemeinAgent
 from ai.agents.ressourcen_agent import RessourcenAgent
 from ai.agents.praxis_agent import PraxisAgent
+from ai.agents.mitarbeiter_agent import MitarbeiterAgent
 
 
 class Coordinator:
@@ -14,7 +15,8 @@ class Coordinator:
         self.agents = {
             'allgemein': AllgemeinAgent(),
             'ressourcen': RessourcenAgent(),
-            'praxis': PraxisAgent()
+            'praxis': PraxisAgent(),
+            'mitarbeiter': MitarbeiterAgent()
         }
 
     def register_agent(self, name, agent):

@@ -6,7 +6,8 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
-    Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue
+    Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
+    Certificate, AbsenceQuota, Absence
 from config import config
 
 
@@ -41,18 +42,21 @@ def create_app(config_name=None):
     from blueprints.products import products_bp
     from blueprints.resources import resources_bp
     from blueprints.practice import practice_bp
+    from blueprints.employees import employees_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(products_bp, url_prefix='/products')
     app.register_blueprint(resources_bp, url_prefix='/resources')
     app.register_blueprint(practice_bp, url_prefix='/practice')
+    app.register_blueprint(employees_bp, url_prefix='/employees')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
     csrf.exempt(products_bp)
     csrf.exempt(resources_bp)
     csrf.exempt(practice_bp)
+    csrf.exempt(employees_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -70,7 +74,9 @@ def create_app(config_name=None):
             'app_name': app.config['APP_NAME'],
             'current_year': now.year,
             'current_datetime': now,
-            'tageszeit': tageszeit
+            'tageszeit': tageszeit,
+            'timedelta': timedelta,
+            'today': date.today()
         }
 
     # Datenbank erstellen und Demo-Daten laden
@@ -589,6 +595,73 @@ def seed_demo_data():
         value=1.00,
         valid_from=date(2025, 1, 1)
     ))
+
+    # === Absenzen-Kontingente ===
+    thomas_emp = employees['thomas']
+    sarah_emp = employees['sarah']
+    admin_emp = employees['admin']
+    lisa_emp = employees['lisa']
+
+    # Ferienkontingente 2026
+    db.session.add(AbsenceQuota(
+        employee_id=thomas_emp.id, year=2026, absence_type='vacation',
+        total_days=20, used_days=5, carryover_days=0
+    ))
+    db.session.add(AbsenceQuota(
+        employee_id=sarah_emp.id, year=2026, absence_type='vacation',
+        total_days=20, used_days=3, carryover_days=0
+    ))
+    db.session.add(AbsenceQuota(
+        employee_id=admin_emp.id, year=2026, absence_type='vacation',
+        total_days=20, used_days=2, carryover_days=2
+    ))
+    db.session.add(AbsenceQuota(
+        employee_id=lisa_emp.id, year=2026, absence_type='vacation',
+        total_days=16, used_days=1, carryover_days=0  # 80% Pensum = 16 Tage
+    ))
+
+    # === Absenzen ===
+    # Thomas: 1 Woche Ferien im April
+    db.session.add(Absence(
+        employee_id=thomas_emp.id, absence_type='vacation',
+        start_date=date(2026, 4, 13), end_date=date(2026, 4, 17),
+        status='approved', notes='Osterferien'
+    ))
+    # Sarah: 2 Tage krank letzte Woche
+    db.session.add(Absence(
+        employee_id=sarah_emp.id, absence_type='sick',
+        start_date=today - timedelta(days=today.weekday() + 4),
+        end_date=today - timedelta(days=today.weekday() + 3),
+        status='approved', notes='Grippe'
+    ))
+    # Lisa: 1 Tag Weiterbildung naechste Woche
+    db.session.add(Absence(
+        employee_id=lisa_emp.id, absence_type='training',
+        start_date=today + timedelta(days=7 - today.weekday() + 2),  # Mittwoch naechste Woche
+        end_date=today + timedelta(days=7 - today.weekday() + 2),
+        status='approved', notes='Fortbildung Praxismanagement'
+    ))
+
+    # === Zertifikate ===
+    db.session.add(Certificate(
+        employee_id=thomas_emp.id, name='Manuelle Therapie (OMT)',
+        issued_date=date(2022, 3, 15), expiry_date=date(2027, 3, 15)
+    ))
+    db.session.add(Certificate(
+        employee_id=sarah_emp.id, name='Sportphysiotherapie SPT',
+        issued_date=date(2023, 6, 1), expiry_date=date(2026, 6, 1)
+    ))
+    db.session.add(Certificate(
+        employee_id=thomas_emp.id, name='Dry Needling Level 2',
+        issued_date=date(2024, 1, 20), expiry_date=date(2029, 1, 20)
+    ))
+
+    # === Qualifikationen ===
+    import json as _json
+    thomas_emp.qualifications_json = _json.dumps(['Manuelle Therapie', 'Sportphysiotherapie', 'Dry Needling', 'Triggerpunkttherapie'])
+    thomas_emp.specializations_json = _json.dumps(['Kniereha', 'Schulterchirurgie-Nachbehandlung'])
+    sarah_emp.qualifications_json = _json.dumps(['Sportphysiotherapie', 'Tape-Anwendungen', 'Medizinische Trainingstherapie'])
+    sarah_emp.specializations_json = _json.dumps(['Sportrehabilitation', 'Laufsportanalyse'])
 
     # === KI-Einstellungen ===
     db.session.add(AISettings(

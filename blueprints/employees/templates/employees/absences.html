@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Absenzen - {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.detail', employee_id=employee.id) }}">{{ employee.user.first_name }} {{ employee.user.last_name }}</a>
+<span class="breadcrumb-sep">/</span>
+<span>Absenzen</span>
+{% endblock %}
+
+{% block page_title %}Absenzen: {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('employees.create_absence', employee_id=employee.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Absenz
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Kontingent-Uebersicht -->
+{% if quota %}
+<div class="card" style="margin-bottom: var(--spacing-lg);">
+    <div class="card-header"><h3>Ferienkontingent {{ quota.year }}</h3></div>
+    <div class="card-body">
+        <div class="quota-overview">
+            <div class="quota-stat">
+                <span class="quota-stat-value">{{ (quota.total_days + quota.carryover_days) | round(1) }}</span>
+                <span class="quota-stat-label">Anspruch gesamt</span>
+            </div>
+            <div class="quota-stat">
+                <span class="quota-stat-value">{{ quota.used_days | round(1) }}</span>
+                <span class="quota-stat-label">Bezogen</span>
+            </div>
+            <div class="quota-stat">
+                <span class="quota-stat-value highlight">{{ (quota.total_days + quota.carryover_days - quota.used_days) | round(1) }}</span>
+                <span class="quota-stat-label">Verbleibend</span>
+            </div>
+            {% if quota.carryover_days > 0 %}
+            <div class="quota-stat">
+                <span class="quota-stat-value">{{ quota.carryover_days | round(1) }}</span>
+                <span class="quota-stat-label">Übertrag Vorjahr</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Absenzen-Tabelle -->
+<div class="card">
+    {% if absences %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Typ</th>
+                    <th>Von</th>
+                    <th>Bis</th>
+                    <th>Tage</th>
+                    <th>Status</th>
+                    <th>Bemerkung</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for absence in absences %}
+                <tr>
+                    <td>
+                        <span class="absence-type-badge absence-type-{{ absence.absence_type }}">
+                            {% if absence.absence_type == 'vacation' %}Ferien
+                            {% elif absence.absence_type == 'sick' %}Krankheit
+                            {% elif absence.absence_type == 'accident' %}Unfall
+                            {% elif absence.absence_type == 'military' %}Militär
+                            {% elif absence.absence_type == 'maternity' %}Mutterschaft
+                            {% elif absence.absence_type == 'paternity' %}Vaterschaft
+                            {% elif absence.absence_type == 'training' %}Weiterbildung
+                            {% elif absence.absence_type == 'unpaid' %}Unbezahlter Urlaub
+                            {% else %}Sonstiges{% endif %}
+                        </span>
+                        {% if absence.half_day %}<small>(halber Tag)</small>{% endif %}
+                    </td>
+                    <td>{{ absence.start_date.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ absence.end_date.strftime('%d.%m.%Y') }}</td>
+                    <td>
+                        {% if absence.half_day %}0.5
+                        {% else %}
+                            {% set days = namespace(count=0) %}
+                            {% set current = absence.start_date %}
+                            {% for i in range((absence.end_date - absence.start_date).days + 1) %}
+                                {% set check_date = absence.start_date + timedelta(days=i) %}
+                                {% if check_date.weekday() < 5 %}
+                                    {% set days.count = days.count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ days.count }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if absence.status == 'pending' %}
+                            <span class="badge badge-warning">Beantragt</span>
+                        {% elif absence.status == 'approved' %}
+                            <span class="badge badge-success">Genehmigt</span>
+                        {% elif absence.status == 'rejected' %}
+                            <span class="badge badge-error">Abgelehnt</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ absence.notes or '-' }}</td>
+                    <td class="actions-cell">
+                        {% if absence.status == 'pending' and current_user.role == 'admin' %}
+                        <form method="POST" action="{{ url_for('employees.approve_absence', absence_id=absence.id) }}" style="display:inline">
+                            <input type="hidden" name="action" value="approve">
+                            <button type="submit" class="btn btn-sm btn-success" title="Genehmigen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('employees.approve_absence', absence_id=absence.id) }}" style="display:inline">
+                            <input type="hidden" name="action" value="reject">
+                            <button type="submit" class="btn btn-sm btn-danger" title="Ablehnen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('employees.delete_absence', absence_id=absence.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn-sm btn-danger" title="Löschen"
+                                    onclick="return confirm('Absenz wirklich löschen?')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Absenzen vorhanden.</p>
+        <a href="{{ url_for('employees.create_absence', employee_id=employee.id) }}" class="btn btn-primary">Erste Absenz erstellen</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.quota-overview {
+    display: flex; gap: var(--spacing-xl); flex-wrap: wrap;
+}
+.quota-stat { text-align: center; }
+.quota-stat-value { display: block; font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
+.quota-stat-value.highlight { color: var(--color-primary); }
+.quota-stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+.absence-type-badge {
+    padding: 2px 8px; border-radius: var(--radius-sm); font-size: var(--font-size-xs); font-weight: 500;
+}
+.absence-type-vacation { background: #e3f2fd; color: #1565c0; }
+.absence-type-sick { background: #ffebee; color: #c62828; }
+.absence-type-accident { background: #fff3e0; color: #e65100; }
+.absence-type-military { background: #e8eaf6; color: #283593; }
+.absence-type-maternity, .absence-type-paternity { background: #fce4ec; color: #880e4f; }
+.absence-type-training { background: #fff9c4; color: #f57f17; }
+.absence-type-unpaid { background: var(--color-gray-100); color: var(--color-gray-600); }
+.absence-type-other { background: var(--color-gray-100); color: var(--color-gray-600); }
+</style>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Mitarbeiter{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Mitarbeiter</span>
+{% endblock %}
+
+{% block page_title %}Mitarbeiterübersicht{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('employees.absence_calendar') }}" class="btn btn-secondary" title="Urlaubskalender">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+    Urlaubskalender
+</a>
+<a href="{{ url_for('employees.deployment') }}" class="btn btn-secondary" title="Einsatzplanung">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"></rect>
+        <rect x="14" y="3" width="7" height="7"></rect>
+        <rect x="3" y="14" width="7" height="7"></rect>
+        <rect x="14" y="14" width="7" height="7"></rect>
+    </svg>
+    Einsatzplanung
+</a>
+<a href="{{ url_for('employees.create') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neuer Mitarbeiter
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Filter-Leiste -->
+    <form class="filter-bar" method="GET" action="{{ url_for('employees.index') }}">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input" placeholder="Name suchen..."
+                   value="{{ search }}" autocomplete="off">
+        </div>
+        <div class="filter-group">
+            <select name="role" class="form-select">
+                <option value="">Alle Rollen</option>
+                <option value="admin" {% if role == 'admin' %}selected{% endif %}>Administrator</option>
+                <option value="therapist" {% if role == 'therapist' %}selected{% endif %}>Therapeut</option>
+                <option value="reception" {% if role == 'reception' %}selected{% endif %}>Empfang</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="location" class="form-select">
+                <option value="">Alle Standorte</option>
+                {% for loc in locations %}
+                <option value="{{ loc.id }}" {% if location == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-select">
+                <option value="active" {% if status == 'active' %}selected{% endif %}>Nur aktive</option>
+                <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Nur deaktivierte</option>
+                <option value="all" {% if status == 'all' %}selected{% endif %}>Alle</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+    </form>
+
+    <!-- Mitarbeiterliste -->
+    {% if employees %}
+    <div class="employee-grid">
+        {% for emp in employees %}
+        <a href="{{ url_for('employees.detail', employee_id=emp.id) }}" class="employee-card {% if not emp.is_active %}employee-inactive{% endif %}">
+            <div class="employee-avatar" style="background-color: {{ emp.color_code or '#4a90d9' }}">
+                {{ emp.user.first_name[0] }}{{ emp.user.last_name[0] }}
+            </div>
+            <div class="employee-info">
+                <div class="employee-name">{{ emp.user.first_name }} {{ emp.user.last_name }}</div>
+                <div class="employee-meta">
+                    <span class="employee-role">
+                        {% if emp.user.role == 'admin' %}Administrator
+                        {% elif emp.user.role == 'therapist' %}Therapeut
+                        {% elif emp.user.role == 'reception' %}Empfang
+                        {% endif %}
+                    </span>
+                    {% if emp.default_location %}
+                    <span class="employee-location">{{ emp.default_location.name }}</span>
+                    {% endif %}
+                </div>
+                <div class="employee-details">
+                    <span>{{ emp.pensum_percent }}%</span>
+                    <span>{{ emp.employee_number }}</span>
+                    {% if not emp.is_active %}
+                    <span class="badge badge-muted">Deaktiviert</span>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <p>Keine Mitarbeiter gefunden.</p>
+        <a href="{{ url_for('employees.create') }}" class="btn btn-primary">Ersten Mitarbeiter anlegen</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

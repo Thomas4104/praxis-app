@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Arbeitszeiten - {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.detail', employee_id=employee.id) }}">{{ employee.user.first_name }} {{ employee.user.last_name }}</a>
+<span class="breadcrumb-sep">/</span>
+<span>Arbeitszeiten</span>
+{% endblock %}
+
+{% block page_title %}Arbeitszeiten: {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block content %}
+<form method="POST" id="scheduleForm">
+    <div class="card">
+        <div class="card-body">
+            <div class="schedule-editor">
+                {% set day_names = ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag'] %}
+                {% set day_labels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'] %}
+                {% set work_types = [('treatment', 'Behandlung'), ('group_therapy', 'Gruppentherapie'), ('mtt', 'MTT'), ('office', 'Bürozeit'), ('break', 'Pause'), ('overtime_buffer', 'Überzeitpuffer')] %}
+
+                {% for day_idx in range(7) %}
+                <div class="schedule-day" id="day-{{ day_names[day_idx] }}">
+                    <div class="schedule-day-header">
+                        <h3>{{ day_labels[day_idx] }}</h3>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="addBlock('{{ day_names[day_idx] }}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Block hinzufügen
+                        </button>
+                    </div>
+                    <div class="schedule-blocks" id="blocks-{{ day_names[day_idx] }}">
+                        {% for ws in schedules_by_day.get(day_idx, []) %}
+                        <div class="schedule-block-edit">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Von</label>
+                                    <input type="time" name="{{ day_names[day_idx] }}_start_{{ loop.index0 }}"
+                                           class="form-input" value="{{ ws.start_time.strftime('%H:%M') }}">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Bis</label>
+                                    <input type="time" name="{{ day_names[day_idx] }}_end_{{ loop.index0 }}"
+                                           class="form-input" value="{{ ws.end_time.strftime('%H:%M') }}">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Art</label>
+                                    <select name="{{ day_names[day_idx] }}_type_{{ loop.index0 }}" class="form-select">
+                                        {% for val, label in work_types %}
+                                        <option value="{{ val }}" {% if ws.work_type == val %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Standort</label>
+                                    <select name="{{ day_names[day_idx] }}_location_{{ loop.index0 }}" class="form-select">
+                                        {% for loc in locations %}
+                                        <option value="{{ loc.id }}" {% if ws.location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-danger schedule-remove-btn" onclick="this.closest('.schedule-block-edit').remove(); updateSollStunden();">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="schedule-summary">
+                <strong>Soll-Stunden pro Woche: <span id="sollStunden">--</span></strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <a href="{{ url_for('employees.detail', employee_id=employee.id) }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Arbeitszeiten speichern</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const workTypes = {{ [('treatment', 'Behandlung'), ('group_therapy', 'Gruppentherapie'), ('mtt', 'MTT'), ('office', 'Bürozeit'), ('break', 'Pause'), ('overtime_buffer', 'Überzeitpuffer')] | tojson }};
+const locations = {{ locations | map(attribute='id') | list | tojson }};
+const locationNames = {{ locations | map(attribute='name') | list | tojson }};
+
+function addBlock(dayName) {
+    const container = document.getElementById('blocks-' + dayName);
+    const idx = container.children.length;
+
+    let locOptions = '';
+    for (let i = 0; i < locations.length; i++) {
+        locOptions += `<option value="${locations[i]}">${locationNames[i]}</option>`;
+    }
+
+    let typeOptions = '';
+    workTypes.forEach(([val, label]) => {
+        typeOptions += `<option value="${val}">${label}</option>`;
+    });
+
+    const html = `
+    <div class="schedule-block-edit">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Von</label>
+                <input type="time" name="${dayName}_start_${idx}" class="form-input" value="08:00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Bis</label>
+                <input type="time" name="${dayName}_end_${idx}" class="form-input" value="12:00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Art</label>
+                <select name="${dayName}_type_${idx}" class="form-select">${typeOptions}</select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Standort</label>
+                <select name="${dayName}_location_${idx}" class="form-select">${locOptions}</select>
+            </div>
+            <button type="button" class="btn btn-sm btn-danger schedule-remove-btn" onclick="this.closest('.schedule-block-edit').remove(); updateSollStunden();">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    </div>`;
+
+    container.insertAdjacentHTML('beforeend', html);
+    updateSollStunden();
+}
+
+function updateSollStunden() {
+    let total = 0;
+    document.querySelectorAll('.schedule-block-edit').forEach(block => {
+        const startInput = block.querySelector('input[type="time"]:first-of-type');
+        const endInput = block.querySelectorAll('input[type="time"]')[1];
+        if (startInput && endInput && startInput.value && endInput.value) {
+            const [sh, sm] = startInput.value.split(':').map(Number);
+            const [eh, em] = endInput.value.split(':').map(Number);
+            total += (eh * 60 + em) - (sh * 60 + sm);
+        }
+    });
+    const hours = Math.floor(total / 60);
+    const mins = total % 60;
+    document.getElementById('sollStunden').textContent = `${hours}h ${mins > 0 ? mins + 'min' : ''}`;
+}
+
+// Initial berechnen
+updateSollStunden();
+
+// Bei Aenderung aktualisieren
+document.addEventListener('change', function(e) {
+    if (e.target.type === 'time') updateSollStunden();
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.schedule-editor { display: flex; flex-direction: column; gap: var(--spacing-lg); }
+.schedule-day { border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); padding: var(--spacing-md); }
+.schedule-day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); }
+.schedule-day-header h3 { margin: 0; font-size: var(--font-size-base); }
+.schedule-blocks { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.schedule-block-edit { background: var(--color-gray-50); padding: var(--spacing-sm); border-radius: var(--radius-sm); }
+.schedule-block-edit .form-row { display: flex; gap: var(--spacing-sm); align-items: flex-end; flex-wrap: wrap; }
+.schedule-block-edit .form-group { flex: 1; min-width: 100px; }
+.schedule-block-edit .form-label { font-size: var(--font-size-xs); margin-bottom: 2px; }
+.schedule-remove-btn { flex-shrink: 0; align-self: flex-end; margin-bottom: 2px; }
+.schedule-summary {
+    margin-top: var(--spacing-lg); padding: var(--spacing-md);
+    background: var(--color-gray-50); border-radius: var(--radius-md);
+    text-align: center; font-size: var(--font-size-lg);
+}
+</style>
+{% endblock %}

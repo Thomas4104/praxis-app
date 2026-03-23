@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Mitarbeiter bearbeiten' if employee else 'Neuer Mitarbeiter' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if employee else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Mitarbeiter bearbeiten' if employee else 'Neuer Mitarbeiter' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" id="employeeForm" novalidate>
+    <!-- Tabs -->
+    <div class="tab-nav">
+        <button type="button" class="tab-btn active" data-tab="basisdaten">Basisdaten</button>
+        <button type="button" class="tab-btn" data-tab="benutzerdaten">Benutzerdaten</button>
+        <button type="button" class="tab-btn" data-tab="qualifikationen">Qualifikationen</button>
+    </div>
+
+    <!-- Tab: Basisdaten -->
+    <div class="tab-content active" id="tab-basisdaten">
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Persönliche Daten</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="first_name" class="form-label required">Vorname</label>
+                        <input type="text" id="first_name" name="first_name" class="form-input"
+                               value="{{ employee.user.first_name if employee and employee.user else '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name" class="form-label required">Nachname</label>
+                        <input type="text" id="last_name" name="last_name" class="form-input"
+                               value="{{ employee.user.last_name if employee and employee.user else '' }}" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="employee_number" class="form-label">Mitarbeiternummer</label>
+                    <input type="text" id="employee_number" name="employee_number" class="form-input"
+                           value="{{ employee.employee_number if employee else '' }}"
+                           placeholder="Automatisch generiert">
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="form-label">E-Mail</label>
+                    <input type="email" id="email" name="email" class="form-input"
+                           value="{{ employee.user.email if employee and employee.user else '' }}"
+                           placeholder="mitarbeiter@praxis.ch">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="employment_model" class="form-label">Anstellungsmodell</label>
+                        <select id="employment_model" name="employment_model" class="form-select">
+                            {% for val, label in [('Festanstellung', 'Festanstellung'), ('Selbständig im eigenen Namen', 'Selbständig im eigenen Namen'), ('Selbständig im Praxisnamen', 'Selbständig im Praxisnamen')] %}
+                            <option value="{{ val }}" {% if employee and employee.employment_model == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pensum_percent" class="form-label required">Pensum (%)</label>
+                        <input type="number" id="pensum_percent" name="pensum_percent" class="form-input"
+                               value="{{ employee.pensum_percent if employee else 100 }}"
+                               min="1" max="100" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Berufsdaten</h3>
+
+                <div class="form-group">
+                    <label for="default_location_id" class="form-label">Standard-Standort</label>
+                    <select id="default_location_id" name="default_location_id" class="form-select" onchange="loadRooms(this.value)">
+                        <option value="">-- Standort wählen --</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.id }}" {% if employee and employee.default_location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="default_room_id" class="form-label">Standard-Behandlungsraum</label>
+                    <select id="default_room_id" name="default_room_id" class="form-select">
+                        <option value="">-- Raum wählen --</option>
+                        {% for room in rooms %}
+                        <option value="{{ room.id }}" {% if employee and employee.default_room_id == room.id %}selected{% endif %}
+                                data-location="{{ room.location_id }}">{{ room.name }} ({{ room.location.name if room.location else '' }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="color_code" class="form-label">Farbcode (Kalender)</label>
+                    <div class="color-picker-row">
+                        <input type="color" id="color_code" name="color_code" class="form-color"
+                               value="{{ employee.color_code if employee and employee.color_code else '#4a90d9' }}">
+                        <span class="color-preview" id="colorPreview"
+                              style="background-color: {{ employee.color_code if employee and employee.color_code else '#4a90d9' }}">
+                            {{ (employee.user.first_name[0] ~ employee.user.last_name[0]) if employee and employee.user else 'AB' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="zsr_number" class="form-label">ZSR-Nummer</label>
+                        <input type="text" id="zsr_number" name="zsr_number" class="form-input"
+                               value="{{ employee.zsr_number if employee and employee.zsr_number else '' }}"
+                               placeholder="Z123456">
+                    </div>
+                    <div class="form-group">
+                        <label for="gln_number" class="form-label">GLN-Nummer</label>
+                        <input type="text" id="gln_number" name="gln_number" class="form-input"
+                               value="{{ employee.gln_number if employee and employee.gln_number else '' }}"
+                               placeholder="7601000000000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-toggle">
+                        <input type="checkbox" name="is_active" id="is_active"
+                               {% if not employee or employee.is_active %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Mitarbeiter aktiv</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Benutzerdaten -->
+    <div class="tab-content" id="tab-benutzerdaten">
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Login-Daten</h3>
+
+                <div class="form-group">
+                    <label for="username" class="form-label required">Benutzername</label>
+                    <input type="text" id="username" name="username" class="form-input"
+                           value="{{ employee.user.username if employee and employee.user else '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label {% if not employee %}required{% endif %}">
+                        {{ 'Neues Passwort' if employee else 'Passwort' }}
+                    </label>
+                    <input type="password" id="password" name="password" class="form-input"
+                           placeholder="{{ 'Leer lassen um Passwort beizubehalten' if employee else 'Passwort eingeben' }}"
+                           {% if not employee %}required{% endif %}>
+                    {% if employee %}
+                    <small class="form-hint">Nur ausfüllen, wenn das Passwort geändert werden soll.</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Rolle & Berechtigungen</h3>
+
+                <div class="form-group">
+                    <label for="role" class="form-label">Rolle</label>
+                    <select id="role" name="role" class="form-select">
+                        <option value="admin" {% if employee and employee.user and employee.user.role == 'admin' %}selected{% endif %}>Administrator</option>
+                        <option value="therapist" {% if (employee and employee.user and employee.user.role == 'therapist') or not employee %}selected{% endif %}>Therapeut</option>
+                        <option value="reception" {% if employee and employee.user and employee.user.role == 'reception' %}selected{% endif %}>Empfang</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Berechtigungen</label>
+                    <div class="permissions-grid">
+                        {% for module in ['Dashboard', 'Kalender', 'Patienten', 'Mitarbeiter', 'Behandlung', 'Abrechnung', 'Produkte', 'Ressourcen', 'Einstellungen'] %}
+                        <div class="permission-row">
+                            <span class="permission-module">{{ module }}</span>
+                            <label class="form-checkbox-inline">
+                                <input type="checkbox" checked disabled>
+                                <span>Lesen</span>
+                            </label>
+                            <label class="form-checkbox-inline">
+                                <input type="checkbox" checked disabled>
+                                <span>Schreiben</span>
+                            </label>
+                            <label class="form-checkbox-inline">
+                                <input type="checkbox" disabled>
+                                <span>Löschen</span>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <small class="form-hint">Berechtigungen werden über die Rolle gesteuert.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Qualifikationen -->
+    <div class="tab-content" id="tab-qualifikationen">
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Fachqualifikationen</h3>
+                {% set current_quals = [] %}
+                {% if employee and employee.qualifications_json %}
+                    {% set current_quals = employee.qualifications_json | tojson | default('[]') %}
+                {% endif %}
+
+                <div class="qualifications-grid">
+                    {% for qual in ['Manuelle Therapie', 'Sportphysiotherapie', 'Neuroreha', 'Lymphdrainage', 'Beckenbodentherapie', 'Kiefergelenkstherapie', 'Atemtherapie', 'Geriatrie', 'Pädiatrie', 'Ergonomie', 'Medizinische Trainingstherapie', 'Dry Needling', 'Triggerpunkttherapie', 'Tape-Anwendungen'] %}
+                    <label class="form-checkbox-card">
+                        <input type="checkbox" name="qualifications" value="{{ qual }}"
+                               {% if employee and employee.qualifications_json and qual in employee.qualifications_json %}checked{% endif %}>
+                        <span>{{ qual }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Spezialisierungen</h3>
+                <div class="form-group">
+                    <label for="specializations" class="form-label">Spezialisierungen (kommagetrennt)</label>
+                    <textarea id="specializations" name="specializations" class="form-textarea" rows="3"
+                              placeholder="z.B. Kniereha, Schulterchirurgie-Nachbehandlung">{% if employee and employee.specializations_json %}{{ employee.specializations_json | replace('[', '') | replace(']', '') | replace('"', '') }}{% endif %}</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('employees.detail', employee_id=employee.id) if employee else url_for('employees.index') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tab-Navigation
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+    });
+});
+
+// Farbvorschau
+document.getElementById('color_code').addEventListener('input', function() {
+    document.getElementById('colorPreview').style.backgroundColor = this.value;
+});
+
+// Raeume nach Standort laden
+function loadRooms(locationId) {
+    const roomSelect = document.getElementById('default_room_id');
+    const options = roomSelect.querySelectorAll('option[data-location]');
+    options.forEach(opt => {
+        opt.style.display = (!locationId || opt.dataset.location === locationId) ? '' : 'none';
+    });
+}
+
+// Initial filtern
+const locSelect = document.getElementById('default_location_id');
+if (locSelect.value) loadRooms(locSelect.value);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tab-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--color-gray-200);
+    margin-bottom: var(--spacing-lg);
+}
+.tab-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: none;
+    background: none;
+    color: var(--color-gray-500);
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all var(--transition-fast);
+}
+.tab-btn:hover { color: var(--color-primary); }
+.tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.color-picker-row { display: flex; align-items: center; gap: var(--spacing-md); }
+.form-color {
+    width: 48px; height: 48px; padding: 2px; border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-md); cursor: pointer;
+}
+.color-preview {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: white; font-weight: 600; font-size: var(--font-size-sm);
+}
+.qualifications-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+}
+.form-checkbox-card {
+    display: flex; align-items: center; gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);
+    cursor: pointer; transition: all var(--transition-fast);
+}
+.form-checkbox-card:hover { border-color: var(--color-primary); background: var(--color-gray-50); }
+.form-checkbox-card input:checked + span { color: var(--color-primary); font-weight: 500; }
+.permissions-grid { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.permission-row {
+    display: flex; align-items: center; gap: var(--spacing-md);
+    padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100);
+}
+.permission-module { min-width: 120px; font-weight: 500; font-size: var(--font-size-sm); }
+.form-checkbox-inline { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); cursor: pointer; }
+</style>
+{% endblock %}

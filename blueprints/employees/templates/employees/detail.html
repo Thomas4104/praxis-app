@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}{{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ employee.user.first_name }} {{ employee.user.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('employees.create_absence', employee_id=employee.id) }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+    </svg>
+    Absenz erstellen
+</a>
+<a href="{{ url_for('employees.schedules', employee_id=employee.id) }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+    Arbeitszeiten
+</a>
+<a href="{{ url_for('employees.edit', employee_id=employee.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+<form method="POST" action="{{ url_for('employees.toggle_active', employee_id=employee.id) }}" style="display:inline">
+    <button type="submit" class="btn {% if employee.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if employee.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if not employee.is_active %}
+<div class="alert alert-warning">
+    Dieser Mitarbeiter ist deaktiviert.
+</div>
+{% endif %}
+
+<!-- Kopfbereich mit Avatar und Kurzinfo -->
+<div class="employee-header-card">
+    <div class="employee-avatar-large" style="background-color: {{ employee.color_code or '#4a90d9' }}">
+        {{ employee.user.first_name[0] }}{{ employee.user.last_name[0] }}
+    </div>
+    <div class="employee-header-info">
+        <h2>{{ employee.user.first_name }} {{ employee.user.last_name }}</h2>
+        <div class="employee-header-meta">
+            <span class="badge {% if employee.user.role == 'admin' %}badge-primary{% elif employee.user.role == 'therapist' %}badge-success{% else %}badge-info{% endif %}">
+                {% if employee.user.role == 'admin' %}Administrator{% elif employee.user.role == 'therapist' %}Therapeut{% else %}Empfang{% endif %}
+            </span>
+            {% if employee.default_location %}
+            <span>{{ employee.default_location.name }}</span>
+            {% endif %}
+            <span>{{ employee.pensum_percent }}% Pensum</span>
+            <span>{{ employee.employee_number }}</span>
+        </div>
+    </div>
+    <div class="employee-header-stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ utilization }}%</div>
+            <div class="stat-label">Auslastung</div>
+            <div class="progress-bar">
+                <div class="progress-fill {% if utilization > 90 %}progress-danger{% elif utilization > 70 %}progress-warning{% else %}progress-ok{% endif %}"
+                     style="width: {{ [utilization, 100] | min }}%"></div>
+            </div>
+        </div>
+        {% if quota %}
+        <div class="stat-item">
+            <div class="stat-value">{{ (quota.total_days + quota.carryover_days - quota.used_days) | round(1) }}</div>
+            <div class="stat-label">Resturlaub {{ quota.year }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="detail-grid">
+    <!-- Basisdaten -->
+    <div class="card">
+        <div class="card-header"><h3>Basisdaten</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value">{{ employee.user.email or '-' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Anstellung</span>
+                    <span class="detail-value">{{ employee.employment_model or 'Festanstellung' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Benutzername</span>
+                    <span class="detail-value">{{ employee.user.username }}</span>
+                </div>
+                {% if employee.zsr_number %}
+                <div class="detail-item">
+                    <span class="detail-label">ZSR-Nummer</span>
+                    <span class="detail-value">{{ employee.zsr_number }}</span>
+                </div>
+                {% endif %}
+                {% if employee.gln_number %}
+                <div class="detail-item">
+                    <span class="detail-label">GLN-Nummer</span>
+                    <span class="detail-value">{{ employee.gln_number }}</span>
+                </div>
+                {% endif %}
+                {% if employee.default_room %}
+                <div class="detail-item">
+                    <span class="detail-label">Behandlungsraum</span>
+                    <span class="detail-value">{{ employee.default_room.name }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Auslastung & Termine -->
+    <div class="card">
+        <div class="card-header"><h3>Nächste Termine</h3></div>
+        <div class="card-body">
+            {% if upcoming_appointments %}
+            <div class="mini-schedule">
+                {% for appt in upcoming_appointments %}
+                <div class="mini-schedule-item">
+                    <div class="schedule-time">
+                        <strong>{{ appt.start_time.strftime('%d.%m.') }}</strong>
+                        {{ appt.start_time.strftime('%H:%M') }} - {{ appt.end_time.strftime('%H:%M') }}
+                    </div>
+                    <div class="schedule-detail">
+                        {{ appt.patient.first_name }} {{ appt.patient.last_name }}
+                        <small>{{ appt.title or 'Behandlung' }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">Keine anstehenden Termine.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Arbeitszeiten -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Arbeitszeiten</h3>
+        <a href="{{ url_for('employees.schedules', employee_id=employee.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
+    </div>
+    <div class="card-body">
+        {% if work_schedules %}
+        <div class="week-schedule-visual">
+            {% set day_names = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'] %}
+            {% for day_idx in range(7) %}
+                {% set day_schedules = work_schedules | selectattr('day_of_week', 'equalto', day_idx) | list %}
+                {% if day_schedules %}
+                <div class="schedule-day-row">
+                    <div class="schedule-day-name">{{ day_names[day_idx][:2] }}</div>
+                    <div class="schedule-day-blocks">
+                        {% for ws in day_schedules %}
+                        <div class="schedule-block schedule-block-{{ ws.work_type }}"
+                             title="{{ ws.start_time.strftime('%H:%M') }} - {{ ws.end_time.strftime('%H:%M') }} ({{ ws.work_type }})">
+                            <span>{{ ws.start_time.strftime('%H:%M') }}-{{ ws.end_time.strftime('%H:%M') }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="schedule-legend">
+            <span class="legend-item"><span class="legend-color" style="background: var(--color-primary)"></span>Behandlung</span>
+            <span class="legend-item"><span class="legend-color" style="background: var(--color-success)"></span>Gruppentherapie</span>
+            <span class="legend-item"><span class="legend-color" style="background: #9b59b6"></span>MTT</span>
+            <span class="legend-item"><span class="legend-color" style="background: var(--color-warning)"></span>Bürozeit</span>
+            <span class="legend-item"><span class="legend-color" style="background: var(--color-gray-400)"></span>Pause</span>
+        </div>
+        {% else %}
+        <p class="text-muted">Keine Arbeitszeiten definiert.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="detail-grid" style="margin-top: var(--spacing-lg);">
+    <!-- Absenzen -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Aktuelle Absenzen</h3>
+            <a href="{{ url_for('employees.absences', employee_id=employee.id) }}" class="btn btn-sm btn-secondary">Alle anzeigen</a>
+        </div>
+        <div class="card-body">
+            {% if current_absences %}
+            {% for absence in current_absences %}
+            <div class="absence-item absence-{{ absence.absence_type }}">
+                <div class="absence-type">
+                    {% if absence.absence_type == 'vacation' %}Ferien
+                    {% elif absence.absence_type == 'sick' %}Krankheit
+                    {% elif absence.absence_type == 'accident' %}Unfall
+                    {% elif absence.absence_type == 'training' %}Weiterbildung
+                    {% else %}{{ absence.absence_type }}{% endif %}
+                </div>
+                <div class="absence-dates">
+                    {{ absence.start_date.strftime('%d.%m.%Y') }} - {{ absence.end_date.strftime('%d.%m.%Y') }}
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted">Keine aktuellen Absenzen.</p>
+            {% endif %}
+
+            {% if quota %}
+            <div class="quota-summary" style="margin-top: var(--spacing-md);">
+                <h4>Ferienkontingent {{ quota.year }}</h4>
+                <div class="quota-bar">
+                    <div class="quota-fill" style="width: {{ (quota.used_days / (quota.total_days + quota.carryover_days) * 100) if (quota.total_days + quota.carryover_days) > 0 else 0 }}%"></div>
+                </div>
+                <div class="quota-details">
+                    <span>{{ quota.used_days | round(1) }} bezogen</span>
+                    <span>{{ (quota.total_days + quota.carryover_days - quota.used_days) | round(1) }} verbleibend</span>
+                    <span>von {{ (quota.total_days + quota.carryover_days) | round(1) }} Tagen</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Zertifikate -->
+    <div class="card">
+        <div class="card-header"><h3>Zertifikate & Qualifikationen</h3></div>
+        <div class="card-body">
+            {% if employee.qualifications_json %}
+            <div class="tag-list" style="margin-bottom: var(--spacing-md);">
+                {% for qual in employee.qualifications_json | replace('[', '') | replace(']', '') | replace('"', '') | split(',') %}
+                    {% if qual.strip() %}
+                    <span class="tag">{{ qual.strip() }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if certificates %}
+            <div class="cert-list">
+                {% for cert in certificates %}
+                <div class="cert-item {% if cert.expiry_date and cert.expiry_date < today %}cert-expired{% elif cert.expiry_date and cert.expiry_date < today + timedelta(days=90) %}cert-expiring{% endif %}">
+                    <div class="cert-info">
+                        <strong>{{ cert.name }}</strong>
+                        {% if cert.issued_date %}
+                        <small>Ausgestellt: {{ cert.issued_date.strftime('%d.%m.%Y') }}</small>
+                        {% endif %}
+                        {% if cert.expiry_date %}
+                        <small>
+                            Gültig bis: {{ cert.expiry_date.strftime('%d.%m.%Y') }}
+                            {% if cert.expiry_date < today %}
+                            <span class="badge badge-error">Abgelaufen</span>
+                            {% elif cert.expiry_date < today + timedelta(days=90) %}
+                            <span class="badge badge-warning">Läuft bald ab</span>
+                            {% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    <form method="POST" action="{{ url_for('employees.delete_certificate', cert_id=cert.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Zertifikat löschen?')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Zertifikat hinzufuegen -->
+            <form method="POST" action="{{ url_for('employees.create_certificate', employee_id=employee.id) }}" class="cert-add-form">
+                <h4 style="margin-top: var(--spacing-md);">Zertifikat hinzufügen</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <input type="text" name="cert_name" class="form-input" placeholder="Zertifikatsname" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="date" name="cert_issued_date" class="form-input" title="Ausstellungsdatum">
+                    </div>
+                    <div class="form-group">
+                        <input type="date" name="cert_expiry_date" class="form-input" title="Ablaufdatum">
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Hinzufügen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.employee-header-card {
+    display: flex; align-items: center; gap: var(--spacing-lg);
+    padding: var(--spacing-lg); background: white; border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); margin-bottom: var(--spacing-lg);
+}
+.employee-avatar-large {
+    width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: white; font-weight: 700; font-size: var(--font-size-2xl);
+    flex-shrink: 0;
+}
+.employee-header-info { flex: 1; }
+.employee-header-info h2 { margin: 0 0 var(--spacing-xs) 0; }
+.employee-header-meta { display: flex; gap: var(--spacing-md); align-items: center; flex-wrap: wrap; color: var(--color-gray-600); font-size: var(--font-size-sm); }
+.employee-header-stats { display: flex; gap: var(--spacing-xl); }
+.stat-item { text-align: center; }
+.stat-value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
+.stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+.progress-bar { width: 80px; height: 6px; background: var(--color-gray-200); border-radius: 3px; margin-top: 4px; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width var(--transition-base); }
+.progress-ok { background: var(--color-success); }
+.progress-warning { background: var(--color-warning); }
+.progress-danger { background: var(--color-error); }
+
+.week-schedule-visual { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.schedule-day-row { display: flex; align-items: center; gap: var(--spacing-md); }
+.schedule-day-name { width: 30px; font-weight: 600; font-size: var(--font-size-sm); color: var(--color-gray-600); }
+.schedule-day-blocks { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; }
+.schedule-block {
+    padding: 4px 10px; border-radius: var(--radius-sm); font-size: var(--font-size-xs);
+    color: white; font-weight: 500;
+}
+.schedule-block-treatment { background: var(--color-primary); }
+.schedule-block-group_therapy { background: var(--color-success); }
+.schedule-block-mtt { background: #9b59b6; }
+.schedule-block-office { background: var(--color-warning); }
+.schedule-block-break { background: var(--color-gray-400); }
+.schedule-block-overtime_buffer { background: var(--color-gray-500); }
+.schedule-legend { display: flex; gap: var(--spacing-md); margin-top: var(--spacing-sm); flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-xs); color: var(--color-gray-600); }
+.legend-color { width: 12px; height: 12px; border-radius: 2px; }
+
+.mini-schedule { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.mini-schedule-item { display: flex; gap: var(--spacing-md); padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100); }
+.schedule-time { font-size: var(--font-size-sm); white-space: nowrap; min-width: 120px; }
+.schedule-detail { font-size: var(--font-size-sm); }
+.schedule-detail small { display: block; color: var(--color-gray-500); }
+
+.absence-item { display: flex; justify-content: space-between; padding: var(--spacing-sm); border-radius: var(--radius-sm); margin-bottom: var(--spacing-xs); }
+.absence-vacation { background: #e3f2fd; }
+.absence-sick { background: #ffebee; }
+.absence-accident { background: #fff3e0; }
+.absence-training { background: #fff9c4; }
+.absence-type { font-weight: 500; font-size: var(--font-size-sm); }
+.absence-dates { font-size: var(--font-size-sm); color: var(--color-gray-600); }
+
+.quota-summary { padding-top: var(--spacing-md); border-top: 1px solid var(--color-gray-200); }
+.quota-summary h4 { margin: 0 0 var(--spacing-sm) 0; font-size: var(--font-size-sm); }
+.quota-bar { height: 8px; background: var(--color-gray-200); border-radius: 4px; overflow: hidden; }
+.quota-fill { height: 100%; background: var(--color-primary); border-radius: 4px; }
+.quota-details { display: flex; justify-content: space-between; font-size: var(--font-size-xs); color: var(--color-gray-500); margin-top: 4px; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.tag { padding: 2px 10px; background: var(--color-gray-100); border-radius: var(--radius-full); font-size: var(--font-size-xs); color: var(--color-gray-700); }
+
+.cert-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.cert-item { display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); }
+.cert-expired { border-color: var(--color-error); background: #fff5f5; }
+.cert-expiring { border-color: var(--color-warning); background: #fffbeb; }
+.cert-info { display: flex; flex-direction: column; gap: 2px; }
+.cert-info small { color: var(--color-gray-500); }
+
+.cert-add-form .form-row { align-items: flex-end; }
+
+@media (max-width: 768px) {
+    .employee-header-card { flex-direction: column; text-align: center; }
+    .employee-header-stats { justify-content: center; }
+}
+</style>
+{% endblock %}

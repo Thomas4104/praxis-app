@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Neue Absenz - {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.detail', employee_id=employee.id) }}">{{ employee.user.first_name }} {{ employee.user.last_name }}</a>
+<span class="breadcrumb-sep">/</span>
+<span>Neue Absenz</span>
+{% endblock %}
+
+{% block page_title %}Neue Absenz: {{ employee.user.first_name }} {{ employee.user.last_name }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container">
+    <div class="card">
+        <div class="card-body">
+            <div class="form-grid form-grid-2">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="absence_type" class="form-label required">Absenztyp</label>
+                        <select id="absence_type" name="absence_type" class="form-select" required>
+                            <option value="vacation">Ferien</option>
+                            <option value="sick">Krankheit</option>
+                            <option value="accident">Unfall</option>
+                            <option value="military">Militär</option>
+                            <option value="maternity">Mutterschaft</option>
+                            <option value="paternity">Vaterschaft</option>
+                            <option value="training">Weiterbildung</option>
+                            <option value="unpaid">Unbezahlter Urlaub</option>
+                            <option value="other">Sonstiges</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="start_date" class="form-label required">Von</label>
+                            <input type="date" id="start_date" name="start_date" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="end_date" class="form-label required">Bis</label>
+                            <input type="date" id="end_date" name="end_date" class="form-input" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-toggle">
+                            <input type="checkbox" name="half_day" id="half_day">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-label">Halber Tag</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="notes" class="form-label">Bemerkung</label>
+                        <textarea id="notes" name="notes" class="form-textarea" rows="4"
+                                  placeholder="Optionale Bemerkung"></textarea>
+                    </div>
+
+                    <div class="absence-preview" id="absencePreview">
+                        <p><strong>Arbeitstage:</strong> <span id="previewDays">-</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <a href="{{ url_for('employees.absences', employee_id=employee.id) }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Absenz erstellen</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePreview() {
+    const start = document.getElementById('start_date').value;
+    const end = document.getElementById('end_date').value;
+    const halfDay = document.getElementById('half_day').checked;
+
+    if (start && end) {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        let days = 0;
+        let current = new Date(startDate);
+        while (current <= endDate) {
+            if (current.getDay() !== 0 && current.getDay() !== 6) days++;
+            current.setDate(current.getDate() + 1);
+        }
+        if (halfDay) days = 0.5;
+        document.getElementById('previewDays').textContent = days + ' Tag(e)';
+    }
+}
+
+document.getElementById('start_date').addEventListener('change', updatePreview);
+document.getElementById('end_date').addEventListener('change', updatePreview);
+document.getElementById('half_day').addEventListener('change', updatePreview);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.absence-preview {
+    padding: var(--spacing-md); background: var(--color-gray-50);
+    border-radius: var(--radius-md); margin-top: var(--spacing-md);
+}
+</style>
+{% endblock %}

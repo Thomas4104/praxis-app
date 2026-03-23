@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Urlaubskalender - {{ month_name }} {{ year }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Urlaubskalender</span>
+{% endblock %}
+
+{% block page_title %}Urlaubskalender{% endblock %}
+
+{% block page_actions %}
+<button onclick="window.print()" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+    </svg>
+    Drucken
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card calendar-card">
+    <!-- Navigation -->
+    <div class="calendar-nav">
+        <a href="{{ url_for('employees.absence_calendar', year=year if month > 1 else year-1, month=month-1 if month > 1 else 12) }}"
+           class="btn btn-sm btn-secondary">&larr; Voriger Monat</a>
+        <h2 class="calendar-title">{{ month_name }} {{ year }}</h2>
+        <a href="{{ url_for('employees.absence_calendar', year=year if month < 12 else year+1, month=month+1 if month < 12 else 1) }}"
+           class="btn btn-sm btn-secondary">Nächster Monat &rarr;</a>
+    </div>
+
+    <!-- Kalender-Tabelle -->
+    <div class="table-responsive calendar-table-wrapper">
+        <table class="calendar-table">
+            <thead>
+                <tr>
+                    <th class="calendar-name-col">Mitarbeiter</th>
+                    {% for d in month_dates %}
+                    <th class="calendar-day-col {% if d.weekday() >= 5 %}weekend{% endif %} {% if d == today %}today{% endif %} {% if d in holiday_dates %}holiday{% endif %}">
+                        <div class="cal-day-num">{{ d.day }}</div>
+                        <div class="cal-day-name">{{ ['Mo','Di','Mi','Do','Fr','Sa','So'][d.weekday()] }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                <tr>
+                    <td class="calendar-name-cell">
+                        <div class="cal-emp-avatar" style="background-color: {{ emp.color_code or '#4a90d9' }}">
+                            {{ emp.user.first_name[0] }}{{ emp.user.last_name[0] }}
+                        </div>
+                        <span>{{ emp.user.first_name }} {{ emp.user.last_name[0] }}.</span>
+                    </td>
+                    {% for d in month_dates %}
+                    <td class="calendar-cell {% if d.weekday() >= 5 %}weekend{% endif %} {% if d == today %}today{% endif %} {% if d in holiday_dates %}holiday{% endif %}">
+                        {% set emp_absences = absence_map.get(emp.id, []) %}
+                        {% for absence in emp_absences %}
+                            {% if absence.start_date <= d and absence.end_date >= d %}
+                                <div class="cal-absence cal-absence-{{ absence.absence_type }} {% if absence.status == 'pending' %}cal-absence-pending{% endif %}"
+                                     title="{{ absence.absence_type }}: {{ absence.start_date.strftime('%d.%m.') }}-{{ absence.end_date.strftime('%d.%m.') }}">
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Legende -->
+    <div class="calendar-legend">
+        <span class="legend-item"><span class="legend-color" style="background: #1976D2"></span>Ferien</span>
+        <span class="legend-item"><span class="legend-color" style="background: #D32F2F"></span>Krankheit</span>
+        <span class="legend-item"><span class="legend-color" style="background: #F57F17"></span>Weiterbildung</span>
+        <span class="legend-item"><span class="legend-color" style="background: #FF8F00"></span>Unfall</span>
+        <span class="legend-item"><span class="legend-color" style="background: #9E9E9E"></span>Sonstiges</span>
+        <span class="legend-item"><span class="legend-color" style="background: repeating-linear-gradient(45deg, #FFD54F, #FFD54F 2px, #FFF176 2px, #FFF176 4px)"></span>Beantragt</span>
+        <span class="legend-item"><span class="legend-color" style="background: var(--color-gray-100); border: 1px solid var(--color-gray-300)"></span>Wochenende/Feiertag</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.calendar-card { overflow: visible; }
+.calendar-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-gray-200);
+}
+.calendar-title { margin: 0; font-size: var(--font-size-xl); }
+.calendar-table-wrapper { overflow-x: auto; }
+.calendar-table {
+    width: 100%; border-collapse: collapse; font-size: var(--font-size-xs);
+}
+.calendar-table th, .calendar-table td {
+    border: 1px solid var(--color-gray-200); text-align: center; padding: 2px;
+}
+.calendar-name-col {
+    min-width: 140px; text-align: left !important; position: sticky; left: 0;
+    background: white; z-index: 1;
+}
+.calendar-name-cell {
+    display: flex; align-items: center; gap: var(--spacing-xs);
+    text-align: left !important; white-space: nowrap;
+    position: sticky; left: 0; background: white; z-index: 1;
+}
+.cal-emp-avatar {
+    width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 9px; font-weight: 600; flex-shrink: 0;
+}
+.calendar-day-col { min-width: 28px; }
+.cal-day-num { font-weight: 600; }
+.cal-day-name { font-weight: 400; color: var(--color-gray-500); }
+.weekend { background: var(--color-gray-50); }
+.holiday { background: #fff8e1; }
+.today { background: #e3f2fd; }
+.calendar-cell { height: 28px; position: relative; }
+.cal-absence {
+    position: absolute; inset: 2px; border-radius: 2px;
+}
+.cal-absence-vacation { background: #1976D2; }
+.cal-absence-sick { background: #D32F2F; }
+.cal-absence-training { background: #F57F17; }
+.cal-absence-accident { background: #FF8F00; }
+.cal-absence-military { background: #283593; }
+.cal-absence-maternity, .cal-absence-paternity { background: #880E4F; }
+.cal-absence-unpaid, .cal-absence-other { background: #9E9E9E; }
+.cal-absence-pending {
+    background: repeating-linear-gradient(45deg, #FFD54F, #FFD54F 2px, #FFF176 2px, #FFF176 4px);
+}
+.calendar-legend {
+    display: flex; gap: var(--spacing-md); padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-gray-200); flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-xs); }
+.legend-color { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+
+@media print {
+    .header, .sidebar, .chat-panel, .chat-fab, .breadcrumbs, .page-actions, .calendar-nav .btn { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .calendar-table { font-size: 8px; }
+    .calendar-name-col { min-width: 80px; }
+}
+</style>
+{% endblock %}

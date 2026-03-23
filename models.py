@@ -154,6 +154,35 @@ class Absence(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Certificate(db.Model):
+    """Zertifikate und Qualifikationsnachweise von Mitarbeitern"""
+    __tablename__ = 'certificates'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    issued_date = db.Column(db.Date)
+    expiry_date = db.Column(db.Date)
+    file_path = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('certificates', lazy='dynamic'))
+
+
+class AbsenceQuota(db.Model):
+    """Abwesenheitskontingente pro Mitarbeiter und Jahr"""
+    __tablename__ = 'absence_quotas'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    absence_type = db.Column(db.String(50), default='vacation')
+    total_days = db.Column(db.Float, nullable=False)
+    used_days = db.Column(db.Float, default=0)
+    carryover_days = db.Column(db.Float, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref=db.backref('absence_quotas', lazy='dynamic'))
+
+
 class Permission(db.Model):
     __tablename__ = 'permissions'
     id = db.Column(db.Integer, primary_key=True)
