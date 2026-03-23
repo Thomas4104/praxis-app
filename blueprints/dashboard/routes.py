@@ -8,6 +8,7 @@ from models import (db, Appointment, Patient, Employee, Task, ChatMessage,
                     Absence, User)
 from ai.coordinator import Coordinator
 from sqlalchemy import func, case
+from utils.auth import check_org
 
 
 # === Standard-Widget-Konfigurationen pro Rolle ===
@@ -58,8 +59,11 @@ def dashboard_stats():
     org_id = current_user.organization_id
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    # Termine heute
-    termine_query = Appointment.query.filter(
+    # Termine heute (Multi-Tenancy: ueber Employee filtern)
+    termine_query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= today,
         Appointment.start_time <= today_end,
         Appointment.status.in_(['scheduled', 'confirmed'])
@@ -75,7 +79,10 @@ def dashboard_stats():
     ).count()
 
     # Patienten heute (eindeutig)
-    pat_query = db.session.query(Appointment.patient_id).filter(
+    pat_query = db.session.query(Appointment.patient_id).join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= today,
         Appointment.start_time <= today_end,
         Appointment.status.in_(['scheduled', 'confirmed'])
@@ -93,10 +100,13 @@ def dashboard_stats():
         aufgaben_query = aufgaben_query.filter(Task.assigned_to_id == current_user.id)
     offene_aufgaben = aufgaben_query.count()
 
-    # Warteliste
+    # Warteliste (ueber Patient filtern)
     try:
         from models import WaitingList
-        warteliste = WaitingList.query.filter(
+        warteliste = WaitingList.query.join(
+            Patient, WaitingList.patient_id == Patient.id
+        ).filter(
+            Patient.organization_id == org_id,
             WaitingList.status == 'waiting'
         ).count()
     except Exception:
@@ -138,9 +148,13 @@ def dashboard_termine_heute():
     """Heutige Termine fuer das Dashboard-Widget"""
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today.replace(hour=23, minute=59, second=59)
+    org_id = current_user.organization_id
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    query = Appointment.query.filter(
+    query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= today,
         Appointment.start_time <= today_end,
         Appointment.status.in_(['scheduled', 'confirmed'])
@@ -299,7 +313,7 @@ def dashboard_auslastung():
     today_end = today.replace(hour=23, minute=59, second=59)
     wochentag = today.weekday()  # 0=Montag
 
-    therapeuten = Employee.query.filter_by(is_active=True).all()
+    therapeuten = Employee.query.filter_by(organization_id=current_user.organization_id, is_active=True).all()
     result = []
 
     for emp in therapeuten:
@@ -397,9 +411,13 @@ def dashboard_absenzen():
     """Absenzen heute und morgen"""
     heute = date.today()
     morgen = heute + timedelta(days=1)
+    org_id = current_user.organization_id
 
     def get_absenzen(tag):
-        absenzen = Absence.query.filter(
+        absenzen = Absence.query.join(
+            Employee, Absence.employee_id == Employee.id
+        ).filter(
+            Employee.organization_id == org_id,
             Absence.start_date <= tag,
             Absence.end_date >= tag,
             Absence.status.in_(['approved', 'pending'])
@@ -441,8 +459,11 @@ def dashboard_patientenverlauf():
     """Letzte 5 besuchte/bearbeitete Patienten"""
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    # Letzte Termine des Benutzers (absteigend)
-    query = Appointment.query.filter(
+    # Letzte Termine des Benutzers (absteigend, Multi-Tenancy)
+    query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == current_user.organization_id,
         Appointment.start_time <= datetime.now(),
         Appointment.status.in_(['completed', 'confirmed', 'scheduled'])
     )
@@ -565,8 +586,11 @@ def dashboard_ki_tagesuebersicht():
     today_end = datetime.combine(heute, time(23, 59, 59))
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
-    # Daten sammeln
-    termine_query = Appointment.query.filter(
+    # Daten sammeln (Multi-Tenancy: ueber Employee filtern)
+    termine_query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= today_start,
         Appointment.start_time <= today_end,
         Appointment.status.in_(['scheduled', 'confirmed'])
@@ -577,10 +601,15 @@ def dashboard_ki_tagesuebersicht():
     termine_heute = termine_query.count()
     ersttermine = termine_query.filter(Appointment.appointment_type == 'initial').count()
 
-    # Warteliste
+    # Warteliste (ueber Patient filtern)
     try:
         from models import WaitingList
-        warteliste = WaitingList.query.filter(WaitingList.status == 'waiting').count()
+        warteliste = WaitingList.query.join(
+            Patient, WaitingList.patient_id == Patient.id
+        ).filter(
+            Patient.organization_id == org_id,
+            WaitingList.status == 'waiting'
+        ).count()
     except Exception:
         warteliste = 0
 
@@ -606,9 +635,12 @@ def dashboard_ki_tagesuebersicht():
         )
     ).count()
 
-    # Absenzen morgen
+    # Absenzen morgen (nur eigene Organisation)
     morgen = heute + timedelta(days=1)
-    absenzen_morgen = Absence.query.filter(
+    absenzen_morgen = Absence.query.join(
+        Employee, Absence.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Absence.start_date <= morgen,
         Absence.end_date >= morgen,
         Absence.status.in_(['approved', 'pending'])

@@ -8,6 +8,7 @@ from models import db, Appointment, Employee, Patient, Location, Resource, \
     WaitingList, ResourceBooking
 from blueprints.calendar import calendar_bp
 from services.settings_service import get_setting
+from utils.auth import check_org
 
 
 # ============================================================
@@ -29,7 +30,8 @@ def index():
     else:
         current_date = date.today()
 
-    locations = Location.query.filter_by(is_active=True).all()
+    org_id = current_user.organization_id
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
     if not location_id and locations:
         # Standard: Standort des aktuellen Benutzers
         if current_user.employee and current_user.employee.default_location_id:
@@ -38,19 +40,19 @@ def index():
             location_id = locations[0].id
 
     # Therapeuten am Standort
-    employees = Employee.query.filter_by(is_active=True) \
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True) \
         .filter(Employee.default_location_id == location_id).all()
-    # Fallback: alle aktiven Mitarbeiter anzeigen
+    # Fallback: alle aktiven Mitarbeiter der Organisation anzeigen
     if not employees:
-        employees = Employee.query.filter_by(is_active=True).all()
+        employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
 
     # Raeume am Standort
     rooms = Resource.query.filter_by(
-        location_id=location_id, resource_type='room', is_active=True
+        organization_id=org_id, location_id=location_id, resource_type='room', is_active=True
     ).all()
 
     # Serienvorlagen fuer Quick-Add
-    templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
+    templates = TreatmentSeriesTemplate.query.filter_by(organization_id=org_id, is_active=True).all()
 
     # Kalender-Einstellungen aus Settings-Service laden
     org_id = current_user.organization_id
@@ -89,16 +91,17 @@ def week():
     # Montag der aktuellen Woche
     monday = current_date - timedelta(days=current_date.weekday())
 
-    employees = Employee.query.filter_by(is_active=True).all()
+    org_id = current_user.organization_id
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
     if not employee_id:
         if current_user.employee:
             employee_id = current_user.employee.id
         elif employees:
             employee_id = employees[0].id
 
-    locations = Location.query.filter_by(is_active=True).all()
-    rooms = Resource.query.filter_by(resource_type='room', is_active=True).all()
-    templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
+    rooms = Resource.query.filter_by(organization_id=org_id, resource_type='room', is_active=True).all()
+    templates = TreatmentSeriesTemplate.query.filter_by(organization_id=org_id, is_active=True).all()
 
     # Kalender-Einstellungen
     org_id = current_user.organization_id
@@ -135,15 +138,13 @@ def month():
     else:
         current_date = date.today()
 
-    locations = Location.query.filter_by(is_active=True).all()
+    org_id = current_user.organization_id
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
     if not location_id and locations:
         if current_user.employee and current_user.employee.default_location_id:
             location_id = current_user.employee.default_location_id
         else:
             location_id = locations[0].id
-
-    # Kalender-Einstellungen
-    org_id = current_user.organization_id
     calendar_settings = {
         'time_grid': get_setting(org_id, 'calendar_time_grid', 15),
         'day_start': get_setting(org_id, 'calendar_day_start', '07:00'),
@@ -162,9 +163,10 @@ def month():
 @login_required
 def serie_planen():
     """Serienplanung Wizard"""
-    employees = Employee.query.filter_by(is_active=True).all()
-    templates = TreatmentSeriesTemplate.query.filter_by(is_active=True).all()
-    locations = Location.query.filter_by(is_active=True).all()
+    org_id = current_user.organization_id
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    templates = TreatmentSeriesTemplate.query.filter_by(organization_id=org_id, is_active=True).all()
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
 
     return render_template('calendar/serie_planen.html',
                            employees=employees,
@@ -204,7 +206,12 @@ def api_get_appointments():
         start_dt = datetime.combine(day, time(0, 0))
         end_dt = datetime.combine(day + timedelta(days=1), time(0, 0))
 
-    query = Appointment.query.filter(
+    # Multi-Tenancy: nur Termine der eigenen Organisation (ueber Employee)
+    org_id = current_user.organization_id
+    query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= start_dt,
         Appointment.start_time < end_dt
     )
@@ -284,6 +291,16 @@ def api_create_appointment():
     duration = int(data['duration_minutes'])
     end = start + timedelta(minutes=duration)
 
+    # Multi-Tenancy: Patient und Mitarbeiter muessen zur Organisation gehoeren
+    org_id = current_user.organization_id
+    patient = Patient.query.get_or_404(data['patient_id'])
+    check_org(patient)
+    emp = Employee.query.get_or_404(data['employee_id'])
+    check_org(emp)
+    if data.get('location_id'):
+        loc = Location.query.get_or_404(data['location_id'])
+        check_org(loc)
+
     # Doppelbuchungs-Pruefung
     existing = Appointment.query.filter(
         Appointment.employee_id == data['employee_id'],
@@ -339,6 +356,9 @@ def api_create_appointment():
 def api_update_appointment(appointment_id):
     """Termin aktualisieren"""
     appointment = Appointment.query.get_or_404(appointment_id)
+    # IDOR-Schutz: Mitarbeiter des Termins muss zur Organisation gehoeren
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Keine Daten erhalten'}), 400
@@ -388,6 +408,9 @@ def api_update_appointment(appointment_id):
 def api_move_appointment(appointment_id):
     """Termin verschieben (Drag & Drop)"""
     appointment = Appointment.query.get_or_404(appointment_id)
+    # IDOR-Schutz
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Keine Daten erhalten'}), 400
@@ -428,6 +451,9 @@ def api_move_appointment(appointment_id):
 def api_update_status(appointment_id):
     """Termin-Status aendern"""
     appointment = Appointment.query.get_or_404(appointment_id)
+    # IDOR-Schutz
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
     data = request.get_json()
 
     valid_statuses = ['scheduled', 'confirmed', 'appeared', 'cancelled', 'no_show']
@@ -448,6 +474,9 @@ def api_delete_appointment(appointment_id):
         return jsonify({'error': 'Nur Administratoren dürfen Termine löschen.'}), 403
 
     appointment = Appointment.query.get_or_404(appointment_id)
+    # IDOR-Schutz
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
     # Zugehoerige Raum-Buchungen loeschen
     ResourceBooking.query.filter_by(appointment_id=appointment_id).delete()
     db.session.delete(appointment)
@@ -460,6 +489,9 @@ def api_delete_appointment(appointment_id):
 def api_cancel_appointment(appointment_id):
     """Termin absagen"""
     appointment = Appointment.query.get_or_404(appointment_id)
+    # IDOR-Schutz
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
     data = request.get_json() or {}
 
     appointment.status = 'cancelled'
@@ -572,7 +604,11 @@ def api_get_absences():
         start_d = date.today()
         end_d = date.today()
 
-    absences = Absence.query.filter(
+    # Multi-Tenancy: nur Absenzen von Mitarbeitern der eigenen Organisation
+    absences = Absence.query.join(
+        Employee, Absence.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == current_user.organization_id,
         Absence.start_date <= end_d,
         Absence.end_date >= start_d,
         Absence.status == 'approved'
@@ -638,6 +674,7 @@ def api_search_patients():
         return jsonify([])
 
     patients = Patient.query.filter(
+        Patient.organization_id == current_user.organization_id,
         Patient.is_active == True,
         db.or_(
             Patient.first_name.ilike(f'%{q}%'),
@@ -659,6 +696,8 @@ def api_search_patients():
 @login_required
 def api_patient_series(patient_id):
     """Aktive Serien eines Patienten"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     series = TreatmentSeries.query.filter_by(
         patient_id=patient_id, status='active'
     ).all()
@@ -686,7 +725,11 @@ def api_month_data():
     start_dt = datetime(year, month_num, 1)
     end_dt = datetime(year, month_num, num_days, 23, 59, 59)
 
-    query = Appointment.query.filter(
+    org_id = current_user.organization_id
+    query = Appointment.query.join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
         Appointment.start_time >= start_dt,
         Appointment.start_time <= end_dt,
         Appointment.status.notin_(['cancelled'])
@@ -729,8 +772,13 @@ def api_month_data():
 @login_required
 def api_get_waiting_list():
     """Warteliste laden"""
-    entries = WaitingList.query.filter_by(status='waiting') \
-        .order_by(WaitingList.priority.desc(), WaitingList.created_at).all()
+    # Multi-Tenancy: Warteliste ueber Patient filtern
+    entries = WaitingList.query.join(
+        Patient, WaitingList.patient_id == Patient.id
+    ).filter(
+        Patient.organization_id == current_user.organization_id,
+        WaitingList.status == 'waiting'
+    ).order_by(WaitingList.priority.desc(), WaitingList.created_at).all()
 
     return jsonify([{
         'id': e.id,
@@ -754,6 +802,10 @@ def api_add_waiting_list():
     data = request.get_json()
     if not data or not data.get('patient_id'):
         return jsonify({'error': 'Patient ist erforderlich'}), 400
+
+    # Multi-Tenancy: Patient muss zur Organisation gehoeren
+    patient = Patient.query.get_or_404(data['patient_id'])
+    check_org(patient)
 
     entry = WaitingList(
         patient_id=data['patient_id'],

@@ -11,6 +11,7 @@ from blueprints.patients import patients_bp
 from models import db, Patient, InsuranceProvider, Doctor, Employee, \
     TreatmentSeries, TreatmentSeriesTemplate, Appointment, PatientDocument, \
     Location, Email, Organization
+from utils.auth import check_org
 
 
 # ============================================================
@@ -103,9 +104,10 @@ def index():
             last_appointments[p.id] = last_appt
 
     # Filter-Daten
-    insurances = InsuranceProvider.query.filter_by(is_active=True) \
+    org_id = current_user.organization_id
+    insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(InsuranceProvider.name).all()
-    locations = Location.query.filter_by(is_active=True) \
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(Location.name).all()
 
     return render_template('patients/index.html',
@@ -135,11 +137,12 @@ def create():
     if request.method == 'POST':
         return _save_patient(None)
 
-    insurances = InsuranceProvider.query.filter_by(is_active=True) \
+    org_id = current_user.organization_id
+    insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(InsuranceProvider.name).all()
-    doctors = Doctor.query.filter_by(is_active=True) \
+    doctors = Doctor.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(Doctor.last_name).all()
-    therapists = Employee.query.filter_by(is_active=True).all()
+    therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
     therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
 
     return render_template('patients/form.html',
@@ -154,15 +157,17 @@ def create():
 def edit(patient_id):
     """Patient bearbeiten"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
 
     if request.method == 'POST':
         return _save_patient(patient)
 
-    insurances = InsuranceProvider.query.filter_by(is_active=True) \
+    org_id = current_user.organization_id
+    insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(InsuranceProvider.name).all()
-    doctors = Doctor.query.filter_by(is_active=True) \
+    doctors = Doctor.query.filter_by(organization_id=org_id, is_active=True) \
         .order_by(Doctor.last_name).all()
-    therapists = Employee.query.filter_by(is_active=True).all()
+    therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
     therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
 
     return render_template('patients/form.html',
@@ -202,11 +207,12 @@ def _save_patient(patient):
     if errors:
         for e in errors:
             flash(e, 'error')
-        insurances = InsuranceProvider.query.filter_by(is_active=True) \
+        org_id = current_user.organization_id
+        insurances = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True) \
             .order_by(InsuranceProvider.name).all()
-        doctors = Doctor.query.filter_by(is_active=True) \
+        doctors = Doctor.query.filter_by(organization_id=org_id, is_active=True) \
             .order_by(Doctor.last_name).all()
-        therapists = Employee.query.filter_by(is_active=True).all()
+        therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
         therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
         return render_template('patients/form.html',
                                patient=patient,
@@ -303,6 +309,7 @@ def _save_patient(patient):
 def detail(patient_id):
     """Patientendetail mit Tabs"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     tab = request.args.get('tab', 'overview')
 
     # Uebersicht-Daten
@@ -383,6 +390,7 @@ def detail(patient_id):
 def toggle_active(patient_id):
     """Patient aktivieren/deaktivieren (Soft-Delete)"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
     patient.is_active = not patient.is_active
     db.session.commit()
     status = 'aktiviert' if patient.is_active else 'deaktiviert'
@@ -407,6 +415,7 @@ def _allowed_file(filename):
 def upload_document(patient_id):
     """Dokument fuer einen Patienten hochladen"""
     patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
 
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'error')
@@ -463,6 +472,9 @@ def upload_document(patient_id):
 def download_document(doc_id):
     """Dokument herunterladen"""
     doc = PatientDocument.query.get_or_404(doc_id)
+    # IDOR-Schutz: Patient des Dokuments muss zur Organisation gehoeren
+    patient = Patient.query.get_or_404(doc.patient_id)
+    check_org(patient)
     directory = os.path.dirname(doc.file_path)
     return send_from_directory(directory, doc.filename,
                                download_name=doc.original_filename,
@@ -474,6 +486,9 @@ def download_document(doc_id):
 def delete_document(doc_id):
     """Dokument loeschen"""
     doc = PatientDocument.query.get_or_404(doc_id)
+    # IDOR-Schutz: Patient des Dokuments muss zur Organisation gehoeren
+    patient = Patient.query.get_or_404(doc.patient_id)
+    check_org(patient)
     patient_id = doc.patient_id
 
     # Datei loeschen
@@ -512,6 +527,8 @@ def merge():
 
         source = Patient.query.get_or_404(source_id)
         target = Patient.query.get_or_404(target_id)
+        check_org(source)
+        check_org(target)
 
         # Serien uebertragen
         TreatmentSeries.query.filter_by(patient_id=source.id) \

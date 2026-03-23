@@ -5,6 +5,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.addresses import addresses_bp
 from models import db, InsuranceProvider, Doctor, Contact, Patient, TreatmentSeries, Organization
+from utils.auth import check_org
 
 
 # ============================================================
@@ -22,8 +23,10 @@ def index():
     doctors = []
     contacts = []
 
+    org_id = current_user.organization_id
+
     if tab == 'insurances':
-        query = InsuranceProvider.query.filter_by(is_active=True)
+        query = InsuranceProvider.query.filter_by(organization_id=org_id, is_active=True)
         if search:
             query = query.filter(
                 db.or_(
@@ -34,7 +37,7 @@ def index():
         insurances = query.order_by(InsuranceProvider.name).all()
 
     elif tab == 'doctors':
-        query = Doctor.query.filter_by(is_active=True)
+        query = Doctor.query.filter_by(organization_id=org_id, is_active=True)
         if search:
             query = query.filter(
                 db.or_(
@@ -93,6 +96,7 @@ def create_insurance():
 def edit_insurance(insurance_id):
     """Versicherung bearbeiten"""
     insurance = InsuranceProvider.query.get_or_404(insurance_id)
+    check_org(insurance)
     if request.method == 'POST':
         return _save_insurance(insurance)
     return render_template('addresses/insurance_form.html', insurance=insurance)
@@ -107,7 +111,7 @@ def _save_insurance(insurance):
 
     is_new = insurance is None
     if is_new:
-        insurance = InsuranceProvider()
+        insurance = InsuranceProvider(organization_id=current_user.organization_id)
 
     insurance.name = name
     insurance.gln_number = request.form.get('gln_number', '').strip()
@@ -136,6 +140,7 @@ def _save_insurance(insurance):
 def toggle_insurance(insurance_id):
     """Versicherung aktivieren/deaktivieren"""
     insurance = InsuranceProvider.query.get_or_404(insurance_id)
+    check_org(insurance)
     insurance.is_active = not insurance.is_active
     db.session.commit()
     flash(f'Versicherung wurde {"aktiviert" if insurance.is_active else "deaktiviert"}.', 'success')
@@ -160,6 +165,7 @@ def create_doctor():
 def edit_doctor(doctor_id):
     """Arzt bearbeiten"""
     doctor = Doctor.query.get_or_404(doctor_id)
+    check_org(doctor)
     if request.method == 'POST':
         return _save_doctor(doctor)
     return render_template('addresses/doctor_form.html', doctor=doctor)
@@ -170,6 +176,7 @@ def edit_doctor(doctor_id):
 def doctor_detail(doctor_id):
     """Arzt-Details mit Zuweiserstatistik"""
     doctor = Doctor.query.get_or_404(doctor_id)
+    check_org(doctor)
     patient_count = TreatmentSeries.query.filter_by(prescribing_doctor_id=doctor.id) \
         .with_entities(TreatmentSeries.patient_id).distinct().count()
     series_count = TreatmentSeries.query.filter_by(prescribing_doctor_id=doctor.id).count()
@@ -192,7 +199,7 @@ def _save_doctor(doctor):
 
     is_new = doctor is None
     if is_new:
-        doctor = Doctor()
+        doctor = Doctor(organization_id=current_user.organization_id)
 
     doctor.salutation = request.form.get('salutation', '').strip()
     doctor.first_name = request.form.get('first_name', '').strip()
@@ -220,6 +227,7 @@ def _save_doctor(doctor):
 def toggle_doctor(doctor_id):
     """Arzt aktivieren/deaktivieren"""
     doctor = Doctor.query.get_or_404(doctor_id)
+    check_org(doctor)
     doctor.is_active = not doctor.is_active
     db.session.commit()
     flash(f'Arzt wurde {"aktiviert" if doctor.is_active else "deaktiviert"}.', 'success')
@@ -244,6 +252,7 @@ def create_contact():
 def edit_contact(contact_id):
     """Kontakt bearbeiten"""
     contact = Contact.query.get_or_404(contact_id)
+    check_org(contact)
     if request.method == 'POST':
         return _save_contact(contact)
     return render_template('addresses/contact_form.html', contact=contact)
@@ -286,6 +295,7 @@ def _save_contact(contact):
 def toggle_contact(contact_id):
     """Kontakt aktivieren/deaktivieren"""
     contact = Contact.query.get_or_404(contact_id)
+    check_org(contact)
     contact.is_active = not contact.is_active
     db.session.commit()
     flash(f'Kontakt wurde {"aktiviert" if contact.is_active else "deaktiviert"}.', 'success')

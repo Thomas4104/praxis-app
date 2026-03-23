@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 from blueprints.employees import employees_bp
 from models import db, User, Employee, WorkSchedule, Absence, AbsenceQuota, Certificate, \
     Location, Resource, Appointment, Holiday
+from utils.auth import check_org
 
 
 # ============================================================
@@ -53,7 +54,7 @@ def index():
                       search_lower in (e.employee_number or '').lower())]
 
     # Standorte fuer Filter-Dropdown
-    locations = Location.query.filter_by(is_active=True).order_by(Location.name).all()
+    locations = Location.query.filter_by(organization_id=current_user.organization_id, is_active=True).order_by(Location.name).all()
 
     return render_template('employees/index.html',
                            employees=employees,
@@ -75,8 +76,9 @@ def create():
     if request.method == 'POST':
         return _save_employee(None)
 
-    locations = Location.query.filter_by(is_active=True).order_by(Location.name).all()
-    rooms = Resource.query.filter_by(resource_type='room', is_active=True).order_by(Resource.name).all()
+    org_id = current_user.organization_id
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).order_by(Location.name).all()
+    rooms = Resource.query.filter_by(organization_id=org_id, resource_type='room', is_active=True).order_by(Resource.name).all()
     return render_template('employees/form.html', employee=None, locations=locations, rooms=rooms)
 
 
@@ -85,12 +87,14 @@ def create():
 def edit(employee_id):
     """Mitarbeiter bearbeiten"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
 
     if request.method == 'POST':
         return _save_employee(employee)
 
-    locations = Location.query.filter_by(is_active=True).order_by(Location.name).all()
-    rooms = Resource.query.filter_by(resource_type='room', is_active=True).order_by(Resource.name).all()
+    org_id = current_user.organization_id
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).order_by(Location.name).all()
+    rooms = Resource.query.filter_by(organization_id=org_id, resource_type='room', is_active=True).order_by(Resource.name).all()
     return render_template('employees/form.html', employee=employee, locations=locations, rooms=rooms)
 
 
@@ -131,8 +135,9 @@ def _save_employee(employee):
     if errors:
         for error in errors:
             flash(error, 'error')
-        locations = Location.query.filter_by(is_active=True).order_by(Location.name).all()
-        rooms = Resource.query.filter_by(resource_type='room', is_active=True).order_by(Resource.name).all()
+        org_id = current_user.organization_id
+        locations = Location.query.filter_by(organization_id=org_id, is_active=True).order_by(Location.name).all()
+        rooms = Resource.query.filter_by(organization_id=org_id, resource_type='room', is_active=True).order_by(Resource.name).all()
         return render_template('employees/form.html', employee=employee, locations=locations, rooms=rooms)
 
     is_new = employee is None
@@ -223,6 +228,7 @@ def _save_employee(employee):
 def detail(employee_id):
     """Mitarbeiter-Detailansicht"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
 
     # Naechste 5 Termine
     now = datetime.now()
@@ -294,6 +300,7 @@ def detail(employee_id):
 def toggle_active(employee_id):
     """Mitarbeiter aktivieren/deaktivieren"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
     employee.is_active = not employee.is_active
     if employee.user:
         employee.user.is_active = employee.is_active
@@ -314,6 +321,7 @@ def toggle_active(employee_id):
 def schedules(employee_id):
     """Arbeitszeiten verwalten"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
 
     if request.method == 'POST':
         return _save_schedules(employee)
@@ -327,7 +335,7 @@ def schedules(employee_id):
     for day in range(7):
         schedules_by_day[day] = [ws for ws in work_schedules if ws.day_of_week == day]
 
-    locations = Location.query.filter_by(is_active=True).order_by(Location.name).all()
+    locations = Location.query.filter_by(organization_id=current_user.organization_id, is_active=True).order_by(Location.name).all()
 
     return render_template('employees/schedules.html',
                            employee=employee,
@@ -391,6 +399,7 @@ def _save_schedules(employee):
 def absences(employee_id):
     """Absenzen eines Mitarbeiters"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
     absences_list = Absence.query.filter_by(employee_id=employee_id).order_by(Absence.start_date.desc()).all()
 
     # Kontingent
@@ -412,6 +421,7 @@ def absences(employee_id):
 def create_absence(employee_id):
     """Neue Absenz erstellen"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
 
     if request.method == 'POST':
         absence_type = request.form.get('absence_type', 'vacation')
@@ -479,6 +489,9 @@ def create_absence(employee_id):
 def approve_absence(absence_id):
     """Absenz genehmigen"""
     absence = Absence.query.get_or_404(absence_id)
+    # IDOR-Schutz: Mitarbeiter der Absenz muss zur Organisation gehoeren
+    emp = Employee.query.get_or_404(absence.employee_id)
+    check_org(emp)
     action = request.form.get('action', 'approve')
 
     if action == 'approve':
@@ -511,6 +524,9 @@ def approve_absence(absence_id):
 def delete_absence(absence_id):
     """Absenz loeschen"""
     absence = Absence.query.get_or_404(absence_id)
+    # IDOR-Schutz: Mitarbeiter der Absenz muss zur Organisation gehoeren
+    emp = Employee.query.get_or_404(absence.employee_id)
+    check_org(emp)
     emp_id = absence.employee_id
 
     # Kontingent zurueckbuchen bei Ferien
@@ -552,6 +568,7 @@ def _count_business_days(start_date, end_date):
 def create_certificate(employee_id):
     """Neues Zertifikat erstellen"""
     employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
 
     name = request.form.get('cert_name', '').strip()
     if not name:
@@ -579,6 +596,9 @@ def create_certificate(employee_id):
 def delete_certificate(cert_id):
     """Zertifikat loeschen"""
     cert = Certificate.query.get_or_404(cert_id)
+    # IDOR-Schutz: Mitarbeiter des Zertifikats muss zur Organisation gehoeren
+    emp = Employee.query.get_or_404(cert.employee_id)
+    check_org(emp)
     emp_id = cert.employee_id
     db.session.delete(cert)
     db.session.commit()
@@ -615,14 +635,16 @@ def absence_calendar():
         is_active=True
     ).all()
 
-    # Absenzen im Monat
+    # Absenzen im Monat (nur fuer Mitarbeiter der eigenen Organisation)
     month_start = date(year, month, 1)
     month_end = date(year, month, days_in_month)
+    org_employee_ids = [e.id for e in employees]
     absences_list = Absence.query.filter(
+        Absence.employee_id.in_(org_employee_ids),
         Absence.start_date <= month_end,
         Absence.end_date >= month_start,
         Absence.status.in_(['approved', 'pending'])
-    ).all()
+    ).all() if org_employee_ids else []
 
     # Absenzen nach Mitarbeiter gruppieren
     absence_map = {}
@@ -680,13 +702,15 @@ def deployment():
         is_active=True
     ).all()
 
-    # Termine der Woche
+    # Termine der Woche (nur fuer Mitarbeiter der eigenen Organisation)
     week_end = week_start + timedelta(days=4)
+    org_employee_ids = [e.id for e in employees]
     appointments = Appointment.query.filter(
+        Appointment.employee_id.in_(org_employee_ids),
         Appointment.start_time >= datetime.combine(week_start, time(0, 0)),
         Appointment.start_time <= datetime.combine(week_end, time(23, 59)),
         Appointment.status != 'cancelled'
-    ).all()
+    ).all() if org_employee_ids else []
 
     # Termine nach Mitarbeiter und Tag gruppieren
     appointment_map = {}
@@ -706,12 +730,13 @@ def deployment():
                 schedule_map[key] = []
             schedule_map[key].append(ws)
 
-    # Absenzen der Woche
+    # Absenzen der Woche (nur fuer Mitarbeiter der eigenen Organisation)
     absences_list = Absence.query.filter(
+        Absence.employee_id.in_(org_employee_ids),
         Absence.start_date <= week_end,
         Absence.end_date >= week_start,
         Absence.status == 'approved'
-    ).all()
+    ).all() if org_employee_ids else []
     absence_dates = {}
     for absence in absences_list:
         current = max(absence.start_date, week_start)
@@ -738,6 +763,9 @@ def deployment():
 @login_required
 def api_rooms_by_location(location_id):
     """Raeume nach Standort (fuer AJAX)"""
+    # Standort muss zur Organisation gehoeren
+    location = Location.query.get_or_404(location_id)
+    check_org(location)
     rooms = Resource.query.filter_by(
         location_id=location_id,
         resource_type='room',
