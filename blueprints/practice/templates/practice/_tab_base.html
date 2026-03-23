@@ -1,0 +1,100 @@
+<!-- Basisdaten Tab -->
+<form method="POST" action="{{ url_for('practice.edit_base') }}" class="form-container" novalidate>
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Organisation</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Organisationsname</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ org.name }}" required placeholder="Name der Organisation">
+            </div>
+
+            <div class="form-group">
+                <label for="address" class="form-label">Adresse</label>
+                <input type="text" id="address" name="address" class="form-input"
+                       value="{{ org.address or '' }}" placeholder="Strasse und Hausnummer">
+            </div>
+
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="zip_code" class="form-label">PLZ</label>
+                    <input type="text" id="zip_code" name="zip_code" class="form-input"
+                           value="{{ org.zip_code or '' }}" placeholder="PLZ">
+                </div>
+                <div class="form-group">
+                    <label for="city" class="form-label">Ort</label>
+                    <input type="text" id="city" name="city" class="form-input"
+                           value="{{ org.city or '' }}" placeholder="Ort">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="phone" class="form-label">Telefon</label>
+                <input type="tel" id="phone" name="phone" class="form-input"
+                       value="{{ org.phone or '' }}" placeholder="+41 44 000 00 00">
+            </div>
+
+            <div class="form-group">
+                <label for="email" class="form-label">E-Mail</label>
+                <input type="email" id="email" name="email" class="form-input"
+                       value="{{ org.email or '' }}" placeholder="info@praxis.ch">
+            </div>
+
+            <div class="form-group">
+                <label for="contact_person" class="form-label">Kontaktperson</label>
+                <input type="text" id="contact_person" name="contact_person" class="form-input"
+                       value="{{ org.contact_person or '' }}" placeholder="Vor- und Nachname">
+            </div>
+
+            <div class="form-group">
+                <label for="default_language" class="form-label">Standardsprache</label>
+                <select id="default_language" name="default_language" class="form-select">
+                    <option value="de" {% if org.default_language == 'de' %}selected{% endif %}>Deutsch</option>
+                    <option value="fr" {% if org.default_language == 'fr' %}selected{% endif %}>Französisch</option>
+                    <option value="it" {% if org.default_language == 'it' %}selected{% endif %}>Italienisch</option>
+                    <option value="en" {% if org.default_language == 'en' %}selected{% endif %}>Englisch</option>
+                </select>
+                <small class="form-hint">Standard für automatische E-Mails und Dokumente</small>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Registrierungsnummern</h3>
+
+            <div class="form-group">
+                <label for="zsr_number" class="form-label">ZSR-Nummer</label>
+                <input type="text" id="zsr_number" name="zsr_number" class="form-input"
+                       value="{{ org.zsr_number or '' }}" placeholder="A000000">
+                <small class="form-hint">Zahlstellenregister-Nummer</small>
+            </div>
+
+            <div class="form-group">
+                <label for="gln_number" class="form-label">GLN/EAN-Nummer</label>
+                <input type="text" id="gln_number" name="gln_number" class="form-input"
+                       value="{{ org.gln_number or '' }}" placeholder="7601000000000">
+                <small class="form-hint">Global Location Number</small>
+            </div>
+
+            <div class="form-group">
+                <label for="nif_number" class="form-label">NIF-Nummer</label>
+                <input type="text" id="nif_number" name="nif_number" class="form-input"
+                       value="{{ org.nif_number or '' }}" placeholder="NIF-Nummer">
+            </div>
+
+            <div class="form-group">
+                <label for="uid_number" class="form-label">UID-Nummer</label>
+                <input type="text" id="uid_number" name="uid_number" class="form-input"
+                       value="{{ org.uid_number or '' }}" placeholder="CHE-123.456.789">
+                <small class="form-hint">Unternehmens-Identifikationsnummer</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>

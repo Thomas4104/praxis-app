@@ -25,6 +25,9 @@ class Organization(db.Model):
     uid_number = db.Column(db.String(30))
     logo_path = db.Column(db.String(500))
     settings_json = db.Column(db.Text)
+    contact_person = db.Column(db.String(200))
+    default_language = db.Column(db.String(5), default='de')
+    opening_hours_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     locations = db.relationship('Location', backref='organization', lazy='dynamic')
@@ -37,6 +40,8 @@ class Organization(db.Model):
     invoices = db.relationship('Invoice', backref='organization', lazy='dynamic')
     tasks = db.relationship('Task', backref='organization', lazy='dynamic')
     emails = db.relationship('Email', backref='organization', lazy='dynamic')
+    bank_accounts = db.relationship('BankAccount', backref='organization', lazy='dynamic')
+    holidays = db.relationship('Holiday', backref='organization', lazy='dynamic')
 
 
 class Location(db.Model):
@@ -504,6 +509,36 @@ class TaxPointValue(db.Model):
     canton = db.Column(db.String(5))
     insurer_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref='tax_point_values')
+    insurer = db.relationship('InsuranceProvider', backref='tax_point_values')
+
+
+class BankAccount(db.Model):
+    __tablename__ = 'bank_accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    bank_name = db.Column(db.String(200))
+    iban = db.Column(db.String(34), nullable=False)
+    qr_iban = db.Column(db.String(34))
+    bic_swift = db.Column(db.String(11))
+    account_name = db.Column(db.String(200))
+    is_default = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Holiday(db.Model):
+    __tablename__ = 'holidays'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
+    name = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    canton = db.Column(db.String(5))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    location = db.relationship('Location', backref='holidays')
 
 
 # ============================================================

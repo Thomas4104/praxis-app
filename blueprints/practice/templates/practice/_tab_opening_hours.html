@@ -1,0 +1,86 @@
+<!-- Oeffnungszeiten Tab -->
+<form method="POST" action="{{ url_for('practice.save_opening_hours') }}" class="form-container" novalidate>
+    <div class="form-section">
+        <h3 class="form-section-title">Standard-Öffnungszeiten der Organisation</h3>
+        <p class="form-hint" style="margin-bottom: var(--spacing-md);">
+            Diese Zeiten gelten als Standard für alle Standorte. Standorte können eigene Öffnungszeiten definieren.
+        </p>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:150px">Wochentag</th>
+                        <th style="width:140px">Von</th>
+                        <th style="width:140px">Bis</th>
+                        <th style="width:120px">Geschlossen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set tage = [
+                        ('montag', 'Montag'),
+                        ('dienstag', 'Dienstag'),
+                        ('mittwoch', 'Mittwoch'),
+                        ('donnerstag', 'Donnerstag'),
+                        ('freitag', 'Freitag'),
+                        ('samstag', 'Samstag'),
+                        ('sonntag', 'Sonntag')
+                    ] %}
+                    {% for key, label in tage %}
+                    {% set tag_data = opening_hours.get(key) if opening_hours else None %}
+                    <tr>
+                        <td><strong>{{ label }}</strong></td>
+                        <td>
+                            <input type="time" name="{{ key }}_von" class="form-input"
+                                   value="{{ tag_data.von if tag_data else '' }}"
+                                   id="{{ key }}_von">
+                        </td>
+                        <td>
+                            <input type="time" name="{{ key }}_bis" class="form-input"
+                                   value="{{ tag_data.bis if tag_data else '' }}"
+                                   id="{{ key }}_bis">
+                        </td>
+                        <td>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="{{ key }}_geschlossen"
+                                       {% if not tag_data %}checked{% endif %}
+                                       onchange="toggleDay('{{ key }}', this.checked)">
+                                Geschlossen
+                            </label>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Öffnungszeiten speichern</button>
+    </div>
+</form>
+
+<script>
+function toggleDay(day, closed) {
+    var von = document.getElementById(day + '_von');
+    var bis = document.getElementById(day + '_bis');
+    if (closed) {
+        von.value = '';
+        bis.value = '';
+        von.disabled = true;
+        bis.disabled = true;
+    } else {
+        von.disabled = false;
+        bis.disabled = false;
+    }
+}
+
+// Initialisierung: Geschlossene Tage deaktivieren
+document.addEventListener('DOMContentLoaded', function() {
+    var checkboxes = document.querySelectorAll('input[name$="_geschlossen"]');
+    checkboxes.forEach(function(cb) {
+        var day = cb.name.replace('_geschlossen', '');
+        toggleDay(day, cb.checked);
+    });
+});
+</script>

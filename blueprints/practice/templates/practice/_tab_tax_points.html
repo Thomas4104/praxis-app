@@ -1,0 +1,112 @@
+<!-- Taxpunktwerte Tab -->
+<div class="form-section" style="padding: var(--spacing-md) var(--spacing-lg);">
+    {% if tax_points %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tarif-Typ</th>
+                    <th>Wert (CHF)</th>
+                    <th>Gültig ab</th>
+                    <th>Gültig bis</th>
+                    <th>Kanton</th>
+                    <th>Versicherer</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tp in tax_points %}
+                <tr>
+                    <td><strong>{{ tp.tariff_type }}</strong></td>
+                    <td>CHF {{ '%.2f' % tp.value }}</td>
+                    <td>{{ tp.valid_from.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ tp.valid_to.strftime('%d.%m.%Y') if tp.valid_to else 'Unbefristet' }}</td>
+                    <td>{{ tp.canton.upper() if tp.canton else '-' }}</td>
+                    <td>{{ tp.insurer.name if tp.insurer else '-' }}</td>
+                    <td class="actions-cell">
+                        <form method="POST" action="{{ url_for('practice.delete_tax_point', tp_id=tp.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn-sm btn-error" title="Löschen"
+                                    onclick="return confirm('Taxpunktwert wirklich löschen?')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Taxpunktwerte definiert.</p>
+    </div>
+    {% endif %}
+
+    <!-- Taxpunktwert hinzufuegen -->
+    <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Taxpunktwert hinzufügen</h3>
+        <form method="POST" action="{{ url_for('practice.add_tax_point') }}">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="tp_tariff_type" class="form-label required">Tarif-Typ</label>
+                        <select id="tp_tariff_type" name="tariff_type" class="form-select" required>
+                            <option value="">-- Tarif wählen --</option>
+                            <option value="Tarif 311">Tarif 311 (Physiotherapie alt)</option>
+                            <option value="Tarif 312">Tarif 312 (TarReha)</option>
+                            <option value="Tarif 338">Tarif 338</option>
+                            <option value="Tarif 325">Tarif 325</option>
+                            <option value="Tarif 590">Tarif 590 (Komplementär)</option>
+                            <option value="Tarif 999">Tarif 999 (Privat)</option>
+                            <option value="Pauschal">Pauschal/Privat</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tp_value" class="form-label required">Wert in CHF</label>
+                        <input type="number" id="tp_value" name="value" class="form-input"
+                               step="0.01" min="0" required placeholder="z.B. 1.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="tp_valid_from" class="form-label required">Gültig ab</label>
+                        <input type="date" id="tp_valid_from" name="valid_from" class="form-input" required>
+                    </div>
+                </div>
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="tp_valid_to" class="form-label">Gültig bis</label>
+                        <input type="date" id="tp_valid_to" name="valid_to" class="form-input">
+                        <small class="form-hint">Leer = unbefristet</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="tp_canton" class="form-label">Kanton</label>
+                        <select id="tp_canton" name="canton" class="form-select">
+                            <option value="">Alle Kantone</option>
+                            <option value="zh">Zürich</option>
+                            <option value="be">Bern</option>
+                            <option value="ag">Aargau</option>
+                            <option value="sg">St. Gallen</option>
+                            <option value="lu">Luzern</option>
+                            <option value="bs">Basel-Stadt</option>
+                            <option value="bl">Basel-Landschaft</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tp_insurer" class="form-label">Versicherer</label>
+                        <select id="tp_insurer" name="insurer_id" class="form-select">
+                            <option value="">Alle Versicherer</option>
+                            {% for ins in insurers %}
+                            <option value="{{ ins.id }}">{{ ins.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="padding-top: 0.5rem;">
+                        <button type="submit" class="btn btn-primary">Taxpunktwert hinzufügen</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

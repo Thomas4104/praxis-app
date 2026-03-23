@@ -1,0 +1,112 @@
+<!-- Feiertage Tab -->
+<div class="form-section" style="padding: var(--spacing-md) var(--spacing-lg);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-md);">
+        <h3 class="form-section-title" style="margin:0;">Feiertage {{ year }}</h3>
+        <div style="display:flex; gap: var(--spacing-sm); align-items:center;">
+            <a href="{{ url_for('practice.index', tab='holidays', year=year-1) }}" class="btn btn-sm btn-secondary">&laquo; {{ year - 1 }}</a>
+            <a href="{{ url_for('practice.index', tab='holidays', year=year+1) }}" class="btn btn-sm btn-secondary">{{ year + 1 }} &raquo;</a>
+        </div>
+    </div>
+
+    <!-- Kanton laden -->
+    <form method="POST" action="{{ url_for('practice.load_canton_holidays') }}" class="filter-bar" style="margin-bottom: var(--spacing-md);">
+        <input type="hidden" name="year" value="{{ year }}">
+        <div class="filter-group">
+            <select name="canton" class="form-select" required>
+                <option value="">Kanton wählen...</option>
+                <option value="zh">Zürich (ZH)</option>
+                <option value="be">Bern (BE)</option>
+                <option value="ag">Aargau (AG)</option>
+                <option value="sg">St. Gallen (SG)</option>
+                <option value="lu">Luzern (LU)</option>
+                <option value="bs">Basel-Stadt (BS)</option>
+                <option value="bl">Basel-Landschaft (BL)</option>
+                <option value="so">Solothurn (SO)</option>
+                <option value="gr">Graubünden (GR)</option>
+                <option value="tg">Thurgau (TG)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Kantons-Feiertage laden</button>
+    </form>
+
+    <!-- Feiertage-Liste -->
+    {% if holidays %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Feiertag</th>
+                    <th>Kanton</th>
+                    <th>Gilt für</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in holidays %}
+                <tr>
+                    <td>{{ h.date.strftime('%d.%m.%Y') }}</td>
+                    <td><strong>{{ h.name }}</strong></td>
+                    <td>{{ h.canton.upper() if h.canton else '-' }}</td>
+                    <td>
+                        {% if h.location %}
+                            <span class="badge badge-info">{{ h.location.name }}</span>
+                        {% else %}
+                            <span class="badge badge-muted">Alle Standorte</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <form method="POST" action="{{ url_for('practice.delete_holiday', holiday_id=h.id) }}" style="display:inline">
+                            <button type="submit" class="btn btn-sm btn-error" title="Löschen"
+                                    onclick="return confirm('Feiertag wirklich löschen?')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Feiertage für {{ year }} definiert.</p>
+    </div>
+    {% endif %}
+
+    <!-- Feiertag hinzufuegen -->
+    <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Feiertag hinzufügen</h3>
+        <form method="POST" action="{{ url_for('practice.add_holiday') }}" class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+            <div class="form-section" style="padding:0;">
+                <div class="form-group">
+                    <label for="holiday_name" class="form-label required">Name</label>
+                    <input type="text" id="holiday_name" name="name" class="form-input" required
+                           placeholder="z.B. Berchtoldstag">
+                </div>
+                <div class="form-group">
+                    <label for="holiday_date" class="form-label required">Datum</label>
+                    <input type="date" id="holiday_date" name="date" class="form-input" required>
+                </div>
+            </div>
+            <div class="form-section" style="padding:0;">
+                <div class="form-group">
+                    <label for="holiday_location" class="form-label">Gilt für Standort</label>
+                    <select id="holiday_location" name="location_id" class="form-select">
+                        <option value="">Alle Standorte</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.id }}">{{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-hint">Leer = gilt für alle Standorte</small>
+                </div>
+                <div class="form-group" style="padding-top: 1.6rem;">
+                    <button type="submit" class="btn btn-primary">Feiertag hinzufügen</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

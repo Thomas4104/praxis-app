@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Serienvorlage bearbeiten' if template else 'Neue Serienvorlage' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('practice.index', tab='templates') }}">Praxis-Einstellungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Vorlage bearbeiten' if template else 'Neue Vorlage' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Serienvorlage bearbeiten' if template else 'Neue Serienvorlage' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" novalidate>
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Grunddaten</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Name</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ template.name if template else '' }}" required
+                       placeholder="z.B. Physiotherapie KVG">
+            </div>
+
+            <div class="form-group">
+                <label for="short_name" class="form-label">Kurzname</label>
+                <input type="text" id="short_name" name="short_name" class="form-input"
+                       value="{{ template.short_name if template else '' }}"
+                       placeholder="z.B. PT-KVG" maxlength="20">
+            </div>
+
+            <div class="form-group">
+                <label for="tariff_type" class="form-label">Tarif-Typ</label>
+                <select id="tariff_type" name="tariff_type" class="form-select">
+                    <option value="">-- Kein Tarif --</option>
+                    {% set tarif_optionen = [
+                        ('Tarif 311', 'Tarif 311 (Physiotherapie alt)'),
+                        ('Tarif 312', 'Tarif 312 (TarReha)'),
+                        ('Tarif 338', 'Tarif 338'),
+                        ('Tarif 325', 'Tarif 325'),
+                        ('Tarif 590', 'Tarif 590 (Komplementär)'),
+                        ('Tarif 999', 'Tarif 999 (Privat)'),
+                        ('Pauschal', 'Pauschal/Privat'),
+                        ('TarReha', 'TarReha'),
+                        ('Physiotarif', 'Physiotarif')
+                    ] %}
+                    {% for val, label in tarif_optionen %}
+                    <option value="{{ val }}" {% if template and template.tariff_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="num_appointments" class="form-label">Anzahl Termine</label>
+                    <input type="number" id="num_appointments" name="num_appointments" class="form-input"
+                           value="{{ template.num_appointments if template else 9 }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="duration_minutes" class="form-label">Dauer (Min.)</label>
+                    <input type="number" id="duration_minutes" name="duration_minutes" class="form-input"
+                           value="{{ template.duration_minutes if template else 30 }}" min="5" step="5">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="min_interval_days" class="form-label">Mindestabstand (Tage)</label>
+                <input type="number" id="min_interval_days" name="min_interval_days" class="form-input"
+                       value="{{ template.min_interval_days if template else 1 }}" min="0">
+                <small class="form-hint">Mindestabstand zwischen zwei Terminen</small>
+            </div>
+
+            <div class="form-group">
+                <label for="default_location_id" class="form-label">Standard-Standort</label>
+                <select id="default_location_id" name="default_location_id" class="form-select">
+                    <option value="">-- Kein Standard --</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if template and template.default_location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Erweiterte Einstellungen</h3>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="group_therapy" id="group_therapy"
+                           {% if template and template.group_therapy %}checked{% endif %}
+                           onchange="document.getElementById('group_size_div').style.display = this.checked ? 'block' : 'none'">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Gruppentherapie</span>
+                </label>
+            </div>
+
+            <div class="form-group" id="group_size_div" style="{% if not template or not template.group_therapy %}display:none{% endif %}">
+                <label for="max_group_size" class="form-label">Max. Gruppengrösse</label>
+                <input type="number" id="max_group_size" name="max_group_size" class="form-input"
+                       value="{{ template.max_group_size if template and template.max_group_size else '' }}" min="2">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="requires_resource" id="requires_resource"
+                           {% if template and template.requires_resource %}checked{% endif %}
+                           onchange="document.getElementById('resource_type_div').style.display = this.checked ? 'block' : 'none'">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Benötigt Ressource</span>
+                </label>
+            </div>
+
+            <div class="form-group" id="resource_type_div" style="{% if not template or not template.requires_resource %}display:none{% endif %}">
+                <label for="resource_type" class="form-label">Ressourcen-Typ</label>
+                <select id="resource_type" name="resource_type" class="form-select">
+                    <option value="">-- Wählen --</option>
+                    <option value="room" {% if template and template.resource_type == 'room' %}selected{% endif %}>Behandlungsraum</option>
+                    <option value="device" {% if template and template.resource_type == 'device' %}selected{% endif %}>Gerät</option>
+                    <option value="Trainingsraum" {% if template and template.resource_type == 'Trainingsraum' %}selected{% endif %}>Trainingsraum</option>
+                    <option value="Gruppenraum" {% if template and template.resource_type == 'Gruppenraum' %}selected{% endif %}>Gruppenraum</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="auto_billing_after" class="form-label">Auto-Abrechnung nach X Terminen</label>
+                <input type="number" id="auto_billing_after" name="auto_billing_after" class="form-input"
+                       value="{{ template.auto_billing_after if template and template.auto_billing_after else '' }}"
+                       min="1" placeholder="Leer = keine Auto-Abrechnung">
+            </div>
+
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Stornogebühr</h3>
+
+            <div class="form-group">
+                <label for="cancellation_fee_type" class="form-label">Typ</label>
+                <select id="cancellation_fee_type" name="cancellation_fee_type" class="form-select">
+                    <option value="">Keine Stornogebühr</option>
+                    <option value="pauschal" {% if template and template.cancellation_fee_type == 'pauschal' %}selected{% endif %}>Pauschal (CHF)</option>
+                    <option value="taxpunkt" {% if template and template.cancellation_fee_type == 'taxpunkt' %}selected{% endif %}>Taxpunkte</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="cancellation_fee_amount" class="form-label">Betrag</label>
+                <input type="number" id="cancellation_fee_amount" name="cancellation_fee_amount" class="form-input"
+                       value="{{ template.cancellation_fee_amount if template and template.cancellation_fee_amount else '' }}"
+                       step="0.01" min="0" placeholder="z.B. 50.00">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_active" id="is_active"
+                           {% if not template or template.is_active %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Vorlage aktiv</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('practice.index', tab='templates') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+{% endblock %}

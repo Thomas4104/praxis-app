@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Standort bearbeiten' if location else 'Neuer Standort' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('practice.index', tab='locations') }}">Praxis-Einstellungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Standort bearbeiten' if location else 'Neuer Standort' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Standort bearbeiten' if location else 'Neuer Standort' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" novalidate>
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte: Stammdaten -->
+        <div class="form-section">
+            <h3 class="form-section-title">Standortdaten</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Name</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ location.name if location else '' }}" required
+                       placeholder="z.B. OMNIA Zürich">
+            </div>
+
+            <div class="form-group">
+                <label for="address" class="form-label">Adresse</label>
+                <input type="text" id="address" name="address" class="form-input"
+                       value="{{ location.address if location else '' }}"
+                       placeholder="Strasse und Hausnummer">
+            </div>
+
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="zip_code" class="form-label">PLZ</label>
+                    <input type="text" id="zip_code" name="zip_code" class="form-input"
+                           value="{{ location.zip_code if location else '' }}" placeholder="PLZ">
+                </div>
+                <div class="form-group">
+                    <label for="city" class="form-label">Ort</label>
+                    <input type="text" id="city" name="city" class="form-input"
+                           value="{{ location.city if location else '' }}" placeholder="Ort">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="phone" class="form-label">Telefon</label>
+                <input type="tel" id="phone" name="phone" class="form-input"
+                       value="{{ location.phone if location else '' }}" placeholder="+41 44 000 00 00">
+            </div>
+
+            <div class="form-group">
+                <label for="email" class="form-label">E-Mail</label>
+                <input type="email" id="email" name="email" class="form-input"
+                       value="{{ location.email if location else '' }}" placeholder="standort@praxis.ch">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_active" id="is_active"
+                           {% if not location or location.is_active %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Standort aktiv</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte: Oeffnungszeiten -->
+        <div class="form-section">
+            <h3 class="form-section-title">Eigene Öffnungszeiten</h3>
+            <p class="form-hint" style="margin-bottom: var(--spacing-md);">
+                Überschreibt die Organisations-Standardzeiten für diesen Standort.
+            </p>
+
+            {% set tage = [
+                ('montag', 'Montag'),
+                ('dienstag', 'Dienstag'),
+                ('mittwoch', 'Mittwoch'),
+                ('donnerstag', 'Donnerstag'),
+                ('freitag', 'Freitag'),
+                ('samstag', 'Samstag'),
+                ('sonntag', 'Sonntag')
+            ] %}
+
+            {% set oh = {} %}
+            {% if location and location.opening_hours_json %}
+                {% set oh = location.opening_hours_json | tojson %}
+            {% endif %}
+
+            {% for key, label in tage %}
+            {% set tag_data = None %}
+            {% if location and location.opening_hours_json %}
+                {% set parsed = location.opening_hours_json %}
+                {% if parsed is string %}
+                    {% set parsed_dict = {} %}
+                {% else %}
+                    {% set parsed_dict = parsed %}
+                {% endif %}
+            {% endif %}
+            <div style="display:flex; align-items:center; gap:var(--spacing-sm); margin-bottom:var(--spacing-sm); flex-wrap:wrap;">
+                <span style="width:100px; font-weight:500;">{{ label }}</span>
+                <input type="time" name="{{ key }}_von" class="form-input" style="width:120px"
+                       id="loc_{{ key }}_von">
+                <span>-</span>
+                <input type="time" name="{{ key }}_bis" class="form-input" style="width:120px"
+                       id="loc_{{ key }}_bis">
+                <label class="checkbox-label" style="margin:0;">
+                    <input type="checkbox" name="{{ key }}_geschlossen"
+                           onchange="toggleLocDay('{{ key }}', this.checked)">
+                    Geschl.
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('practice.index', tab='locations') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+
+<script>
+function toggleLocDay(day, closed) {
+    var von = document.getElementById('loc_' + day + '_von');
+    var bis = document.getElementById('loc_' + day + '_bis');
+    if (closed) {
+        von.value = '';
+        bis.value = '';
+        von.disabled = true;
+        bis.disabled = true;
+    } else {
+        von.disabled = false;
+        bis.disabled = false;
+    }
+}
+
+{% if location and location.opening_hours_json %}
+// Oeffnungszeiten aus JSON laden
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        var oh = JSON.parse('{{ location.opening_hours_json | safe }}');
+        var tage = ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag'];
+        tage.forEach(function(tag) {
+            var von = document.getElementById('loc_' + tag + '_von');
+            var bis = document.getElementById('loc_' + tag + '_bis');
+            var cb = document.querySelector('input[name="' + tag + '_geschlossen"]');
+            if (oh[tag] && oh[tag].von) {
+                von.value = oh[tag].von;
+                bis.value = oh[tag].bis;
+            } else {
+                cb.checked = true;
+                toggleLocDay(tag, true);
+            }
+        });
+    } catch(e) {}
+});
+{% endif %}
+</script>
+{% endblock %}

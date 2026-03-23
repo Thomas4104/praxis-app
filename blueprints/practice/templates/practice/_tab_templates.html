@@ -1,0 +1,99 @@
+<!-- Serienvorlagen Tab -->
+<div class="tab-header" style="display:flex; justify-content:space-between; align-items:center; padding: var(--spacing-md) var(--spacing-lg) 0;">
+    <form class="filter-bar" method="GET" action="{{ url_for('practice.index') }}" style="margin:0; padding:0; box-shadow:none; border:none;">
+        <input type="hidden" name="tab" value="templates">
+        <div class="filter-group">
+            <select name="status" class="form-select">
+                <option value="active" {% if status == 'active' %}selected{% endif %}>Nur aktive</option>
+                <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Nur deaktivierte</option>
+                <option value="all" {% if status == 'all' %}selected{% endif %}>Alle</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+    </form>
+    <a href="{{ url_for('practice.create_template') }}" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Neue Vorlage
+    </a>
+</div>
+
+{% if templates %}
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Kürzel</th>
+                <th>Tarif</th>
+                <th>Termine</th>
+                <th>Dauer</th>
+                <th>Standort</th>
+                <th>Gruppe</th>
+                <th>Status</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tpl in templates %}
+            <tr class="{% if not tpl.is_active %}row-inactive{% endif %}">
+                <td><strong>{{ tpl.name }}</strong></td>
+                <td>{{ tpl.short_name or '-' }}</td>
+                <td>{{ tpl.tariff_type or '-' }}</td>
+                <td>{{ tpl.num_appointments }}</td>
+                <td>{{ tpl.duration_minutes }} Min.</td>
+                <td>{{ tpl.default_location.name if tpl.default_location else '-' }}</td>
+                <td>
+                    {% if tpl.group_therapy %}
+                        <span class="badge badge-info">Ja (max. {{ tpl.max_group_size or '?' }})</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if tpl.is_active %}
+                        <span class="badge badge-success">Aktiv</span>
+                    {% else %}
+                        <span class="badge badge-muted">Deaktiviert</span>
+                    {% endif %}
+                </td>
+                <td class="actions-cell">
+                    <a href="{{ url_for('practice.edit_template', template_id=tpl.id) }}" class="btn btn-sm btn-secondary" title="Bearbeiten">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </a>
+                    <form method="POST" action="{{ url_for('practice.toggle_template', template_id=tpl.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm {% if tpl.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                                title="{{ 'Deaktivieren' if tpl.is_active else 'Aktivieren' }}">
+                            {% if tpl.is_active %}
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                                <line x1="12" y1="2" x2="12" y2="12"></line>
+                            </svg>
+                            {% else %}
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            {% endif %}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+    </svg>
+    <p>Keine Serienvorlagen gefunden.</p>
+    <a href="{{ url_for('practice.create_template') }}" class="btn btn-primary">Erste Vorlage anlegen</a>
+</div>
+{% endif %}

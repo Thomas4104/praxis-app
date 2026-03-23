@@ -6,7 +6,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
-    Appointment, AISettings, Product, MaintenanceRecord
+    Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue
 from config import config
 
 
@@ -40,16 +40,19 @@ def create_app(config_name=None):
     from blueprints.dashboard import dashboard_bp
     from blueprints.products import products_bp
     from blueprints.resources import resources_bp
+    from blueprints.practice import practice_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(products_bp, url_prefix='/products')
     app.register_blueprint(resources_bp, url_prefix='/resources')
+    app.register_blueprint(practice_bp, url_prefix='/practice')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
     csrf.exempt(products_bp)
     csrf.exempt(resources_bp)
+    csrf.exempt(practice_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -520,6 +523,72 @@ def seed_demo_data():
             next_due=date.today() - timedelta(days=27),
             interval_months=6
         ))
+
+    # === Oeffnungszeiten der Organisation ===
+    org.opening_hours_json = oeffnungszeiten
+    org.contact_person = 'Thomas Balke'
+    org.default_language = 'de'
+
+    # === Bankkonten ===
+    bank_ubs = BankAccount(
+        organization_id=org.id,
+        bank_name='UBS Switzerland AG',
+        iban='CH9300762011623852957',
+        qr_iban='CH4431999123000889012',
+        bic_swift='UBSWCHZH80A',
+        account_name='Hauptkonto UBS Zürich',
+        is_default=True
+    )
+    bank_zkb = BankAccount(
+        organization_id=org.id,
+        bank_name='Zürcher Kantonalbank',
+        iban='CH3600700110002069411',
+        bic_swift='ZKBKCHZZ80A',
+        account_name='Lohnkonto ZKB Winterthur',
+        is_default=False
+    )
+    db.session.add_all([bank_ubs, bank_zkb])
+
+    # === Feiertage 2026 Kanton Zuerich ===
+    # Ostersonntag 2026: 5. April
+    feiertage_2026 = [
+        ('Neujahr', date(2026, 1, 1)),
+        ('Karfreitag', date(2026, 4, 3)),
+        ('Ostermontag', date(2026, 4, 6)),
+        ('Tag der Arbeit', date(2026, 5, 1)),
+        ('Auffahrt', date(2026, 5, 14)),
+        ('Pfingstmontag', date(2026, 5, 25)),
+        ('Bundesfeiertag', date(2026, 8, 1)),
+        ('Weihnachten', date(2026, 12, 25)),
+        ('Stephanstag', date(2026, 12, 26)),
+    ]
+    for name, d in feiertage_2026:
+        db.session.add(Holiday(
+            organization_id=org.id,
+            name=name,
+            date=d,
+            canton='zh'
+        ))
+
+    # === Taxpunktwerte ===
+    db.session.add(TaxPointValue(
+        organization_id=org.id,
+        tariff_type='Tarif 312',
+        value=1.00,
+        valid_from=date(2025, 1, 1)
+    ))
+    db.session.add(TaxPointValue(
+        organization_id=org.id,
+        tariff_type='Tarif 311',
+        value=0.89,
+        valid_from=date(2025, 1, 1)
+    ))
+    db.session.add(TaxPointValue(
+        organization_id=org.id,
+        tariff_type='Tarif 590',
+        value=1.00,
+        valid_from=date(2025, 1, 1)
+    ))
 
     # === KI-Einstellungen ===
     db.session.add(AISettings(

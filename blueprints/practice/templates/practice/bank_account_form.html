@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Bankkonto bearbeiten' if account else 'Neues Bankkonto' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('practice.index', tab='bank_accounts') }}">Praxis-Einstellungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bankkonto bearbeiten' if account else 'Neues Bankkonto' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Bankkonto bearbeiten' if account else 'Neues Bankkonto' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" novalidate id="bankForm">
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Kontodaten</h3>
+
+            <div class="form-group">
+                <label for="bank_name" class="form-label required">Bankname</label>
+                <input type="text" id="bank_name" name="bank_name" class="form-input"
+                       value="{{ account.bank_name if account else '' }}" required
+                       placeholder="z.B. UBS Switzerland AG">
+            </div>
+
+            <div class="form-group">
+                <label for="iban" class="form-label required">IBAN</label>
+                <input type="text" id="iban" name="iban" class="form-input"
+                       value="{{ account.iban if account else '' }}" required
+                       placeholder="CH00 0000 0000 0000 0000 0" maxlength="26"
+                       pattern="CH\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{1}">
+                <small class="form-hint">Schweizer IBAN-Format: CH + 2 Prüfziffern + 17 Zeichen</small>
+                <div id="ibanError" class="form-error" style="display:none; color:var(--color-error); font-size:0.8rem; margin-top:0.25rem;"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="qr_iban" class="form-label">QR-IBAN</label>
+                <input type="text" id="qr_iban" name="qr_iban" class="form-input"
+                       value="{{ account.qr_iban if account else '' }}"
+                       placeholder="CH00 3000 0000 0000 0000 0">
+                <small class="form-hint">Für QR-Rechnungen (beginnt mit CH + 30-31)</small>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Weitere Angaben</h3>
+
+            <div class="form-group">
+                <label for="bic_swift" class="form-label">BIC/SWIFT</label>
+                <input type="text" id="bic_swift" name="bic_swift" class="form-input"
+                       value="{{ account.bic_swift if account else '' }}"
+                       placeholder="z.B. UBSWCHZH80A" maxlength="11">
+            </div>
+
+            <div class="form-group">
+                <label for="account_name" class="form-label">Kontobezeichnung</label>
+                <input type="text" id="account_name" name="account_name" class="form-input"
+                       value="{{ account.account_name if account else '' }}"
+                       placeholder="z.B. Hauptkonto, Lohnkonto">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_default" id="is_default"
+                           {% if account and account.is_default %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Standardkonto für Abrechnungen</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('practice.index', tab='bank_accounts') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+
+<script>
+// Client-seitige IBAN-Validierung
+document.getElementById('bankForm').addEventListener('submit', function(e) {
+    var iban = document.getElementById('iban').value.replace(/\s/g, '').toUpperCase();
+    var errorDiv = document.getElementById('ibanError');
+
+    if (!iban.match(/^CH\d{2}[A-Z0-9]{17}$/)) {
+        e.preventDefault();
+        errorDiv.textContent = 'IBAN muss mit CH beginnen, gefolgt von 2 Prüfziffern und 17 Zeichen.';
+        errorDiv.style.display = 'block';
+        return false;
+    }
+
+    errorDiv.style.display = 'none';
+});
+
+// IBAN-Formatierung beim Eingeben
+document.getElementById('iban').addEventListener('input', function(e) {
+    var val = this.value.replace(/\s/g, '').toUpperCase();
+    // Formatierung: CH00 0000 0000 0000 0000 0
+    var formatted = '';
+    for (var i = 0; i < val.length; i++) {
+        if (i > 0 && i % 4 === 0) formatted += ' ';
+        formatted += val[i];
+    }
+    this.value = formatted;
+});
+</script>
+{% endblock %}
