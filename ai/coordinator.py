@@ -16,6 +16,7 @@ from ai.agents.kommunikations_agent import KommunikationsAgent
 from ai.agents.finanz_agent import FinanzAgent
 from ai.agents.hr_agent import HRAgent
 from ai.agents.auswertungs_agent import AuswertungsAgent
+from ai.agents.fitness_agent import FitnessAgent
 
 
 class Coordinator:
@@ -36,7 +37,8 @@ class Coordinator:
             'kommunikation': KommunikationsAgent(),
             'finanzen': FinanzAgent(),
             'hr': HRAgent(),
-            'auswertung': AuswertungsAgent()
+            'auswertung': AuswertungsAgent(),
+            'fitness': FitnessAgent()
         }
 
     def register_agent(self, name, agent):

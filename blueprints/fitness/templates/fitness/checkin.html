@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Check-in{% endblock %}
+
+{% block extra_css %}
+<style>
+    .checkin-container {
+        max-width: 600px;
+        margin: 0 auto;
+        text-align: center;
+    }
+    .checkin-input {
+        font-size: 24px !important;
+        padding: 20px 24px !important;
+        text-align: center;
+        border-radius: 12px !important;
+        border: 3px solid var(--border) !important;
+    }
+    .checkin-input:focus {
+        border-color: var(--primary) !important;
+    }
+    .checkin-btn {
+        font-size: 20px !important;
+        padding: 16px 48px !important;
+        border-radius: 12px !important;
+        margin-top: 16px;
+    }
+    .checkin-result {
+        padding: 40px;
+        border-radius: 16px;
+        margin-top: 24px;
+        font-size: 20px;
+        font-weight: 600;
+        display: none;
+    }
+    .checkin-success {
+        background: #d4edda;
+        color: #155724;
+        border: 2px solid #c3e6cb;
+    }
+    .checkin-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 2px solid #f5c6cb;
+    }
+    .checkin-details {
+        font-size: 14px;
+        font-weight: normal;
+        margin-top: 12px;
+        opacity: 0.8;
+    }
+    .recent-checkins {
+        margin-top: 32px;
+    }
+    .recent-checkin-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+    }
+    .recent-checkin-item:last-child {
+        border-bottom: none;
+    }
+
+    @media (max-width: 768px) {
+        .checkin-input { font-size: 20px !important; }
+        .checkin-btn { font-size: 18px !important; width: 100%; }
+        .checkin-result { font-size: 18px; padding: 30px; }
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<span>Check-in</span>
+{% endblock %}
+
+{% block page_title %}Fitness Check-in{% endblock %}
+
+{% block content %}
+<div class="checkin-container">
+    <!-- Eingabe -->
+    <div class="card" style="padding: 40px;">
+        <div style="margin-bottom: 16px; font-size: 16px; color: var(--text-secondary);">
+            Badge-Nummer scannen oder Patientenname eingeben
+        </div>
+        <input type="text" id="checkinInput" class="form-input checkin-input"
+               placeholder="Badge oder Name..."
+               autofocus autocomplete="off">
+        <button id="checkinBtn" class="btn btn-primary checkin-btn" onclick="doCheckin()">
+            Check-in
+        </button>
+    </div>
+
+    <!-- Ergebnis -->
+    <div id="checkinResult" class="checkin-result"></div>
+
+    <!-- Letzte Check-ins -->
+    <div class="recent-checkins">
+        <div class="card">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Heutige Check-ins</h3>
+            </div>
+            <div id="recentList">
+                {% if letzte_checkins %}
+                {% for c in letzte_checkins %}
+                <div class="recent-checkin-item">
+                    <div>
+                        <strong>{{ c.patient.first_name }} {{ c.patient.last_name }}</strong>
+                        <div style="font-size: 12px; color: var(--text-secondary);">{{ c.subscription.template.name if c.subscription and c.subscription.template else '' }}</div>
+                    </div>
+                    <div style="font-size: 14px; color: var(--text-secondary);">
+                        {{ c.check_in.strftime('%H:%M') }}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
+                    Noch keine Check-ins heute.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const input = document.getElementById('checkinInput');
+const resultDiv = document.getElementById('checkinResult');
+
+// Enter-Taste zum Check-in
+input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        doCheckin();
+    }
+});
+
+function doCheckin() {
+    const eingabe = input.value.trim();
+    if (!eingabe) return;
+
+    const btn = document.getElementById('checkinBtn');
+    btn.disabled = true;
+    btn.textContent = 'Wird geprüft...';
+
+    fetch('{{ url_for("fitness.api_checkin") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({eingabe: eingabe})
+    })
+    .then(r => r.json())
+    .then(data => {
+        resultDiv.style.display = 'block';
+
+        if (data.success) {
+            resultDiv.className = 'checkin-result checkin-success';
+            let html = data.message;
+            if (data.rest_besuche !== undefined) {
+                html += `<div class="checkin-details">Noch ${data.rest_besuche} von ${data.max_besuche} Besuchen übrig</div>`;
+            }
+            if (data.abo_typ) {
+                html += `<div class="checkin-details">${data.abo_typ}</div>`;
+            }
+            resultDiv.innerHTML = html;
+
+            // Zur Recent-Liste hinzufuegen
+            const list = document.getElementById('recentList');
+            const emptyMsg = list.querySelector('[style*="text-align: center"]');
+            if (emptyMsg) emptyMsg.remove();
+
+            const item = document.createElement('div');
+            item.className = 'recent-checkin-item';
+            item.style.animation = 'fadeIn 0.3s';
+            const now = new Date();
+            item.innerHTML = `
+                <div>
+                    <strong>${data.patient_name}</strong>
+                    <div style="font-size: 12px; color: var(--text-secondary);">${data.abo_typ || ''}</div>
+                </div>
+                <div style="font-size: 14px; color: var(--text-secondary);">
+                    ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}
+                </div>
+            `;
+            list.insertBefore(item, list.firstChild);
+        } else {
+            resultDiv.className = 'checkin-result checkin-error';
+            let html = data.message;
+            if (data.grund) {
+                html += `<div class="checkin-details">${data.grund}</div>`;
+            }
+            resultDiv.innerHTML = html;
+        }
+
+        // Nach 5 Sekunden ausblenden und Input leeren
+        setTimeout(() => {
+            resultDiv.style.display = 'none';
+            input.value = '';
+            input.focus();
+        }, 5000);
+    })
+    .catch(err => {
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'checkin-result checkin-error';
+        resultDiv.innerHTML = 'Fehler bei der Verbindung.';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Check-in';
+    });
+}
+
+// Autofocus nach jeder Aktion
+input.focus();
+</script>
+{% endblock %}

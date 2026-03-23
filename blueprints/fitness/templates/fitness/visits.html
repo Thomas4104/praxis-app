@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Besuche{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<span>Besuche</span>
+{% endblock %}
+
+{% block page_title %}Besuchsübersicht{% endblock %}
+
+{% block content %}
+<!-- Besuchsstatistik Chart -->
+<div class="card" style="margin-bottom: 20px; padding: 20px;">
+    <h3 style="margin: 0 0 16px 0; font-size: 15px;">Besuche pro Tag (letzte 30 Tage)</h3>
+    <div style="height: 200px; display: flex; align-items: flex-end; gap: 2px;" id="visitChart">
+        <!-- Chart wird per JS gefuellt -->
+    </div>
+</div>
+
+<!-- Filter & Tabelle -->
+<div class="card">
+    <form class="filter-bar" method="GET" action="{{ url_for('fitness.visits') }}" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: center;">
+        <div class="filter-group">
+            <label style="font-size: 13px; color: var(--text-secondary); margin-right: 8px;">Datum:</label>
+            <input type="date" name="date" class="form-input" value="{{ date_filter }}">
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+        {% if date_filter %}
+        <a href="{{ url_for('fitness.visits') }}" class="btn btn-secondary">Alle anzeigen</a>
+        {% endif %}
+        <div style="flex: 1;"></div>
+        <span style="font-size: 13px; color: var(--text-secondary);">{{ total }} Besuche gesamt</span>
+    </form>
+
+    {% if besuche %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Check-in</th>
+                <th>Check-out</th>
+                <th>Patient</th>
+                <th>Abo</th>
+                <th>Dauer</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in besuche %}
+            <tr>
+                <td>{{ b.check_in.strftime('%d.%m.%Y') }}</td>
+                <td>{{ b.check_in.strftime('%H:%M') }}</td>
+                <td>{{ b.check_out.strftime('%H:%M') if b.check_out else '—' }}</td>
+                <td>
+                    {% if b.patient %}
+                    <a href="{{ url_for('patients.detail', patient_id=b.patient.id) }}">{{ b.patient.first_name }} {{ b.patient.last_name }}</a>
+                    {% endif %}
+                </td>
+                <td>{{ b.subscription.template.name if b.subscription and b.subscription.template else '-' }}</td>
+                <td>
+                    {% if b.check_out %}
+                    {{ ((b.check_out - b.check_in).seconds // 60) }} Min.
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if total_pages > 1 %}
+    <div style="padding: 16px; display: flex; justify-content: center; gap: 8px; border-top: 1px solid var(--border);">
+        {% if page > 1 %}
+        <a href="{{ url_for('fitness.visits', page=page-1, date=date_filter) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        {% endif %}
+        <span style="padding: 6px 12px; color: var(--text-secondary);">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('fitness.visits', page=page+1, date=date_filter) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+        {% if date_filter %}Keine Besuche an diesem Tag.{% else %}Noch keine Besuche erfasst.{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Einfaches Balkendiagramm
+const labels = {{ chart_labels|safe }};
+const data = {{ chart_data|safe }};
+
+if (data.length > 0) {
+    const chart = document.getElementById('visitChart');
+    const maxVal = Math.max(...data, 1);
+
+    labels.forEach((label, i) => {
+        const bar = document.createElement('div');
+        bar.style.flex = '1';
+        bar.style.display = 'flex';
+        bar.style.flexDirection = 'column';
+        bar.style.alignItems = 'center';
+        bar.style.justifyContent = 'flex-end';
+        bar.style.height = '100%';
+
+        const value = document.createElement('div');
+        value.style.fontSize = '10px';
+        value.style.color = 'var(--text-secondary)';
+        value.style.marginBottom = '4px';
+        value.textContent = data[i];
+
+        const barEl = document.createElement('div');
+        barEl.style.width = '100%';
+        barEl.style.maxWidth = '30px';
+        barEl.style.backgroundColor = 'var(--primary)';
+        barEl.style.borderRadius = '3px 3px 0 0';
+        barEl.style.height = Math.max((data[i] / maxVal) * 160, 2) + 'px';
+        barEl.title = label + ': ' + data[i] + ' Besuche';
+
+        const labelEl = document.createElement('div');
+        labelEl.style.fontSize = '9px';
+        labelEl.style.color = 'var(--text-secondary)';
+        labelEl.style.marginTop = '4px';
+        labelEl.style.transform = 'rotate(-45deg)';
+        labelEl.style.whiteSpace = 'nowrap';
+        // Nur jeden 3. Label anzeigen
+        if (i % 3 === 0) {
+            const d = new Date(label);
+            labelEl.textContent = d.getDate() + '.' + (d.getMonth() + 1) + '.';
+        }
+
+        bar.appendChild(value);
+        bar.appendChild(barEl);
+        bar.appendChild(labelEl);
+        chart.appendChild(bar);
+    });
+} else {
+    document.getElementById('visitChart').innerHTML = '<div style="width: 100%; text-align: center; color: var(--text-secondary); padding: 40px;">Keine Besuchsdaten vorhanden</div>';
+}
+</script>
+{% endblock %}

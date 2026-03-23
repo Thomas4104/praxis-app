@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Abonnemente{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<span>Abonnemente</span>
+{% endblock %}
+
+{% block page_title %}Abonnemente{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('fitness.subscription_new') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neues Abo
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Filter -->
+    <form class="filter-bar" method="GET" action="{{ url_for('fitness.subscriptions') }}" style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <div class="filter-group">
+            <input type="text" name="search" class="form-input" placeholder="Name, Abo-Nr., Badge..."
+                   value="{{ search }}" style="min-width: 250px;">
+        </div>
+        <div class="filter-group">
+            <select name="status" class="form-input">
+                <option value="">Alle Status</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Aktiv</option>
+                <option value="paused" {% if status_filter == 'paused' %}selected{% endif %}>Pausiert</option>
+                <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Abgelaufen</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Gekündigt</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filtern</button>
+        {% if search or status_filter %}
+        <a href="{{ url_for('fitness.subscriptions') }}" class="btn btn-secondary">Zurücksetzen</a>
+        {% endif %}
+    </form>
+
+    {% if abos %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Abo-Nr.</th>
+                <th>Patient</th>
+                <th>Typ</th>
+                <th>Status</th>
+                <th>Gültig bis</th>
+                <th>Besuche</th>
+                <th>Badge</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for abo in abos %}
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('fitness.subscription_detail', sub_id=abo.id) }}'">
+                <td style="font-weight: 600;">{{ abo.subscription_number }}</td>
+                <td>
+                    {% if abo.patient %}
+                    {{ abo.patient.first_name }} {{ abo.patient.last_name }}
+                    {% endif %}
+                </td>
+                <td>{{ abo.template.name if abo.template else '-' }}</td>
+                <td>
+                    {% if abo.status == 'active' %}
+                    <span class="badge badge-success">Aktiv</span>
+                    {% elif abo.status == 'paused' %}
+                    <span class="badge badge-warning">Pausiert</span>
+                    {% elif abo.status == 'expired' %}
+                    <span class="badge badge-secondary">Abgelaufen</span>
+                    {% elif abo.status == 'cancelled' %}
+                    <span class="badge badge-danger">Gekündigt</span>
+                    {% endif %}
+                </td>
+                <td>{{ abo.end_date.strftime('%d.%m.%Y') if abo.end_date else 'Unbegrenzt' }}</td>
+                <td>
+                    {% if abo.template and abo.template.max_visits > 0 %}
+                    {{ abo.visits_used or 0 }} / {{ abo.template.max_visits }}
+                    {% else %}
+                    {{ abo.visits_used or 0 }}
+                    {% endif %}
+                </td>
+                <td>{{ abo.badge_number or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="padding: 16px; display: flex; justify-content: center; gap: 8px; border-top: 1px solid var(--border);">
+        {% if page > 1 %}
+        <a href="{{ url_for('fitness.subscriptions', page=page-1, search=search, status=status_filter) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        {% endif %}
+        <span style="padding: 6px 12px; color: var(--text-secondary);">Seite {{ page }} von {{ total_pages }} ({{ total }} Abos)</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('fitness.subscriptions', page=page+1, search=search, status=status_filter) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+        {% if search or status_filter %}
+        Keine Abonnemente für diese Filterkriterien gefunden.
+        {% else %}
+        Noch keine Abonnemente vorhanden.
+        <br><br>
+        <a href="{{ url_for('fitness.subscription_new') }}" class="btn btn-primary">Erstes Abo erstellen</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Neues Abo{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.subscriptions') }}">Abonnemente</a>
+<span class="breadcrumb-sep">/</span>
+<span>Neues Abo</span>
+{% endblock %}
+
+{% block page_title %}Neues Abonnement{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px;">
+    <form method="POST" action="{{ url_for('fitness.subscription_new') }}" style="padding: 24px;">
+        <!-- Patient (Autocomplete) -->
+        <div class="form-group">
+            <label class="form-label">Patient *</label>
+            <input type="hidden" name="patient_id" id="patientId" required>
+            <input type="text" id="patientSearch" class="form-input" placeholder="Patientenname eingeben..."
+                   autocomplete="off" required>
+            <div id="patientResults" style="position: relative;">
+                <div id="patientDropdown" style="display: none; position: absolute; top: 0; left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <!-- Abo-Vorlage -->
+        <div class="form-group">
+            <label class="form-label">Abo-Vorlage *</label>
+            <select name="template_id" id="templateSelect" class="form-input" required>
+                <option value="">Vorlage wählen...</option>
+                {% for v in vorlagen %}
+                <option value="{{ v.id }}">{{ v.name }} — CHF {{ '%.2f'|format(v.price) }}{% if v.payment_interval == 'monthly' %}/Mt{% elif v.payment_interval == 'quarterly' %}/Qt{% elif v.payment_interval == 'yearly' %}/Jahr{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Vorlage-Details -->
+        <div id="templateDetails" class="card" style="display: none; padding: 16px; margin-bottom: 16px; background: var(--bg-secondary);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                <div><strong>Kategorie:</strong> <span id="tdKategorie"></span></div>
+                <div><strong>Laufzeit:</strong> <span id="tdLaufzeit"></span></div>
+                <div><strong>Preis:</strong> <span id="tdPreis"></span></div>
+                <div><strong>Zahlung:</strong> <span id="tdZahlung"></span></div>
+                <div><strong>Max. Besuche:</strong> <span id="tdBesuche"></span></div>
+                <div><strong>Auto-Verlängerung:</strong> <span id="tdAutoRenew"></span></div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Startdatum *</label>
+                <input type="date" name="start_date" class="form-input" value="{{ today.strftime('%Y-%m-%d') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Badge/Kartennummer</label>
+                <input type="text" name="badge_number" class="form-input" placeholder="Optional, für NFC-Zugang">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Bemerkung</label>
+            <textarea name="notes" class="form-input" rows="3" placeholder="Optionale Bemerkungen..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">Abo erstellen & Rechnung generieren</button>
+            <a href="{{ url_for('fitness.subscriptions') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Patient-Autocomplete
+const patientSearch = document.getElementById('patientSearch');
+const patientDropdown = document.getElementById('patientDropdown');
+const patientIdInput = document.getElementById('patientId');
+let searchTimeout;
+
+patientSearch.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const q = this.value.trim();
+    if (q.length < 2) {
+        patientDropdown.style.display = 'none';
+        return;
+    }
+    searchTimeout = setTimeout(() => {
+        fetch(`{{ url_for('fitness.api_patient_search') }}?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.length === 0) {
+                    patientDropdown.innerHTML = '<div style="padding: 10px; color: var(--text-secondary);">Kein Patient gefunden</div>';
+                } else {
+                    patientDropdown.innerHTML = data.map(p =>
+                        `<div style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border);"
+                              onmouseover="this.style.background='var(--bg-secondary)'"
+                              onmouseout="this.style.background='white'"
+                              onclick="selectPatient(${p.id}, '${p.name}')">
+                            <strong>${p.name}</strong>
+                            ${p.geburtsdatum ? '<span style="color: var(--text-secondary); margin-left: 8px;">' + p.geburtsdatum + '</span>' : ''}
+                        </div>`
+                    ).join('');
+                }
+                patientDropdown.style.display = 'block';
+            });
+    }, 300);
+});
+
+function selectPatient(id, name) {
+    patientIdInput.value = id;
+    patientSearch.value = name;
+    patientDropdown.style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+    if (!patientSearch.contains(e.target) && !patientDropdown.contains(e.target)) {
+        patientDropdown.style.display = 'none';
+    }
+});
+
+// Vorlage-Details laden
+const templateSelect = document.getElementById('templateSelect');
+const templateDetails = document.getElementById('templateDetails');
+
+const intervalLabels = {monthly: 'Monatlich', quarterly: 'Quartalsweise', yearly: 'Jährlich', once: 'Einmalig'};
+const categoryLabels = {fitness: 'Fitness', mtt: 'MTT', prevention: 'Prävention', other: 'Sonstiges'};
+
+templateSelect.addEventListener('change', function() {
+    const id = this.value;
+    if (!id) {
+        templateDetails.style.display = 'none';
+        return;
+    }
+    fetch(`{{ url_for('fitness.index') }}api/template/${id}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('tdKategorie').textContent = categoryLabels[data.category] || data.category;
+            document.getElementById('tdLaufzeit').textContent = data.duration_months > 0 ? data.duration_months + ' Monate' : 'Unbegrenzt';
+            document.getElementById('tdPreis').textContent = 'CHF ' + data.price.toFixed(2);
+            document.getElementById('tdZahlung').textContent = intervalLabels[data.payment_interval] || data.payment_interval;
+            document.getElementById('tdBesuche').textContent = data.max_visits > 0 ? data.max_visits : 'Unbegrenzt';
+            document.getElementById('tdAutoRenew').textContent = data.auto_renew ? 'Ja' : 'Nein';
+            templateDetails.style.display = 'block';
+        });
+});
+</script>
+{% endblock %}

@@ -524,6 +524,7 @@ class Invoice(db.Model):
     dunning_1_date = db.Column(db.Date)
     dunning_2_date = db.Column(db.Date)
     dunning_3_date = db.Column(db.Date)
+    category = db.Column(db.String(30))  # treatment, fitness, etc.
     notes = db.Column(db.Text)
     pdf_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1302,3 +1303,68 @@ class SavedReport(db.Model):
 
     organization = db.relationship('Organization', backref=db.backref('saved_reports', lazy='dynamic'))
     user = db.relationship('User', backref=db.backref('saved_reports', lazy='dynamic'))
+
+
+# ============================================================
+# Fitness & Abonnemente
+# ============================================================
+
+class SubscriptionTemplate(db.Model):
+    """Abo-Vorlagen (z.B. Fitness Jahresabo, MTT 3 Monate, 10er-Karte)"""
+    __tablename__ = 'subscription_templates'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50))  # fitness, mtt, prevention, other
+    duration_months = db.Column(db.Integer, default=12)
+    price = db.Column(db.Float, nullable=False)
+    payment_interval = db.Column(db.String(20))  # monthly, quarterly, yearly, once
+    cancellation_months = db.Column(db.Integer, default=1)
+    auto_renew = db.Column(db.Boolean, default=True)
+    max_visits = db.Column(db.Integer, default=0)  # 0 = unbegrenzt
+    access_hours_json = db.Column(db.Text)  # JSON: z.B. {"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)  # null = alle Standorte
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('subscription_templates', lazy='dynamic'))
+    location = db.relationship('Location', backref=db.backref('subscription_templates', lazy='dynamic'))
+
+
+class Subscription(db.Model):
+    """Fitness-Abonnemente der Patienten"""
+    __tablename__ = 'subscriptions'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey('subscription_templates.id'), nullable=False)
+    subscription_number = db.Column(db.String(20))
+    badge_number = db.Column(db.String(50))
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='active')  # active, paused, expired, cancelled
+    paused_from = db.Column(db.Date)
+    paused_until = db.Column(db.Date)
+    visits_used = db.Column(db.Integer, default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('subscriptions', lazy='dynamic'))
+    patient = db.relationship('Patient', backref=db.backref('subscriptions', lazy='dynamic'))
+    template = db.relationship('SubscriptionTemplate', backref=db.backref('subscriptions', lazy='dynamic'))
+
+
+class FitnessVisit(db.Model):
+    """Fitness-Besuche (Check-in/Check-out)"""
+    __tablename__ = 'fitness_visits'
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
+    check_in = db.Column(db.DateTime, nullable=False)
+    check_out = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    subscription = db.relationship('Subscription', backref=db.backref('visits', lazy='dynamic'))
+    patient = db.relationship('Patient', backref=db.backref('fitness_visits', lazy='dynamic'))
+    location = db.relationship('Location', backref=db.backref('fitness_visits', lazy='dynamic'))

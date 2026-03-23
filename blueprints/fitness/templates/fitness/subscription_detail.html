@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Abo {{ abo.subscription_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.subscriptions') }}">Abonnemente</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ abo.subscription_number }}</span>
+{% endblock %}
+
+{% block page_title %}
+{{ abo.subscription_number }}
+{% if abo.status == 'active' %}
+<span class="badge badge-success" style="margin-left: 12px; vertical-align: middle;">Aktiv</span>
+{% elif abo.status == 'paused' %}
+<span class="badge badge-warning" style="margin-left: 12px; vertical-align: middle;">Pausiert</span>
+{% elif abo.status == 'expired' %}
+<span class="badge badge-secondary" style="margin-left: 12px; vertical-align: middle;">Abgelaufen</span>
+{% elif abo.status == 'cancelled' %}
+<span class="badge badge-danger" style="margin-left: 12px; vertical-align: middle;">Gekündigt</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <!-- Linke Spalte: Details -->
+    <div>
+        <!-- Abo-Info -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Abo-Details</h3>
+            </div>
+            <div style="padding: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Patient</div>
+                        <div style="font-weight: 600;">
+                            <a href="{{ url_for('patients.detail', patient_id=patient.id) }}">{{ patient.first_name }} {{ patient.last_name }}</a>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Abo-Typ</div>
+                        <div style="font-weight: 600;">{{ vorlage.name }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Start</div>
+                        <div>{{ abo.start_date.strftime('%d.%m.%Y') }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Ende</div>
+                        <div>{{ abo.end_date.strftime('%d.%m.%Y') if abo.end_date else 'Unbegrenzt' }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Preis</div>
+                        <div>CHF {{ '%.2f'|format(vorlage.price) }}
+                            {% if vorlage.payment_interval == 'monthly' %}/Monat
+                            {% elif vorlage.payment_interval == 'quarterly' %}/Quartal
+                            {% elif vorlage.payment_interval == 'yearly' %}/Jahr
+                            {% else %}einmalig{% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Badge-Nr.</div>
+                        <div>{{ abo.badge_number or '—' }}</div>
+                    </div>
+                    {% if rest_besuche is not none %}
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Besuche</div>
+                        <div style="font-weight: 600; color: {{ '#e74c3c' if rest_besuche <= 2 else '#27ae60' }};">
+                            {{ abo.visits_used or 0 }} / {{ vorlage.max_visits }} (noch {{ rest_besuche }})
+                        </div>
+                    </div>
+                    {% else %}
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Besuche</div>
+                        <div>{{ abo.visits_used or 0 }} (unbegrenzt)</div>
+                    </div>
+                    {% endif %}
+                    {% if abo.paused_from %}
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Pausiert seit</div>
+                        <div style="color: #e67e22;">{{ abo.paused_from.strftime('%d.%m.%Y') }}{% if abo.paused_until %} bis {{ abo.paused_until.strftime('%d.%m.%Y') }}{% endif %}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if abo.notes %}
+                <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+                    <div style="font-size: 12px; color: var(--text-secondary);">Bemerkung</div>
+                    <div>{{ abo.notes }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Besuchshistorie -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Besuchshistorie (letzte 20)</h3>
+            </div>
+            {% if besuche %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Check-in</th>
+                        <th>Check-out</th>
+                        <th>Dauer</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in besuche %}
+                    <tr>
+                        <td>{{ b.check_in.strftime('%d.%m.%Y') }}</td>
+                        <td>{{ b.check_in.strftime('%H:%M') }}</td>
+                        <td>{{ b.check_out.strftime('%H:%M') if b.check_out else '—' }}</td>
+                        <td>
+                            {% if b.check_out %}
+                            {{ ((b.check_out - b.check_in).seconds // 60) }} Min.
+                            {% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 24px; text-align: center; color: var(--text-secondary);">Noch keine Besuche.</div>
+            {% endif %}
+        </div>
+
+        <!-- Rechnungen -->
+        <div class="card">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Rechnungen</h3>
+            </div>
+            {% if rechnungen %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nr.</th>
+                        <th>Datum</th>
+                        <th>Betrag</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rechnungen %}
+                    <tr style="cursor: pointer;" onclick="window.location='{{ url_for('billing.detail', invoice_id=r.id) }}'">
+                        <td>{{ r.invoice_number }}</td>
+                        <td>{{ r.created_at.strftime('%d.%m.%Y') }}</td>
+                        <td>CHF {{ '%.2f'|format(r.amount_total) }}</td>
+                        <td>
+                            {% if r.status == 'paid' %}
+                            <span class="badge badge-success">Bezahlt</span>
+                            {% elif r.status == 'sent' %}
+                            <span class="badge badge-primary">Gesendet</span>
+                            {% elif r.status == 'overdue' %}
+                            <span class="badge badge-danger">Überfällig</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ r.status }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 24px; text-align: center; color: var(--text-secondary);">Keine Rechnungen.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Rechte Spalte: Aktionen -->
+    <div>
+        <div class="card" style="position: sticky; top: 80px;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Aktionen</h3>
+            </div>
+            <div style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+                {% if abo.status == 'active' %}
+                <!-- Pausieren -->
+                <form method="POST" action="{{ url_for('fitness.subscription_pause', sub_id=abo.id) }}" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="date" name="paused_until" class="form-input" style="flex: 1;" placeholder="Bis wann?">
+                        <button type="submit" class="btn btn-warning" style="white-space: nowrap;"
+                                onclick="return confirm('Abo wirklich pausieren?')">Pausieren</button>
+                    </div>
+                </form>
+
+                <!-- Kündigen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
+                    <button type="submit" class="btn btn-danger" style="width: 100%;"
+                            onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
+                </form>
+                {% endif %}
+
+                {% if abo.status == 'paused' %}
+                <!-- Fortsetzen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_resume', sub_id=abo.id) }}">
+                    <button type="submit" class="btn btn-success" style="width: 100%;">Fortsetzen</button>
+                </form>
+
+                <!-- Kündigen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
+                    <button type="submit" class="btn btn-danger" style="width: 100%;"
+                            onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
+                </form>
+                {% endif %}
+
+                <!-- Verlängern -->
+                {% if abo.end_date %}
+                <form method="POST" action="{{ url_for('fitness.subscription_renew', sub_id=abo.id) }}">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Verlängern</button>
+                </form>
+                {% endif %}
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;">
+
+                <!-- Badge zuordnen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_badge', sub_id=abo.id) }}" style="display: flex; gap: 8px;">
+                    <input type="text" name="badge_number" class="form-input" style="flex: 1;"
+                           placeholder="Badge-Nr." value="{{ abo.badge_number or '' }}">
+                    <button type="submit" class="btn btn-secondary" style="white-space: nowrap;">Badge speichern</button>
+                </form>
+
+                <!-- Rechnung erstellen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_create_invoice', sub_id=abo.id) }}">
+                    <button type="submit" class="btn btn-secondary" style="width: 100%;">Rechnung erstellen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

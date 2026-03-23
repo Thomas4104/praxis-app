@@ -14,7 +14,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     Invoice, InvoiceItem, Payment, DunningRecord, EmailFolder, Email, \
     Account, JournalEntry, JournalEntryLine, CreditorInvoice, FixedAsset, CostCenter, PeriodLock, \
     EmployeeContract, EmployeeSalary, EmployeeChild, PayrollRun, Payslip, \
-    TimeEntry, OvertimeAccount, Expense, SavedReport
+    TimeEntry, OvertimeAccount, Expense, SavedReport, \
+    SubscriptionTemplate, Subscription, FitnessVisit
 from config import config
 
 
@@ -62,6 +63,7 @@ def create_app(config_name=None):
     from blueprints.accounting import accounting_bp
     from blueprints.hr import hr_bp
     from blueprints.reporting import reporting_bp
+    from blueprints.fitness import fitness_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -81,6 +83,7 @@ def create_app(config_name=None):
     app.register_blueprint(accounting_bp, url_prefix='/accounting')
     app.register_blueprint(hr_bp, url_prefix='/hr')
     app.register_blueprint(reporting_bp, url_prefix='/reporting')
+    app.register_blueprint(fitness_bp, url_prefix='/fitness')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -100,6 +103,7 @@ def create_app(config_name=None):
     csrf.exempt(accounting_bp)
     csrf.exempt(hr_bp)
     csrf.exempt(reporting_bp)
+    csrf.exempt(fitness_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -2295,6 +2299,157 @@ def seed_accounting_data(org, loc_zh, loc_wt, created_users):
         columns_json=json.dumps(['invoice_number', 'patient_name', 'amount_total', 'amount_paid', 'status', 'created_at'])
     )
     db.session.add_all([saved_report1, saved_report2])
+
+    # === Fitness: Abo-Vorlagen ===
+    fitness_vorlage1 = SubscriptionTemplate(
+        organization_id=org.id,
+        name='Fitness Jahresabo',
+        category='fitness',
+        duration_months=12,
+        price=89.00,
+        payment_interval='monthly',
+        cancellation_months=2,
+        auto_renew=True,
+        max_visits=0,
+        access_hours_json=json.dumps({"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}),
+        is_active=True
+    )
+    fitness_vorlage2 = SubscriptionTemplate(
+        organization_id=org.id,
+        name='MTT 3 Monate',
+        category='mtt',
+        duration_months=3,
+        price=120.00,
+        payment_interval='once',
+        cancellation_months=0,
+        auto_renew=False,
+        max_visits=0,
+        is_active=True
+    )
+    fitness_vorlage3 = SubscriptionTemplate(
+        organization_id=org.id,
+        name='10er-Karte',
+        category='fitness',
+        duration_months=0,
+        price=150.00,
+        payment_interval='once',
+        cancellation_months=0,
+        auto_renew=False,
+        max_visits=10,
+        is_active=True
+    )
+    db.session.add_all([fitness_vorlage1, fitness_vorlage2, fitness_vorlage3])
+    db.session.flush()
+
+    # === Fitness: Abonnemente ===
+    today = date.today()
+    fitness_abos = []
+
+    # Abo 1: Aktiv - Jahresabo (Patient 0: Anna Mueller)
+    abo1 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[0].id,
+        template_id=fitness_vorlage1.id,
+        subscription_number='ABO-00001',
+        badge_number='NFC-1001',
+        start_date=today - timedelta(days=120),
+        end_date=today + timedelta(days=245),
+        status='active',
+        visits_used=18
+    )
+    # Abo 2: Aktiv - MTT (Patient 1: Peter Keller)
+    abo2 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[1].id,
+        template_id=fitness_vorlage2.id,
+        subscription_number='ABO-00002',
+        badge_number='NFC-1002',
+        start_date=today - timedelta(days=30),
+        end_date=today + timedelta(days=60),
+        status='active',
+        visits_used=8
+    )
+    # Abo 3: Aktiv - Jahresabo (Patient 2: Sandra Huber)
+    abo3 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[2].id,
+        template_id=fitness_vorlage1.id,
+        subscription_number='ABO-00003',
+        badge_number='NFC-1003',
+        start_date=today - timedelta(days=200),
+        end_date=today + timedelta(days=165),
+        status='active',
+        visits_used=32
+    )
+    # Abo 4: Pausiert - Jahresabo (Patient 3: Marco Brunner)
+    abo4 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[3].id,
+        template_id=fitness_vorlage1.id,
+        subscription_number='ABO-00004',
+        start_date=today - timedelta(days=90),
+        end_date=today + timedelta(days=275),
+        status='paused',
+        paused_from=today - timedelta(days=10),
+        paused_until=today + timedelta(days=20),
+        visits_used=12
+    )
+    # Abo 5: Abgelaufen - MTT (Patient 4: Lisa Weber)
+    abo5 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[4].id,
+        template_id=fitness_vorlage2.id,
+        subscription_number='ABO-00005',
+        start_date=today - timedelta(days=120),
+        end_date=today - timedelta(days=30),
+        status='expired',
+        visits_used=15
+    )
+    # Abo 6: 10er-Karte mit 6 von 10 Besuchen (Patient 5: Thomas Gerber)
+    abo6 = Subscription(
+        organization_id=org.id,
+        patient_id=patients[5].id,
+        template_id=fitness_vorlage3.id,
+        subscription_number='ABO-00006',
+        badge_number='NFC-1006',
+        start_date=today - timedelta(days=45),
+        end_date=None,
+        status='active',
+        visits_used=6
+    )
+    db.session.add_all([abo1, abo2, abo3, abo4, abo5, abo6])
+    db.session.flush()
+
+    # === Fitness: Besuche (15 Besuche verteilt ueber letzte 2 Wochen) ===
+    import random
+    fitness_besuche = []
+    aktive_abos_demo = [abo1, abo2, abo3, abo6]
+    for tag_offset in range(14, 0, -1):
+        # 1-2 Besuche pro Tag
+        anzahl = 1 if tag_offset % 3 == 0 else 2
+        if len(fitness_besuche) >= 15:
+            break
+        for _ in range(anzahl):
+            if len(fitness_besuche) >= 15:
+                break
+            abo = aktive_abos_demo[len(fitness_besuche) % len(aktive_abos_demo)]
+            stunde = random.randint(7, 19)
+            minute = random.randint(0, 59)
+            checkin_time = datetime.combine(
+                today - timedelta(days=tag_offset),
+                time(stunde, minute)
+            )
+            checkout_time = checkin_time + timedelta(minutes=random.randint(30, 90))
+            besuch = FitnessVisit(
+                subscription_id=abo.id,
+                patient_id=abo.patient_id,
+                location_id=loc_zh.id,
+                check_in=checkin_time,
+                check_out=checkout_time
+            )
+            fitness_besuche.append(besuch)
+
+    db.session.add_all(fitness_besuche)
 
     db.session.commit()
 

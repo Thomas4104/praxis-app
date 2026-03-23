@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Vorlage bearbeiten' if vorlage else 'Neue Vorlage' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.templates') }}">Abo-Vorlagen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if vorlage else 'Neue Vorlage' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Vorlage bearbeiten' if vorlage else 'Neue Abo-Vorlage' }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px;">
+    <form method="POST" style="padding: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" class="form-input" required
+                       value="{{ vorlage.name if vorlage else '' }}"
+                       placeholder="z.B. Fitness Jahresabo, MTT 3 Monate, 10er-Karte">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Kategorie</label>
+                <select name="category" class="form-input">
+                    <option value="fitness" {% if vorlage and vorlage.category == 'fitness' %}selected{% endif %}>Fitness</option>
+                    <option value="mtt" {% if vorlage and vorlage.category == 'mtt' %}selected{% endif %}>MTT</option>
+                    <option value="prevention" {% if vorlage and vorlage.category == 'prevention' %}selected{% endif %}>Prävention</option>
+                    <option value="other" {% if vorlage and vorlage.category == 'other' %}selected{% endif %}>Sonstiges</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Laufzeit (Monate)</label>
+                <input type="number" name="duration_months" class="form-input" min="0"
+                       value="{{ vorlage.duration_months if vorlage else 12 }}"
+                       placeholder="0 = unbegrenzt">
+                <small style="color: var(--text-secondary);">0 = unbegrenzt</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Preis (CHF) *</label>
+                <input type="number" name="price" class="form-input" step="0.05" min="0" required
+                       value="{{ vorlage.price if vorlage else '' }}"
+                       placeholder="z.B. 89.00">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Zahlungsintervall</label>
+                <select name="payment_interval" class="form-input">
+                    <option value="monthly" {% if vorlage and vorlage.payment_interval == 'monthly' %}selected{% endif %}>Monatlich</option>
+                    <option value="quarterly" {% if vorlage and vorlage.payment_interval == 'quarterly' %}selected{% endif %}>Quartalsweise</option>
+                    <option value="yearly" {% if vorlage and vorlage.payment_interval == 'yearly' %}selected{% endif %}>Jährlich</option>
+                    <option value="once" {% if vorlage and vorlage.payment_interval == 'once' %}selected{% endif %}>Einmalig</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Kündigungsfrist (Monate)</label>
+                <input type="number" name="cancellation_months" class="form-input" min="0"
+                       value="{{ vorlage.cancellation_months if vorlage else 1 }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Max. Besuche</label>
+                <input type="number" name="max_visits" class="form-input" min="0"
+                       value="{{ vorlage.max_visits if vorlage else 0 }}"
+                       placeholder="0 = unbegrenzt">
+                <small style="color: var(--text-secondary);">0 = unbegrenzt, z.B. 10 für 10er-Karte</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Standort</label>
+                <select name="location_id" class="form-input">
+                    <option value="">Alle Standorte</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if vorlage and vorlage.location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="auto_renew" {% if not vorlage or vorlage.auto_renew %}checked{% endif %}>
+                    Automatische Verlängerung
+                </label>
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Zugangszeiten (JSON)</label>
+                <textarea name="access_hours_json" class="form-input" rows="3"
+                          placeholder='{"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}'>{{ vorlage.access_hours_json if vorlage and vorlage.access_hours_json else '' }}</textarea>
+                <small style="color: var(--text-secondary);">Optional: JSON-Format für Zugangszeiten</small>
+            </div>
+
+            {% if vorlage %}
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_active" {% if vorlage.is_active %}checked{% endif %}>
+                    Aktiv
+                </label>
+            </div>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">
+                {{ 'Speichern' if vorlage else 'Vorlage erstellen' }}
+            </button>
+            <a href="{{ url_for('fitness.templates') }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
