@@ -843,6 +843,55 @@ class HealingPhase(db.Model):
 # Audit
 # ============================================================
 
+class SystemSetting(db.Model):
+    """Zentrale Systemeinstellungen als Key-Value-Paare"""
+    __tablename__ = 'system_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    key = db.Column(db.String(100), nullable=False)
+    value = db.Column(db.Text)
+    value_type = db.Column(db.String(20), default='string')  # string, integer, boolean, json
+    category = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('system_settings', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('organization_id', 'key', name='uix_org_setting_key'),
+    )
+
+
+class EmailTemplate(db.Model):
+    """E-Mail-Vorlagen fuer automatische und manuelle E-Mails"""
+    __tablename__ = 'email_templates'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    template_type = db.Column(db.String(50))  # reminder, confirmation, cancellation, recall, welcome
+    subject = db.Column(db.String(500))
+    body_html = db.Column(db.Text)
+    placeholders_json = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('email_templates', lazy='dynamic'))
+
+
+class PrintTemplate(db.Model):
+    """Druckvorlagen fuer Rechnungen, Mahnungen, Berichte etc."""
+    __tablename__ = 'print_templates'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    template_type = db.Column(db.String(50))  # invoice, dunning, prescription, report, confirmation
+    body_html = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    organization = db.relationship('Organization', backref=db.backref('print_templates', lazy='dynamic'))
+
+
 class AuditLog(db.Model):
     __tablename__ = 'audit_logs'
     id = db.Column(db.Integer, primary_key=True)

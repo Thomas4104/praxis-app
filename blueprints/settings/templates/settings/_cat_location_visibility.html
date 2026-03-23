@@ -1,0 +1,55 @@
+<!-- Standort-Sichtbarkeit -->
+<div class="card">
+    <div class="card-header">
+        <h2>Standort-Sichtbarkeit</h2>
+    </div>
+    <p class="settings-description">
+        Legen Sie fest, an welchen Standorten ein Mitarbeiter sichtbar ist. Dies beeinflusst die Kalender-Anzeige und Dropdown-Filter.
+    </p>
+
+    {% if employees and locations %}
+    <form method="POST" action="{{ url_for('settings.save_location_visibility') }}">
+        <div class="table-responsive">
+            <table class="data-table visibility-table">
+                <thead>
+                    <tr>
+                        <th>Mitarbeiter</th>
+                        {% for loc in locations %}
+                        <th class="location-header">{{ loc.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td>
+                            <strong>{{ emp.user.first_name }} {{ emp.user.last_name }}</strong>
+                            <span class="badge badge-{{ emp.user.role }}">
+                                {% if emp.user.role == 'admin' %}Admin
+                                {% elif emp.user.role == 'therapist' %}Therapeut
+                                {% elif emp.user.role == 'reception' %}Empfang{% endif %}
+                            </span>
+                        </td>
+                        {% for loc in locations %}
+                        <td class="visibility-cell">
+                            {% set emp_locs = visibility.get(emp.id|string, []) %}
+                            <input type="checkbox" name="vis_{{ emp.id }}_{{ loc.id }}"
+                                   {% if loc.id in emp_locs or not visibility %}checked{% endif %}>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Sichtbarkeit speichern</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine aktiven Mitarbeiter oder Standorte vorhanden.</p>
+    </div>
+    {% endif %}
+</div>

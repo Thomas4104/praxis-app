@@ -1,0 +1,153 @@
+<!-- Kalender-Einstellungen -->
+<div class="card">
+    <div class="card-header">
+        <h2>Kalender-Einstellungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_calendar') }}" class="form-container" novalidate>
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Zeitraster & Zeiten</h3>
+
+                <div class="form-group">
+                    <label for="time_grid" class="form-label">Zeitraster</label>
+                    <select id="time_grid" name="time_grid" class="form-select">
+                        {% set current_grid = settings.get('calendar_time_grid', 15) %}
+                        <option value="5" {% if current_grid == 5 %}selected{% endif %}>5 Minuten</option>
+                        <option value="10" {% if current_grid == 10 %}selected{% endif %}>10 Minuten</option>
+                        <option value="15" {% if current_grid == 15 %}selected{% endif %}>15 Minuten</option>
+                        <option value="30" {% if current_grid == 30 %}selected{% endif %}>30 Minuten</option>
+                    </select>
+                    <small class="form-hint">Kleinste Zeiteinheit im Kalender</small>
+                </div>
+
+                <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                    <div class="form-group">
+                        <label for="day_start" class="form-label">Tagesbeginn</label>
+                        <input type="time" id="day_start" name="day_start" class="form-input"
+                               value="{{ settings.get('calendar_day_start', '07:00') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="day_end" class="form-label">Tagesende</label>
+                        <input type="time" id="day_end" name="day_end" class="form-input"
+                               value="{{ settings.get('calendar_day_end', '19:00') }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="default_duration" class="form-label">Standard-Termindauer (Minuten)</label>
+                    <input type="number" id="default_duration" name="default_duration" class="form-input"
+                           value="{{ settings.get('calendar_default_duration', 30) }}" min="5" max="240" step="5">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Termin-Anzeige</h3>
+                <p class="form-hint" style="margin-bottom: var(--spacing-md);">Welche Informationen im Termin-Block angezeigt werden</p>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_patient_name"
+                               {% if appointment_display.get('patient_name', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Patientenname</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_appointment_type"
+                               {% if appointment_display.get('appointment_type', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Terminart</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_time"
+                               {% if appointment_display.get('time', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Uhrzeit</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_room"
+                               {% if appointment_display.get('room', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Raum</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_status_icon"
+                               {% if appointment_display.get('status_icon', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Status-Icon</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminart-Farben -->
+        <div class="form-section" style="margin-top: var(--spacing-lg);">
+            <h3 class="form-section-title">Termin-Farben pro Terminart</h3>
+            <div class="color-grid">
+                <div class="color-item">
+                    <label for="color_treatment" class="form-label">Behandlung</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_treatment" name="color_treatment"
+                               value="{{ appointment_colors.get('treatment', '#4a90d9') }}">
+                        <span class="color-value">{{ appointment_colors.get('treatment', '#4a90d9') }}</span>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <label for="color_initial" class="form-label">Ersttermin</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_initial" name="color_initial"
+                               value="{{ appointment_colors.get('initial', '#27ae60') }}">
+                        <span class="color-value">{{ appointment_colors.get('initial', '#27ae60') }}</span>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <label for="color_followup" class="form-label">Folgetermin</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_followup" name="color_followup"
+                               value="{{ appointment_colors.get('followup', '#f39c12') }}">
+                        <span class="color-value">{{ appointment_colors.get('followup', '#f39c12') }}</span>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <label for="color_group" class="form-label">Gruppentherapie</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_group" name="color_group"
+                               value="{{ appointment_colors.get('group', '#9b59b6') }}">
+                        <span class="color-value">{{ appointment_colors.get('group', '#9b59b6') }}</span>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <label for="color_domicile" class="form-label">Domizilbehandlung</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_domicile" name="color_domicile"
+                               value="{{ appointment_colors.get('domicile', '#e67e22') }}">
+                        <span class="color-value">{{ appointment_colors.get('domicile', '#e67e22') }}</span>
+                    </div>
+                </div>
+                <div class="color-item">
+                    <label for="color_cancelled" class="form-label">Abgesagt</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="color_cancelled" name="color_cancelled"
+                               value="{{ appointment_colors.get('cancelled', '#e74c3c') }}">
+                        <span class="color-value">{{ appointment_colors.get('cancelled', '#e74c3c') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,128 @@
+<!-- Benutzer & Rollen -->
+<div class="card">
+    <div class="card-header">
+        <h2>Benutzer</h2>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Benutzername</th>
+                    <th>Rolle</th>
+                    <th>E-Mail</th>
+                    <th>Letzter Login</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><strong>{{ user.first_name }} {{ user.last_name }}</strong></td>
+                    <td>{{ user.username }}</td>
+                    <td>
+                        <span class="badge badge-{{ user.role }}">
+                            {% if user.role == 'admin' %}Administrator
+                            {% elif user.role == 'therapist' %}Therapeut
+                            {% elif user.role == 'reception' %}Empfang
+                            {% else %}{{ user.role }}{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ user.email or '-' }}</td>
+                    <td>{{ user.last_login.strftime('%d.%m.%Y %H:%M') if user.last_login else 'Noch nie' }}</td>
+                    <td>
+                        <span class="status-badge {% if user.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {{ 'Aktiv' if user.is_active else 'Inaktiv' }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user.employee %}
+                        <a href="{{ url_for('employees.detail', employee_id=user.employee.id) }}" class="btn btn-sm btn-ghost" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Rollen-Berechtigungen -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h2>Rollen-Berechtigungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_permissions') }}">
+        <div class="table-responsive">
+            <table class="data-table permissions-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2" class="module-header">Modul</th>
+                        {% for role in roles %}
+                        <th colspan="4" class="role-header">
+                            {% if role == 'admin' %}Administrator
+                            {% elif role == 'therapist' %}Therapeut
+                            {% elif role == 'reception' %}Empfang{% endif %}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        {% for role in roles %}
+                        <th class="perm-header">L</th>
+                        <th class="perm-header">E</th>
+                        <th class="perm-header">B</th>
+                        <th class="perm-header">D</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set module_labels = {
+                        'dashboard': 'Dashboard',
+                        'kalender': 'Kalender',
+                        'patienten': 'Patienten',
+                        'mitarbeiter': 'Mitarbeiter',
+                        'behandlung': 'Behandlung',
+                        'abrechnung': 'Abrechnung',
+                        'produkte': 'Produkte',
+                        'ressourcen': 'Ressourcen',
+                        'adressen': 'Adressen',
+                        'einstellungen': 'Einstellungen'
+                    } %}
+                    {% for module in modules %}
+                    <tr>
+                        <td class="module-name">{{ module_labels.get(module, module) }}</td>
+                        {% for role in roles %}
+                            {% for action in actions %}
+                            <td class="perm-cell">
+                                {% if role == 'admin' %}
+                                <input type="checkbox" checked disabled title="Admin hat alle Rechte">
+                                {% else %}
+                                <input type="checkbox" name="perm_{{ role }}_{{ module }}_{{ action }}"
+                                       {% if permissions_matrix.get(role, {}).get(module, {}).get(action, False) %}checked{% endif %}>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="permissions-legend">
+            <span><strong>L</strong> = Lesen</span>
+            <span><strong>E</strong> = Erstellen</span>
+            <span><strong>B</strong> = Bearbeiten</span>
+            <span><strong>D</strong> = Löschen</span>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Berechtigungen speichern</button>
+        </div>
+    </form>
+</div>

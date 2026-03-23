@@ -1,0 +1,90 @@
+<!-- KI-Einstellungen -->
+<div class="card">
+    <div class="card-header">
+        <h2>KI-Einstellungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_ai') }}" class="form-container" novalidate>
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">KI-Intensität</h3>
+
+                <div class="form-group">
+                    <label for="intensity_level" class="form-label">Intensitätsstufe</label>
+                    <select id="intensity_level" name="intensity_level" class="form-select">
+                        <option value="low" {% if ai_settings.intensity_level == 'low' %}selected{% endif %}>Dezent — KI antwortet nur auf direkte Fragen</option>
+                        <option value="normal" {% if ai_settings.intensity_level == 'normal' %}selected{% endif %}>Normal — KI gibt gelegentlich Hinweise</option>
+                        <option value="high" {% if ai_settings.intensity_level == 'high' %}selected{% endif %}>Proaktiv — KI schlägt aktiv Verbesserungen vor</option>
+                    </select>
+                    <small class="form-hint">Bestimmt, wie aktiv die KI Vorschläge und Hinweise gibt</small>
+                </div>
+
+                <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">KI-Budget</h3>
+
+                <div class="form-group">
+                    <label for="budget_monthly" class="form-label">Monatliches Budget (CHF)</label>
+                    <input type="number" id="budget_monthly" name="budget_monthly" class="form-input"
+                           value="{{ ai_settings.budget_monthly or 100 }}" min="0" step="10">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Verbrauch diesen Monat</label>
+                    <div class="budget-bar">
+                        {% set used_percent = ((ai_settings.budget_used or 0) / (ai_settings.budget_monthly or 100) * 100) | int %}
+                        {% set bar_class = 'budget-bar-fill-warning' if used_percent > 75 else ('budget-bar-fill-danger' if used_percent > 90 else 'budget-bar-fill') %}
+                        <div class="{{ bar_class }}" style="width: {{ [used_percent, 100] | min }}%"></div>
+                    </div>
+                    <small class="form-hint">{{ '%.2f' | format(ai_settings.budget_used or 0) }} von {{ '%.2f' | format(ai_settings.budget_monthly or 100) }} CHF verbraucht ({{ used_percent }}%)</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">KI-Funktionen</h3>
+                <p class="form-hint" style="margin-bottom: var(--spacing-md);">Einzelne KI-Funktionen aktivieren oder deaktivieren</p>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="chat_assistant"
+                               {% if features.get('chat_assistant', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Chat-Assistent</span>
+                    </label>
+                    <small class="form-hint">KI-Chat in der Seitenleiste</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="auto_appointment_suggestions"
+                               {% if features.get('auto_appointment_suggestions', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Automatische Terminvorschläge</span>
+                    </label>
+                    <small class="form-hint">KI schlägt optimale Terminzeiten vor</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="proactive_hints"
+                               {% if features.get('proactive_hints', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Proaktive Hinweise</span>
+                    </label>
+                    <small class="form-hint">KI weist auf wichtige Dinge hin (z.B. Serienverlängerung)</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="documentation_suggestions"
+                               {% if features.get('documentation_suggestions', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Dokumentationsvorschläge</span>
+                    </label>
+                    <small class="form-hint">KI hilft beim Verfassen von SOAP-Notes und Berichten</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,204 @@
+<!-- E-Mail-Einstellungen -->
+<div class="card">
+    <div class="card-header">
+        <h2>E-Mail-Einstellungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_email') }}" class="form-container" novalidate>
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Absender</h3>
+
+                <div class="form-group">
+                    <label for="sender_address" class="form-label">Absender E-Mail-Adresse</label>
+                    <input type="email" id="sender_address" name="sender_address" class="form-input"
+                           value="{{ settings.get('email_sender_address', '') }}" placeholder="praxis@omnia-health.ch">
+                </div>
+
+                <div class="form-group">
+                    <label for="sender_name" class="form-label">Absender-Name</label>
+                    <input type="text" id="sender_name" name="sender_name" class="form-input"
+                           value="{{ settings.get('email_sender_name', '') }}" placeholder="OMNIA Health Services">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Automatische Erinnerung</h3>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="auto_reminder"
+                               {% if settings.get('email_auto_reminder', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Automatische Terminerinnerung</span>
+                    </label>
+                    <small class="form-hint">Patienten werden automatisch per E-Mail an den Termin erinnert</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="reminder_hours" class="form-label">Erinnerung senden (Stunden vorher)</label>
+                    <input type="number" id="reminder_hours" name="reminder_hours" class="form-input"
+                           value="{{ settings.get('email_reminder_hours', 24) }}" min="1" max="168">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="form-section-title">E-Mail-Signatur</h3>
+            <div class="form-group">
+                <textarea name="signature" class="form-textarea" rows="6"
+                          placeholder="HTML-Signatur eingeben...">{{ settings.get('email_signature', '') }}</textarea>
+                <small class="form-hint">HTML-Format möglich. Wird an jede ausgehende E-Mail angehängt.</small>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>
+
+<!-- E-Mail-Vorlagen -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h2>E-Mail-Vorlagen</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('emailTemplateModal').classList.add('active')">
+            + Neue Vorlage
+        </button>
+    </div>
+
+    {% if email_templates %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Betreff</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in email_templates %}
+                <tr>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>
+                        <span class="badge">
+                            {% if t.template_type == 'reminder' %}Terminerinnerung
+                            {% elif t.template_type == 'confirmation' %}Terminbestätigung
+                            {% elif t.template_type == 'cancellation' %}Terminabsage
+                            {% elif t.template_type == 'recall' %}Recall
+                            {% elif t.template_type == 'welcome' %}Willkommen
+                            {% else %}{{ t.template_type }}{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ t.subject or '-' }}</td>
+                    <td>
+                        <span class="status-badge {% if t.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {{ 'Aktiv' if t.is_active else 'Inaktiv' }}
+                        </span>
+                    </td>
+                    <td class="actions-cell">
+                        <button class="btn btn-sm btn-ghost" onclick="editEmailTemplate({{ t.id }})" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <form method="POST" action="{{ url_for('settings.toggle_email_template', template_id=t.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-ghost" title="{{ 'Deaktivieren' if t.is_active else 'Aktivieren' }}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    {% if t.is_active %}
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    {% else %}
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    {% endif %}
+                                </svg>
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('settings.delete_email_template', template_id=t.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Vorlage wirklich löschen?');">
+                            <button type="submit" class="btn btn-sm btn-ghost btn-danger" title="Löschen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Noch keine E-Mail-Vorlagen vorhanden.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: Neue E-Mail-Vorlage -->
+<div class="modal-overlay" id="emailTemplateModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="emailModalTitle">Neue E-Mail-Vorlage</h3>
+            <button class="modal-close" onclick="document.getElementById('emailTemplateModal').classList.remove('active')">&times;</button>
+        </div>
+        <form method="POST" id="emailTemplateForm" action="{{ url_for('settings.create_email_template') }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="etpl_name" class="form-label required">Name</label>
+                    <input type="text" id="etpl_name" name="name" class="form-input" required placeholder="z.B. Terminerinnerung Standard">
+                </div>
+
+                <div class="form-group">
+                    <label for="etpl_type" class="form-label">Vorlagen-Typ</label>
+                    <select id="etpl_type" name="template_type" class="form-select">
+                        <option value="reminder">Terminerinnerung</option>
+                        <option value="confirmation">Terminbestätigung</option>
+                        <option value="cancellation">Terminabsage</option>
+                        <option value="recall">Recall</option>
+                        <option value="welcome">Willkommen</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="etpl_subject" class="form-label">Betreff</label>
+                    <input type="text" id="etpl_subject" name="subject" class="form-input" placeholder="E-Mail-Betreff">
+                </div>
+
+                <div class="form-group">
+                    <label for="etpl_body" class="form-label">Inhalt (HTML)</label>
+                    <textarea id="etpl_body" name="body_html" class="form-textarea" rows="8"
+                              placeholder="E-Mail-Text eingeben..."></textarea>
+                    <small class="form-hint">
+                        Platzhalter: {patient_name}, {termin_datum}, {termin_zeit}, {therapeut_name}, {praxis_name}, {praxis_telefon}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('emailTemplateModal').classList.remove('active')">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editEmailTemplate(templateId) {
+    fetch(`/settings/api/email-template/${templateId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('emailModalTitle').textContent = 'E-Mail-Vorlage bearbeiten';
+            document.getElementById('etpl_name').value = data.name;
+            document.getElementById('etpl_type').value = data.template_type;
+            document.getElementById('etpl_subject').value = data.subject || '';
+            document.getElementById('etpl_body').value = data.body_html || '';
+            document.getElementById('emailTemplateForm').action = `/settings/email/templates/${templateId}/edit`;
+            document.getElementById('emailTemplateModal').classList.add('active');
+        });
+}
+</script>

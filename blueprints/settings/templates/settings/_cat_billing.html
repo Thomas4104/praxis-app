@@ -1,0 +1,114 @@
+<!-- Abrechnungs-Einstellungen -->
+<div class="card">
+    <div class="card-header">
+        <h2>Abrechnungs-Einstellungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_billing') }}" class="form-container" novalidate>
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Grundeinstellungen</h3>
+
+                <div class="form-group">
+                    <label for="default_model" class="form-label">Standard-Abrechnungsmodell</label>
+                    <select id="default_model" name="default_model" class="form-select">
+                        <option value="tiers_garant" {% if settings.get('billing_default_model', 'tiers_garant') == 'tiers_garant' %}selected{% endif %}>Tiers Garant (Patient zahlt)</option>
+                        <option value="tiers_payant" {% if settings.get('billing_default_model') == 'tiers_payant' %}selected{% endif %}>Tiers Payant (Kasse zahlt direkt)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="payment_term" class="form-label">Zahlungsziel (Tage)</label>
+                    <input type="number" id="payment_term" name="payment_term" class="form-input"
+                           value="{{ settings.get('billing_payment_term', 30) }}" min="1" max="365">
+                </div>
+
+                <div class="form-group">
+                    <label for="invoice_format" class="form-label">Rechnungsnummern-Format</label>
+                    <input type="text" id="invoice_format" name="invoice_format" class="form-input"
+                           value="{{ settings.get('billing_invoice_format', 'RE-{JAHR}-{NR}') }}" placeholder="RE-{JAHR}-{NR}">
+                    <small class="form-hint">Platzhalter: {JAHR} = aktuelles Jahr, {NR} = laufende Nummer</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="next_invoice_number" class="form-label">Nächste Rechnungsnummer</label>
+                    <input type="number" id="next_invoice_number" name="next_invoice_number" class="form-input"
+                           value="{{ settings.get('billing_next_invoice_number', 1) }}" min="1">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Mahnwesen</h3>
+
+                <!-- 1. Mahnung -->
+                <div class="dunning-level">
+                    <h4>1. Mahnung</h4>
+                    <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                        <div class="form-group">
+                            <label for="dunning_1_days" class="form-label">Nach Tagen</label>
+                            <input type="number" id="dunning_1_days" name="dunning_1_days" class="form-input"
+                                   value="{{ settings.get('dunning_1_days', 30) }}" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="dunning_1_fee" class="form-label">Gebühr (CHF)</label>
+                            <input type="number" id="dunning_1_fee" name="dunning_1_fee" class="form-input"
+                                   value="{{ settings.get('dunning_1_fee', 0) }}" min="0" step="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="dunning_1_text" class="form-label">Mahntext</label>
+                        <textarea id="dunning_1_text" name="dunning_1_text" class="form-textarea" rows="3"
+                                  placeholder="Text der 1. Mahnung...">{{ settings.get('dunning_1_text', '') }}</textarea>
+                    </div>
+                </div>
+
+                <!-- 2. Mahnung -->
+                <div class="dunning-level">
+                    <h4>2. Mahnung</h4>
+                    <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                        <div class="form-group">
+                            <label for="dunning_2_days" class="form-label">Nach Tagen</label>
+                            <input type="number" id="dunning_2_days" name="dunning_2_days" class="form-input"
+                                   value="{{ settings.get('dunning_2_days', 60) }}" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="dunning_2_fee" class="form-label">Gebühr (CHF)</label>
+                            <input type="number" id="dunning_2_fee" name="dunning_2_fee" class="form-input"
+                                   value="{{ settings.get('dunning_2_fee', 20) }}" min="0" step="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="dunning_2_text" class="form-label">Mahntext</label>
+                        <textarea id="dunning_2_text" name="dunning_2_text" class="form-textarea" rows="3"
+                                  placeholder="Text der 2. Mahnung...">{{ settings.get('dunning_2_text', '') }}</textarea>
+                    </div>
+                </div>
+
+                <!-- 3. Mahnung -->
+                <div class="dunning-level">
+                    <h4>3. Mahnung</h4>
+                    <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                        <div class="form-group">
+                            <label for="dunning_3_days" class="form-label">Nach Tagen</label>
+                            <input type="number" id="dunning_3_days" name="dunning_3_days" class="form-input"
+                                   value="{{ settings.get('dunning_3_days', 90) }}" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="dunning_3_fee" class="form-label">Gebühr (CHF)</label>
+                            <input type="number" id="dunning_3_fee" name="dunning_3_fee" class="form-input"
+                                   value="{{ settings.get('dunning_3_fee', 50) }}" min="0" step="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="dunning_3_text" class="form-label">Mahntext</label>
+                        <textarea id="dunning_3_text" name="dunning_3_text" class="form-textarea" rows="3"
+                                  placeholder="Text der 3. Mahnung...">{{ settings.get('dunning_3_text', '') }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>

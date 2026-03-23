@@ -1,0 +1,178 @@
+<!-- Druckvorlagen -->
+<div class="card">
+    <div class="card-header">
+        <h2>Druckvorlagen</h2>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('printTemplateModal').classList.add('active')">
+            + Neue Vorlage
+        </button>
+    </div>
+
+    {% if print_templates %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Status</th>
+                    <th>Erstellt</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in print_templates %}
+                <tr>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>
+                        <span class="badge">
+                            {% if t.template_type == 'invoice' %}Rechnung
+                            {% elif t.template_type == 'dunning' %}Mahnung
+                            {% elif t.template_type == 'prescription' %}Verordnung
+                            {% elif t.template_type == 'report' %}Bericht
+                            {% elif t.template_type == 'confirmation' %}Terminbestätigung
+                            {% else %}{{ t.template_type }}{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-badge {% if t.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {{ 'Aktiv' if t.is_active else 'Inaktiv' }}
+                        </span>
+                    </td>
+                    <td>{{ t.created_at.strftime('%d.%m.%Y') if t.created_at else '-' }}</td>
+                    <td class="actions-cell">
+                        <button class="btn btn-sm btn-ghost" onclick="editPrintTemplate({{ t.id }})" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <form method="POST" action="{{ url_for('settings.toggle_print_template', template_id=t.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-ghost" title="{{ 'Deaktivieren' if t.is_active else 'Aktivieren' }}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    {% if t.is_active %}
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    {% else %}
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    {% endif %}
+                                </svg>
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('settings.delete_print_template', template_id=t.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Vorlage wirklich löschen?');">
+                            <button type="submit" class="btn btn-sm btn-ghost btn-danger" title="Löschen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Noch keine Druckvorlagen vorhanden.</p>
+    </div>
+    {% endif %}
+
+    <!-- Platzhalter-Dokumentation -->
+    <div class="placeholder-docs">
+        <h4>Verfügbare Platzhalter</h4>
+        <div class="placeholder-grid">
+            <div class="placeholder-group">
+                <h5>Patient</h5>
+                <code>{patient_name}</code>
+                <code>{patient_vorname}</code>
+                <code>{patient_nachname}</code>
+                <code>{patient_adresse}</code>
+                <code>{patient_geburtsdatum}</code>
+                <code>{patient_ahv}</code>
+            </div>
+            <div class="placeholder-group">
+                <h5>Praxis</h5>
+                <code>{praxis_name}</code>
+                <code>{praxis_adresse}</code>
+                <code>{praxis_telefon}</code>
+                <code>{praxis_email}</code>
+                <code>{praxis_zsr}</code>
+                <code>{praxis_gln}</code>
+            </div>
+            <div class="placeholder-group">
+                <h5>Rechnung</h5>
+                <code>{rechnungsnummer}</code>
+                <code>{rechnungsdatum}</code>
+                <code>{betrag_total}</code>
+                <code>{betrag_offen}</code>
+                <code>{faelligkeitsdatum}</code>
+                <code>{zahlungsziel_tage}</code>
+            </div>
+            <div class="placeholder-group">
+                <h5>Therapeut</h5>
+                <code>{therapeut_name}</code>
+                <code>{therapeut_zsr}</code>
+                <code>{therapeut_gln}</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Neue Druckvorlage -->
+<div class="modal-overlay" id="printTemplateModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3 id="printModalTitle">Neue Druckvorlage</h3>
+            <button class="modal-close" onclick="document.getElementById('printTemplateModal').classList.remove('active')">&times;</button>
+        </div>
+        <form method="POST" id="printTemplateForm" action="{{ url_for('settings.create_print_template') }}">
+            <div class="modal-body">
+                <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                    <div class="form-group">
+                        <label for="ptpl_name" class="form-label required">Name</label>
+                        <input type="text" id="ptpl_name" name="name" class="form-input" required placeholder="z.B. Rechnung Standard">
+                    </div>
+                    <div class="form-group">
+                        <label for="ptpl_type" class="form-label">Vorlagen-Typ</label>
+                        <select id="ptpl_type" name="template_type" class="form-select">
+                            <option value="invoice">Rechnung</option>
+                            <option value="dunning">Mahnung</option>
+                            <option value="prescription">Verordnung</option>
+                            <option value="report">Bericht</option>
+                            <option value="confirmation">Terminbestätigung</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="ptpl_body" class="form-label">HTML-Inhalt</label>
+                    <textarea id="ptpl_body" name="body_html" class="form-textarea" rows="15"
+                              placeholder="HTML-Vorlage hier eingeben..."></textarea>
+                    <small class="form-hint">Verwenden Sie die oben dokumentierten Platzhalter im HTML-Code.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('printTemplateModal').classList.remove('active')">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editPrintTemplate(templateId) {
+    fetch(`/settings/api/print-template/${templateId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('printModalTitle').textContent = 'Druckvorlage bearbeiten';
+            document.getElementById('ptpl_name').value = data.name;
+            document.getElementById('ptpl_type').value = data.template_type;
+            document.getElementById('ptpl_body').value = data.body_html || '';
+            document.getElementById('printTemplateForm').action = `/settings/print-templates/${templateId}/edit`;
+            document.getElementById('printTemplateModal').classList.add('active');
+        });
+}
+</script>

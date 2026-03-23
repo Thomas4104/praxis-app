@@ -1,0 +1,58 @@
+<!-- Allgemeine Einstellungen -->
+<div class="card">
+    <div class="card-header">
+        <h2>Allgemeine Einstellungen</h2>
+    </div>
+    <form method="POST" action="{{ url_for('settings.save_general') }}" class="form-container" novalidate>
+        <div class="form-grid form-grid-2">
+            <div class="form-section">
+                <h3 class="form-section-title">Sprache & Region</h3>
+
+                <div class="form-group">
+                    <label for="app_language" class="form-label">App-Sprache</label>
+                    <select id="app_language" name="app_language" class="form-select">
+                        <option value="de" {% if settings.get('app_language', 'de') == 'de' %}selected{% endif %}>Deutsch</option>
+                        <option value="fr" {% if settings.get('app_language') == 'fr' %}selected{% endif %}>Französisch</option>
+                        <option value="it" {% if settings.get('app_language') == 'it' %}selected{% endif %}>Italienisch</option>
+                        <option value="en" {% if settings.get('app_language') == 'en' %}selected{% endif %}>Englisch</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="timezone" class="form-label">Zeitzone</label>
+                    <select id="timezone" name="timezone" class="form-select">
+                        <option value="Europe/Zurich" {% if settings.get('timezone', 'Europe/Zurich') == 'Europe/Zurich' %}selected{% endif %}>Europe/Zurich (MEZ/MESZ)</option>
+                        <option value="Europe/Berlin" {% if settings.get('timezone') == 'Europe/Berlin' %}selected{% endif %}>Europe/Berlin</option>
+                        <option value="Europe/Vienna" {% if settings.get('timezone') == 'Europe/Vienna' %}selected{% endif %}>Europe/Vienna</option>
+                        <option value="UTC" {% if settings.get('timezone') == 'UTC' %}selected{% endif %}>UTC</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Formate</h3>
+
+                <div class="form-group">
+                    <label for="date_format" class="form-label">Datumsformat</label>
+                    <select id="date_format" name="date_format" class="form-select">
+                        <option value="DD.MM.YYYY" {% if settings.get('date_format', 'DD.MM.YYYY') == 'DD.MM.YYYY' %}selected{% endif %}>DD.MM.YYYY (31.12.2026)</option>
+                        <option value="YYYY-MM-DD" {% if settings.get('date_format') == 'YYYY-MM-DD' %}selected{% endif %}>YYYY-MM-DD (2026-12-31)</option>
+                        <option value="DD/MM/YYYY" {% if settings.get('date_format') == 'DD/MM/YYYY' %}selected{% endif %}>DD/MM/YYYY (31/12/2026)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="currency" class="form-label">Währung</label>
+                    <select id="currency" name="currency" class="form-select">
+                        <option value="CHF" {% if settings.get('currency', 'CHF') == 'CHF' %}selected{% endif %}>CHF (Schweizer Franken)</option>
+                        <option value="EUR" {% if settings.get('currency') == 'EUR' %}selected{% endif %}>EUR (Euro)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>

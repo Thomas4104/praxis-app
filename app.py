@@ -8,7 +8,8 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
     Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
     Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList, \
-    TherapyGoal, Milestone, Measurement, HealingPhase
+    TherapyGoal, Milestone, Measurement, HealingPhase, \
+    SystemSetting, EmailTemplate, PrintTemplate, Permission
 from config import config
 
 
@@ -48,6 +49,7 @@ def create_app(config_name=None):
     from blueprints.addresses import addresses_bp
     from blueprints.calendar import calendar_bp
     from blueprints.treatment import treatment_bp
+    from blueprints.settings import settings_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -59,6 +61,7 @@ def create_app(config_name=None):
     app.register_blueprint(addresses_bp, url_prefix='/addresses')
     app.register_blueprint(calendar_bp, url_prefix='/calendar')
     app.register_blueprint(treatment_bp, url_prefix='/treatment')
+    app.register_blueprint(settings_bp, url_prefix='/settings')
 
     # CSRF-Exempt fuer API-Routen
     csrf.exempt(dashboard_bp)
@@ -70,6 +73,7 @@ def create_app(config_name=None):
     csrf.exempt(addresses_bp)
     csrf.exempt(calendar_bp)
     csrf.exempt(treatment_bp)
+    csrf.exempt(settings_bp)
 
     # Kontext-Prozessoren
     @app.context_processor
@@ -1043,6 +1047,187 @@ def seed_demo_data():
             termin.soap_assessment = soap_daten[i]['soap_assessment']
             termin.soap_plan = soap_daten[i]['soap_plan']
             termin.status = soap_daten[i]['status']
+
+    db.session.commit()
+
+    # === Einstellungen: Demo-Daten ===
+    _seed_settings_demo_data(org)
+
+
+def _seed_settings_demo_data(org):
+    """Erstellt Demo-Daten fuer den Einstellungen-Bereich"""
+
+    # Standard-Systemeinstellungen
+    default_settings = [
+        ('app_language', 'de', 'string', 'general'),
+        ('timezone', 'Europe/Zurich', 'string', 'general'),
+        ('date_format', 'DD.MM.YYYY', 'string', 'general'),
+        ('currency', 'CHF', 'string', 'general'),
+        ('calendar_time_grid', '15', 'integer', 'calendar'),
+        ('calendar_day_start', '07:00', 'string', 'calendar'),
+        ('calendar_day_end', '19:00', 'string', 'calendar'),
+        ('calendar_default_duration', '30', 'integer', 'calendar'),
+        ('email_sender_address', 'praxis@omnia-health.ch', 'string', 'email'),
+        ('email_sender_name', 'OMNIA Health Services AG', 'string', 'email'),
+        ('email_auto_reminder', 'true', 'boolean', 'email'),
+        ('email_reminder_hours', '24', 'integer', 'email'),
+        ('billing_default_model', 'tiers_garant', 'string', 'billing'),
+        ('billing_payment_term', '30', 'integer', 'billing'),
+        ('billing_invoice_format', 'RE-{JAHR}-{NR}', 'string', 'billing'),
+        ('billing_next_invoice_number', '1', 'integer', 'billing'),
+        ('dunning_1_days', '30', 'integer', 'billing'),
+        ('dunning_2_days', '60', 'integer', 'billing'),
+        ('dunning_3_days', '90', 'integer', 'billing'),
+        ('dunning_1_fee', '0', 'float', 'billing'),
+        ('dunning_2_fee', '20', 'float', 'billing'),
+        ('dunning_3_fee', '50', 'float', 'billing'),
+        ('dunning_1_text', 'Wir erlauben uns, Sie freundlich an die ausstehende Zahlung zu erinnern. Bitte überweisen Sie den offenen Betrag innert 10 Tagen.', 'string', 'billing'),
+        ('dunning_2_text', 'Trotz unserer Erinnerung ist die untenstehende Rechnung noch nicht beglichen worden. Wir bitten Sie, den Betrag umgehend zu überweisen.', 'string', 'billing'),
+        ('dunning_3_text', 'Dies ist unsere letzte Mahnung. Sollte der Betrag nicht innert 10 Tagen bei uns eingehen, werden wir rechtliche Schritte einleiten.', 'string', 'billing'),
+    ]
+
+    for key, value, value_type, category in default_settings:
+        setting = SystemSetting(
+            organization_id=org.id,
+            key=key,
+            value=value,
+            value_type=value_type,
+            category=category
+        )
+        db.session.add(setting)
+
+    # KI-Einstellungen
+    import json
+    ai_settings = AISettings(
+        organization_id=org.id,
+        intensity_level='normal',
+        budget_monthly=100.0,
+        budget_used=23.50,
+        features_enabled_json=json.dumps({
+            'chat_assistant': True,
+            'auto_appointment_suggestions': True,
+            'proactive_hints': True,
+            'documentation_suggestions': True
+        })
+    )
+    db.session.add(ai_settings)
+
+    # E-Mail-Vorlagen
+    email_templates = [
+        EmailTemplate(
+            organization_id=org.id,
+            name='Terminerinnerung Standard',
+            template_type='reminder',
+            subject='Erinnerung: Ihr Termin am {termin_datum}',
+            body_html='<p>Guten Tag {patient_name},</p><p>Wir möchten Sie an Ihren Termin am <strong>{termin_datum}</strong> um <strong>{termin_zeit}</strong> bei {therapeut_name} erinnern.</p><p>Bitte melden Sie sich falls Sie den Termin nicht wahrnehmen können.</p><p>Freundliche Grüsse<br>{praxis_name}<br>{praxis_telefon}</p>',
+            placeholders_json=json.dumps(['{patient_name}', '{termin_datum}', '{termin_zeit}', '{therapeut_name}', '{praxis_name}', '{praxis_telefon}'])
+        ),
+        EmailTemplate(
+            organization_id=org.id,
+            name='Terminbestätigung Standard',
+            template_type='confirmation',
+            subject='Terminbestätigung: {termin_datum} um {termin_zeit}',
+            body_html='<p>Guten Tag {patient_name},</p><p>Hiermit bestätigen wir Ihren Termin:</p><ul><li><strong>Datum:</strong> {termin_datum}</li><li><strong>Uhrzeit:</strong> {termin_zeit}</li><li><strong>Therapeut/in:</strong> {therapeut_name}</li></ul><p>Wir freuen uns auf Sie!</p><p>Freundliche Grüsse<br>{praxis_name}</p>',
+            placeholders_json=json.dumps(['{patient_name}', '{termin_datum}', '{termin_zeit}', '{therapeut_name}', '{praxis_name}'])
+        ),
+        EmailTemplate(
+            organization_id=org.id,
+            name='Recall Standard',
+            template_type='recall',
+            subject='Vereinbaren Sie Ihren nächsten Termin',
+            body_html='<p>Guten Tag {patient_name},</p><p>Ihre letzte Behandlungsserie bei uns liegt bereits einige Zeit zurück. Wir möchten Sie freundlich daran erinnern, bei Bedarf einen neuen Termin zu vereinbaren.</p><p>Rufen Sie uns an unter {praxis_telefon} oder antworten Sie direkt auf diese E-Mail.</p><p>Freundliche Grüsse<br>{praxis_name}</p>',
+            placeholders_json=json.dumps(['{patient_name}', '{praxis_name}', '{praxis_telefon}'])
+        ),
+    ]
+    db.session.add_all(email_templates)
+
+    # Druckvorlage: Rechnung
+    print_template = PrintTemplate(
+        organization_id=org.id,
+        name='Rechnung Standard',
+        template_type='invoice',
+        body_html="""<html>
+<head><style>
+body { font-family: Arial, sans-serif; font-size: 10pt; }
+.header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+.patient-info { margin-bottom: 20px; }
+.invoice-info { text-align: right; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background: #f5f5f5; }
+.total { font-weight: bold; text-align: right; }
+.footer { margin-top: 40px; font-size: 9pt; color: #666; border-top: 1px solid #ccc; padding-top: 10px; }
+</style></head>
+<body>
+<div class="header">
+    <div>{praxis_name}<br>{praxis_adresse}<br>ZSR: {praxis_zsr} | GLN: {praxis_gln}</div>
+    <div class="invoice-info">Rechnung Nr. {rechnungsnummer}<br>Datum: {rechnungsdatum}<br>Fällig: {faelligkeitsdatum}</div>
+</div>
+<div class="patient-info">
+    <strong>{patient_name}</strong><br>{patient_adresse}
+</div>
+<p>Sehr geehrte/r {patient_name},</p>
+<p>Für die erbrachten Leistungen erlauben wir uns, Ihnen folgenden Betrag in Rechnung zu stellen:</p>
+<table>
+    <tr><th>Pos.</th><th>Beschreibung</th><th>Menge</th><th>Betrag</th></tr>
+    <tr><td colspan="4">{rechnungspositionen}</td></tr>
+</table>
+<p class="total">Total: CHF {betrag_total}</p>
+<p>Zahlbar innert {zahlungsziel_tage} Tagen.</p>
+<div class="footer">{praxis_name} | {praxis_adresse} | {praxis_telefon} | {praxis_email}</div>
+</body></html>"""
+    )
+    db.session.add(print_template)
+
+    # Rollen-Berechtigungen
+    modules = ['dashboard', 'kalender', 'patienten', 'mitarbeiter', 'behandlung',
+               'abrechnung', 'produkte', 'ressourcen', 'adressen', 'einstellungen']
+    actions = ['lesen', 'erstellen', 'bearbeiten', 'loeschen']
+
+    # Therapeut: Lesen ueberall, Bearbeiten bei Patienten/Behandlung/Kalender
+    therapeut_rechte = {
+        'dashboard': ['lesen'],
+        'kalender': ['lesen', 'erstellen', 'bearbeiten'],
+        'patienten': ['lesen', 'erstellen', 'bearbeiten'],
+        'mitarbeiter': ['lesen'],
+        'behandlung': ['lesen', 'erstellen', 'bearbeiten'],
+        'abrechnung': ['lesen'],
+        'produkte': ['lesen'],
+        'ressourcen': ['lesen'],
+        'adressen': ['lesen', 'erstellen', 'bearbeiten'],
+        'einstellungen': [],
+    }
+
+    # Empfang: Lesen ueberall, Erstellen bei Kalender/Patienten
+    empfang_rechte = {
+        'dashboard': ['lesen'],
+        'kalender': ['lesen', 'erstellen', 'bearbeiten'],
+        'patienten': ['lesen', 'erstellen', 'bearbeiten'],
+        'mitarbeiter': ['lesen'],
+        'behandlung': ['lesen'],
+        'abrechnung': ['lesen', 'erstellen'],
+        'produkte': ['lesen'],
+        'ressourcen': ['lesen', 'erstellen'],
+        'adressen': ['lesen', 'erstellen', 'bearbeiten'],
+        'einstellungen': [],
+    }
+
+    for module in modules:
+        for action in actions:
+            # Therapeut
+            db.session.add(Permission(
+                role='therapist',
+                module=module,
+                action=action,
+                is_allowed=action in therapeut_rechte.get(module, [])
+            ))
+            # Empfang
+            db.session.add(Permission(
+                role='reception',
+                module=module,
+                action=action,
+                is_allowed=action in empfang_rechte.get(module, [])
+            ))
 
     db.session.commit()
 
