@@ -18,10 +18,13 @@ def index():
     """Adressuebersicht mit Tabs"""
     tab = request.args.get('tab', 'insurances')
     search = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
 
     insurances = []
     doctors = []
     contacts = []
+    total_pages = 1
 
     org_id = current_user.organization_id
 
@@ -34,7 +37,9 @@ def index():
                     InsuranceProvider.gln_number.ilike(f'%{search}%')
                 )
             )
-        insurances = query.order_by(InsuranceProvider.name).all()
+        total = query.count()
+        total_pages = (total + per_page - 1) // per_page
+        insurances = query.order_by(InsuranceProvider.name).offset((page - 1) * per_page).limit(per_page).all()
 
     elif tab == 'doctors':
         query = Doctor.query.filter_by(organization_id=org_id, is_active=True)
@@ -47,13 +52,22 @@ def index():
                     Doctor.gln_number.ilike(f'%{search}%')
                 )
             )
-        doctors = query.order_by(Doctor.last_name, Doctor.first_name).all()
+        total = query.count()
+        total_pages = (total + per_page - 1) // per_page
+        doctors = query.order_by(Doctor.last_name, Doctor.first_name).offset((page - 1) * per_page).limit(per_page).all()
 
-        # Zuweiserstatistik
+        # Zuweiserstatistik (Batch-Query statt N+1)
         doctor_stats = {}
-        for doc in doctors:
-            count = TreatmentSeries.query.filter_by(prescribing_doctor_id=doc.id).count()
-            doctor_stats[doc.id] = count
+        if doctors:
+            from sqlalchemy import func
+            doctor_ids = [doc.id for doc in doctors]
+            stats = db.session.query(
+                TreatmentSeries.prescribing_doctor_id,
+                func.count(TreatmentSeries.id)
+            ).filter(
+                TreatmentSeries.prescribing_doctor_id.in_(doctor_ids)
+            ).group_by(TreatmentSeries.prescribing_doctor_id).all()
+            doctor_stats = dict(stats)
 
     elif tab == 'contacts':
         query = Contact.query.filter_by(
@@ -67,11 +81,15 @@ def index():
                     Contact.category.ilike(f'%{search}%')
                 )
             )
-        contacts = query.order_by(Contact.company_name, Contact.last_name).all()
+        total = query.count()
+        total_pages = (total + per_page - 1) // per_page
+        contacts = query.order_by(Contact.company_name, Contact.last_name).offset((page - 1) * per_page).limit(per_page).all()
 
     return render_template('addresses/index.html',
                            tab=tab,
                            search=search,
+                           page=page,
+                           total_pages=total_pages,
                            insurances=insurances,
                            doctors=doctors,
                            doctor_stats=doctor_stats if tab == 'doctors' else {},

@@ -173,6 +173,19 @@
         <div class="empty-state"><p>Keine Kontakte gefunden.</p></div>
         {% endif %}
     {% endif %}
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}
+        <a href="{{ url_for('addresses.index', tab=tab, page=page-1, search=search) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        {% endif %}
+        <span class="pagination-info">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('addresses.index', tab=tab, page=page+1, search=search) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -191,5 +204,7 @@
 .detail-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: var(--color-gray-50); }
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--spacing-md); padding: var(--spacing-md); }
+.pagination-info { font-size: var(--font-size-sm); color: var(--color-gray-600); }
 </style>
 {% endblock %}

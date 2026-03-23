@@ -364,15 +364,21 @@ def debtors():
     org_id = current_user.organization_id
     ageing = get_open_debtors(org_id)
 
-    # Alle offenen Rechnungen
-    invoices = Invoice.query.filter(
+    # Alle offenen Rechnungen (paginiert)
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    query = Invoice.query.filter(
         Invoice.organization_id == org_id,
         Invoice.status.in_(['sent', 'overdue', 'partially_paid']),
         Invoice.amount_open > 0
-    ).order_by(Invoice.due_date).all()
+    ).order_by(Invoice.due_date)
+    total = query.count()
+    total_pages = (total + per_page - 1) // per_page
+    invoices = query.offset((page - 1) * per_page).limit(per_page).all()
 
     return render_template('accounting/debtors.html',
-                           ageing=ageing, invoices=invoices)
+                           ageing=ageing, invoices=invoices,
+                           page=page, total_pages=total_pages)
 
 
 # ============================================================
@@ -390,19 +396,30 @@ def creditors():
     if status_filter:
         query = query.filter_by(status=status_filter)
 
-    creditor_invoices = query.order_by(CreditorInvoice.due_date).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    total_pages = (total + per_page - 1) // per_page
+    creditor_invoices = query.order_by(CreditorInvoice.due_date).offset((page - 1) * per_page).limit(per_page).all()
+
+    # Dropdowns fuer Formular (kleine Mengen, keine Pagination noetig)
     contacts = Contact.query.filter_by(organization_id=org_id).order_by(Contact.company_name, Contact.last_name).all()
     accounts = Account.query.filter_by(organization_id=org_id, is_active=True) \
         .filter(Account.account_number.like('4%') | Account.account_number.like('5%') |
                 Account.account_number.like('6%')) \
         .order_by(Account.account_number).all()
 
-    total_open = sum(c.amount for c in creditor_invoices if c.status in ('open', 'approved'))
+    # Gesamtsumme offener Kreditoren (ueber alle, nicht nur aktuelle Seite)
+    total_open = db.session.query(db.func.coalesce(db.func.sum(CreditorInvoice.amount), 0)).filter(
+        CreditorInvoice.organization_id == org_id,
+        CreditorInvoice.status.in_(['open', 'approved'])
+    ).scalar()
 
     return render_template('accounting/creditors.html',
                            creditor_invoices=creditor_invoices,
                            contacts=contacts, accounts=accounts,
-                           status_filter=status_filter, total_open=total_open)
+                           status_filter=status_filter, total_open=total_open,
+                           page=page, total_pages=total_pages)
 
 
 @accounting_bp.route('/creditors/create', methods=['POST'])
@@ -623,9 +640,15 @@ def vat():
 def assets():
     """Anlagen-Uebersicht"""
     org_id = current_user.organization_id
-    fixed_assets = FixedAsset.query.filter_by(organization_id=org_id) \
-        .order_by(FixedAsset.category, FixedAsset.name).all()
+    query = FixedAsset.query.filter_by(organization_id=org_id)
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    total_pages = (total + per_page - 1) // per_page
+    fixed_assets = query.order_by(FixedAsset.category, FixedAsset.name) \
+        .offset((page - 1) * per_page).limit(per_page).all()
 
+    # Dropdowns fuer Formular
     accounts = Account.query.filter_by(organization_id=org_id, is_active=True) \
         .filter(Account.account_number.like('15%')) \
         .order_by(Account.account_number).all()
@@ -633,13 +656,19 @@ def assets():
     depreciation_accounts = Account.query.filter_by(organization_id=org_id, is_active=True) \
         .filter(Account.account_number == '6800').all()
 
-    total_acquisition = sum(a.acquisition_value for a in fixed_assets)
-    total_book = sum(a.current_book_value or 0 for a in fixed_assets)
+    # Gesamtsummen ueber alle Assets (nicht nur aktuelle Seite)
+    totals = db.session.query(
+        db.func.coalesce(db.func.sum(FixedAsset.acquisition_value), 0),
+        db.func.coalesce(db.func.sum(FixedAsset.current_book_value), 0)
+    ).filter_by(organization_id=org_id).first()
+    total_acquisition = totals[0]
+    total_book = totals[1]
 
     return render_template('accounting/assets.html',
                            fixed_assets=fixed_assets, accounts=accounts,
                            depreciation_accounts=depreciation_accounts,
-                           total_acquisition=total_acquisition, total_book=total_book)
+                           total_acquisition=total_acquisition, total_book=total_book,
+                           page=page, total_pages=total_pages)
 
 
 @accounting_bp.route('/assets/create', methods=['POST'])

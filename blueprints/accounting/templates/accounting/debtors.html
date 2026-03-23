@@ -87,5 +87,16 @@
             {% endif %}
         </tbody>
     </table>
+    {% if total_pages > 1 %}
+    <div style="display: flex; align-items: center; justify-content: center; gap: 16px; padding: 16px;">
+        {% if page > 1 %}
+        <a href="{{ url_for('accounting.debtors', page=page-1) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        {% endif %}
+        <span style="font-size: 13px; color: var(--text-secondary);">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('accounting.debtors', page=page+1) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
