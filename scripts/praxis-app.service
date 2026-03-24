@@ -1,0 +1,15 @@
+[Unit]
+Description=OMNIA Praxissoftware
+After=network.target postgresql.service redis.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/praxis-app
+EnvironmentFile=/home/ubuntu/praxis-app/.env
+ExecStart=/home/ubuntu/praxis-app/venv/bin/gunicorn -c gunicorn.conf.py "app:create_app()"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
