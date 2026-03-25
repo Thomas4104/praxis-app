@@ -67,6 +67,7 @@ class TestConfig(Config):
     SECRET_KEY = 'test-secret-key'
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite://'  # In-Memory
+    SQLALCHEMY_ENGINE_OPTIONS = {}  # SQLite braucht keine Pool-Optionen
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
 

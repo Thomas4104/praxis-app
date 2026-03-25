@@ -10,9 +10,9 @@ import re
 
 # Muster fuer sensible Daten
 PII_PATTERNS = {
-    'ahv_number': re.compile(r'\b756\.\d{4}\.\d{4}\.\d{2}\b'),
+    'ahv_number': re.compile(r'\b756[.\s]?\d{4}[.\s]?\d{4}[.\s]?\d{2}\b'),
     'iban': re.compile(r'\b[A-Z]{2}\d{2}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{0,2}\b'),
-    'phone_swiss': re.compile(r'\b(\+41|0041|0)\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}\b'),
+    'phone_swiss': re.compile(r'(\+41|0041|0)\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}'),
     'email': re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
     'insurance_number': re.compile(r'\b\d{6,10}[-/]\d{1,6}\b'),
 }

@@ -2581,4 +2581,5 @@ def seed_accounting_data(org, loc_zh, loc_wt, created_users):
     db.session.commit()
 
 
-app = create_app()
+if __name__ == '__main__' or os.environ.get('FLASK_ENV') not in ('testing',):
+    app = create_app()

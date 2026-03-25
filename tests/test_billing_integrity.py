@@ -137,7 +137,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=200.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert error is not None
@@ -154,7 +154,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=-50.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert 'groesser als 0' in error
@@ -164,7 +164,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=0,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert error is not None
@@ -201,7 +201,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=50.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert 'Status' in error
@@ -238,7 +238,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=50.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert error is not None
@@ -254,7 +254,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=50.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is not None
             assert error is None
@@ -274,7 +274,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=100.00,
                 payment_date=date.today(),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is not None
 
@@ -292,7 +292,7 @@ class TestPaymentValidation:
                 invoice.id,
                 amount=50.00,
                 payment_date=date.today() + timedelta(days=7),
-                payment_method='bank',
+                payment_method='bank_transfer',
             )
             assert payment is None
             assert 'Zukunft' in error

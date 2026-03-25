@@ -6,20 +6,23 @@ from datetime import date
 # Test-Umgebung setzen BEVOR app importiert wird
 os.environ['FLASK_ENV'] = 'testing'
 os.environ['SECRET_KEY'] = 'test-secret-key-not-for-production'
-os.environ['ENCRYPTION_KEY'] = ''  # Leer = Verschluesselung deaktiviert in Tests
-os.environ['DATABASE_URI'] = 'sqlite:///:memory:'
+os.environ['ENCRYPTION_KEY'] = ''
+os.environ['DATABASE_URI'] = 'sqlite://'
 
-from app import create_app
+from app import create_app, limiter
 from models import db as _db, Organization, User, Patient
 
 
 @pytest.fixture(scope='session')
 def app():
     """Erstellt die Test-App einmalig pro Session."""
-    app = create_app()
+    app = create_app('testing')
     app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False  # CSRF in Tests deaktivieren
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    app.config['WTF_CSRF_ENABLED'] = False
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite://'
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
+    # Rate-Limiter in Tests deaktivieren
+    limiter.enabled = False
     return app
 
 

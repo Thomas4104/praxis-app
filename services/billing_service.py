@@ -235,7 +235,7 @@ def record_payment(invoice_id, amount, payment_date, payment_method, reference='
         return None, 'Zahlungsbetrag muss groesser als 0 sein.'
 
     # Validierung: Keine Ueberzahlung (mit Toleranz fuer Rundung, 5 Rappen)
-    max_payment = (invoice.amount_open or 0) + 0.05
+    max_payment = float(invoice.amount_open or 0) + 0.05
     if amount > max_payment:
         return None, (f'Zahlungsbetrag ({amount:.2f}) uebersteigt den '
                       f'offenen Betrag ({invoice.amount_open:.2f}).')
@@ -262,8 +262,8 @@ def record_payment(invoice_id, amount, payment_date, payment_method, reference='
     db.session.add(payment)
 
     # Betraege aktualisieren
-    invoice.amount_paid = round((invoice.amount_paid or 0) + amount, 2)
-    invoice.amount_open = round(invoice.amount_total - invoice.amount_paid, 2)
+    invoice.amount_paid = round(float(invoice.amount_paid or 0) + float(amount), 2)
+    invoice.amount_open = round(float(invoice.amount_total) - float(invoice.amount_paid), 2)
 
     # Status aktualisieren
     if invoice.amount_open <= 0:
