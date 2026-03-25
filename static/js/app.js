@@ -321,42 +321,6 @@ function trapFocus(modal) {
     });
 }
 
-// === Theme Toggle ===
-(function initTheme() {
-    var saved = localStorage.getItem('omnia-theme');
-    if (saved === 'dark') {
-        document.documentElement.classList.add('theme-dark');
-    } else if (saved === 'light') {
-        document.documentElement.classList.add('theme-light');
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        var toggleBtn = document.getElementById('themeToggleBtn');
-        var toggleLabel = document.getElementById('themeToggleLabel');
-        if (!toggleBtn) return;
-
-        function updateLabel() {
-            var current = localStorage.getItem('omnia-theme') || 'system';
-            var labels = { system: 'Design: System', light: 'Design: Hell', dark: 'Design: Dunkel' };
-            if (toggleLabel) toggleLabel.textContent = labels[current] || labels.system;
-        }
-        updateLabel();
-
-        toggleBtn.addEventListener('click', function (e) {
-            e.preventDefault();
-            var current = localStorage.getItem('omnia-theme') || 'system';
-            var next = { system: 'light', light: 'dark', dark: 'system' };
-            var newTheme = next[current] || 'system';
-
-            document.documentElement.classList.remove('theme-dark', 'theme-light');
-            if (newTheme === 'dark') document.documentElement.classList.add('theme-dark');
-            if (newTheme === 'light') document.documentElement.classList.add('theme-light');
-            localStorage.setItem('omnia-theme', newTheme);
-            updateLabel();
-        });
-    });
-})();
-
 // === Command Palette (Cmd+K / Ctrl+K) ===
 document.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

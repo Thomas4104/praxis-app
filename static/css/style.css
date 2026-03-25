@@ -2125,23 +2125,6 @@ textarea.form-control,
 }
 
 /* ============================================================
-   THEME TOGGLE
-   ============================================================ */
-.theme-toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: inherit;
-    color: inherit;
-    text-align: left;
-}
-
-/* ============================================================
    MICRO-INTERACTIONS
    ============================================================ */
 @keyframes fadeIn {
