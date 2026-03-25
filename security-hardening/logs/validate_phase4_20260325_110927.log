@@ -1,0 +1,65 @@
+Alle Daten liegen vor. Hier die Zusammenfassung:
+
+---
+
+## Phase 4 — KI-Sicherheit: Validierungsergebnis
+
+### 1. `ai/tool_permissions.py` — **BESTANDEN**
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| `CONFIRMATION_REQUIRED` Set | **OK** | 8 kritische Tools (patient_deaktivieren, zahlung_verbuchen, etc.) |
+| `TOOL_PERMISSIONS` Dict | **OK** | 5 Gruppen: read, therapist, reception, billing, admin |
+| `can_use_tool()` | **OK** | Prueft Rolle gegen ROLE_TOOL_ACCESS, Default `['read']` |
+| `requires_confirmation()` | **OK** | Zusaetzliche Hilfsfunktion |
+| `get_allowed_tools()` | **OK** | Gibt alle erlaubten Tools pro Rolle zurueck |
+
+### 2. `ai/pii_filter.py` — **BESTANDEN**
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| `redact_pii()` | **OK** | Ersetzt AHV, IBAN, Telefon, E-Mail, Versicherungsnr. durch Platzhalter |
+| `filter_dict()` | **OK** | Rekursiv, 16 Felder in REDACTED_FIELDS, verschachtelte Dicts/Listen |
+| `sanitize_tool_result()` | **OK** | Whitelist fuer patient_details/patient_suchen, filter_dict fuer Rest |
+| `sanitize_context()` | **OK** | Zusaetzlich fuer Kontext-Text |
+| PII_PATTERNS | **OK** | 5 Regex-Muster (AHV: `756.xxxx.xxxx.xx`, IBAN, CH-Telefon, E-Mail, Versicherungsnr.) |
+
+### 3. `ai/base_agent.py` — **BESTANDEN**
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| Import von `can_use_tool` | **OK** | Zeile 4 |
+| Import von `sanitize_tool_result` | **OK** | Zeile 5 |
+| Berechtigungspruefung vor Ausfuehrung | **OK** | Zeile 70: `if not can_use_tool(tool_block.name)` |
+| Bestaetigungspruefung | **OK** | Zeile 75: `elif requires_confirmation(tool_block.name)` |
+| PII-Filterung auf Ergebnis | **OK** | Zeile 84: `result = sanitize_tool_result(tool_block.name, result)` |
+| Audit-Logging | **OK** | Zeile 87-100: `log_action()` mit Agent-Name, Tool-Name, Input-Keys (keine Werte!) |
+
+### 4. `blueprints/patients/ai_tools.py` — **BESTANDEN**
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| field_map Bypass | **GEFIXT** | Zeile 318: `if db_field is None: continue` — unbekannte Felder werden ignoriert |
+| AHV-Nummer in Tool-Output | **GEFIXT** | `patient_details` gibt nur `geburtsjahr` + `alter` statt volles Datum, keine AHV/Adresse/Telefon |
+| Multi-Tenancy | **OK** | Alle Queries filtern nach `organization_id` |
+
+### 5. Chat-Rate-Limiting — **BESTANDEN**
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| Rate-Limit auf Chat-Route | **OK** | `dashboard/routes.py:713`: `@limiter.limit("20 per hour")` |
+| Flask-Limiter installiert | **OK** | `app.py:8-9`, `requirements.txt:15` |
+
+### 6. Syntax-Checks
+
+Alle 4 Dateien sind syntaktisch korrekt (manuell geprueft: korrekte Einrueckung, keine fehlenden Imports, keine offenen Klammern, alle Funktionen sauber geschlossen).
+
+### Offene Hinweise (nicht blockierend)
+
+1. **`patient_suchen` Output** (Zeile 197-206): Gibt noch `telefon` und `geburtsdatum` zurueck — wird aber durch `sanitize_tool_result()` in base_agent.py auf Whitelist (`id`, `patient_number`, `vorname`, `nachname`, etc.) gefiltert. Das Feld `telefon` ist **nicht** in der Whitelist, wird also korrekt entfernt.
+
+2. **`arzt_suchen`/`versicherung_suchen`** (Zeile 486-513): Geben `telefon` und `email` zurueck. Diese werden durch `filter_dict()` in `sanitize_tool_result()` via `REDACTED_FIELDS` auf `[REDACTED]` gesetzt.
+
+3. **`patienten_ohne_folgetermin`** (Zeile 441-447): Gibt `telefon` zurueck — wird ebenfalls durch `filter_dict()` redacted.
+
+**Gesamtbewertung: Phase 4 BESTANDEN — alle 5 Pruefpunkte erfuellt.**

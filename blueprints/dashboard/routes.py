@@ -10,6 +10,7 @@ from ai.coordinator import Coordinator
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, selectinload
 from utils.auth import check_org
+from app import limiter
 
 
 # === Standard-Widget-Konfigurationen pro Rolle ===
@@ -709,6 +710,7 @@ def dashboard_config_get():
 # === Chat API (bestehend) ===
 
 @dashboard_bp.route('/api/chat', methods=['POST'])
+@limiter.limit("20 per hour")
 @login_required
 def chat():
     data = request.get_json()

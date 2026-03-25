@@ -1,0 +1,23 @@
+Alle 5 Aufgaben sind abgeschlossen. Hier die Zusammenfassung:
+
+### Ergebnisse
+
+**1. `ai/tool_permissions.py` erstellt** - Rollenbasiertes Berechtigungssystem mit:
+- `CONFIRMATION_REQUIRED` - 8 kritische Tools die User-Bestaetigung brauchen
+- `TOOL_PERMISSIONS` - 5 Gruppen (read, therapist, reception, billing, admin)
+- `ROLE_TOOL_ACCESS` - Mapping Rolle -> erlaubte Tool-Gruppen
+- Funktionen: `can_use_tool()`, `requires_confirmation()`, `get_allowed_tools()`
+
+**2. `ai/base_agent.py` abgesichert** - Vor jedem Tool-Aufruf:
+- Berechtigungspruefung via `can_use_tool()` - blockiert unerlaubte Tools
+- Bestaetigungs-Check via `requires_confirmation()` - pausiert kritische Aktionen
+- Audit-Logging via `log_action()` nach jedem Tool-Aufruf (Agent-Name, Tool-Name, Input-Keys)
+
+**3. `patient_bearbeiten` field_map Bypass gefixt** - `field_map.get(key, key)` (Fallback auf beliebigen Key) ersetzt durch `field_map.get(key)` mit `continue` bei `None`. Verhindert Schreiben auf beliebige Model-Attribute.
+
+**4. Input-Validierung in `termin_erstellen`** hinzugefuegt:
+- Dauer: muss int sein, 5-480 Minuten
+- Datum: Format-Validierung, keine Vergangenheit, max 1 Jahr voraus
+- Uhrzeit: Format-Validierung mit `IndexError`-Schutz
+
+**5. Audit-Logging** in `base_agent.py` integriert - loggt jeden KI-Tool-Aufruf mit Agent-Klasse, Tool-Name und Input-Keys (keine Werte, nur Schluessel).

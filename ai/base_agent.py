@@ -1,6 +1,8 @@
 import json
 import traceback
 from flask import current_app
+from ai.tool_permissions import can_use_tool, requires_confirmation
+from ai.pii_filter import sanitize_tool_result
 
 
 class BaseAgent:
@@ -64,7 +66,39 @@ class BaseAgent:
             tool_results = []
             for tool_block in tool_use_blocks:
                 try:
-                    result = self.tool_executor(tool_block.name, tool_block.input)
+                    # Berechtigungspruefung vor Tool-Ausfuehrung
+                    if not can_use_tool(tool_block.name):
+                        result = {
+                            'error': f'Keine Berechtigung fuer Tool: {tool_block.name}. '
+                                     f'Ihre Rolle erlaubt dieses Tool nicht.'
+                        }
+                    elif requires_confirmation(tool_block.name):
+                        result = {
+                            'confirmation_required': True,
+                            'tool': tool_block.name,
+                            'input': tool_block.input,
+                            'message': f'Diese Aktion erfordert Ihre Bestaetigung: {tool_block.name}'
+                        }
+                    else:
+                        result = self.tool_executor(tool_block.name, tool_block.input)
+                    result = sanitize_tool_result(tool_block.name, result)
+
+                    # Audit-Logging nach Tool-Aufruf
+                    try:
+                        from services.audit_service import log_action
+                        log_action(
+                            f'ai_tool_{tool_block.name}',
+                            'ai_agent',
+                            0,
+                            changes={
+                                'agent': self.__class__.__name__,
+                                'tool': tool_block.name,
+                                'input_keys': list(tool_block.input.keys()) if tool_block.input else [],
+                            }
+                        )
+                    except Exception:
+                        current_app.logger.warning(f'Audit-Log fuer Tool {tool_block.name} fehlgeschlagen')
+
                     tool_results.append({
                         'type': 'tool_result',
                         'tool_use_id': tool_block.id,

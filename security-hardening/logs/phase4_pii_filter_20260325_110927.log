@@ -1,0 +1,19 @@
+Alle Dateien sehen syntaktisch korrekt aus. Zusammenfassung der Änderungen:
+
+**1. `ai/pii_filter.py` (NEU)** — PII-Filter-Modul mit:
+- `PII_PATTERNS`: Regex für AHV-Nr., IBAN, CH-Telefon, E-Mail, Versicherungsnummern
+- `REDACTED_FIELDS`: Feldnamen die komplett entfernt werden
+- `redact_pii()`: Ersetzt PII-Muster in Freitext durch `[..._REDACTED]`
+- `filter_dict()`: Rekursive Dictionary-Filterung
+- `sanitize_tool_result()`: Whitelist-Filter für `patient_details`/`patient_suchen` Tools
+- `sanitize_context()`: Kontexttext-Sanitisierung
+
+**2. `ai/context.py`** — `sanitize_context()` wird vor dem Return in `build_context()` angewendet
+
+**3. `ai/base_agent.py`** — `sanitize_tool_result()` wird nach jedem Tool-Aufruf auf das Ergebnis angewendet (Zeile 84), bevor es in die API-Messages eingefügt wird
+
+**4. `blueprints/patients/ai_tools.py`** — `patient_details` gibt keine PII mehr zurück:
+- Entfernt: `ahv_nummer`, `telefon_festnetz`, `mobiltelefon`, `email`, `adresse`, `versicherungsnummer`, `arbeitgeber`
+- `geburtsdatum` → `geburtsjahr` (nur noch das Jahr)
+
+**5. `blueprints/dashboard/routes.py`** — Chat-Route hat jetzt `@limiter.limit("20 per hour")` Rate-Limiting

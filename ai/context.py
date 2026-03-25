@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask_login import current_user
 from models import db, Employee, Appointment, Location
+from ai.pii_filter import sanitize_context
 
 
 class ContextManager:
@@ -56,4 +57,6 @@ class ContextManager:
             standorte = ', '.join([loc.name for loc in locations])
             context_parts.append(f"Verfuegbare Standorte: {standorte}")
 
-        return '\n'.join(context_parts)
+        context_text = '\n'.join(context_parts)
+        context_text = sanitize_context(context_text)
+        return context_text

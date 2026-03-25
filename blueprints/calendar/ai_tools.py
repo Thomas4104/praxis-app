@@ -217,14 +217,29 @@ def calendar_tool_executor(tool_name, tool_input):
         if not employee or employee.organization_id != org_id:
             return {'error': 'Therapeut nicht gefunden.'}
 
+        # Dauer validieren
+        dauer = tool_input.get('dauer', 30)
+        if not isinstance(dauer, int) or dauer < 5 or dauer > 480:
+            return {'error': 'Dauer muss zwischen 5 und 480 Minuten liegen.'}
+
+        # Datum validieren
         try:
             datum = datetime.strptime(tool_input['datum'], '%Y-%m-%d').date()
+        except (ValueError, KeyError):
+            return {'error': 'Ungueltiges Datumsformat. Erwartet: YYYY-MM-DD'}
+
+        if datum < date.today():
+            return {'error': 'Termine koennen nicht in der Vergangenheit erstellt werden.'}
+        if datum > date.today() + timedelta(days=365):
+            return {'error': 'Termine koennen maximal 1 Jahr im Voraus erstellt werden.'}
+
+        # Uhrzeit validieren
+        try:
             parts = tool_input['uhrzeit'].split(':')
             uhrzeit = time(int(parts[0]), int(parts[1]))
-        except (ValueError, KeyError):
-            return {'error': 'Ungültiges Datum oder Uhrzeit.'}
+        except (ValueError, KeyError, IndexError):
+            return {'error': 'Ungueltiges Uhrzeitformat. Erwartet: HH:MM'}
 
-        dauer = tool_input.get('dauer', 30)
         start_dt = datetime.combine(datum, uhrzeit)
         end_dt = start_dt + timedelta(minutes=dauer)
 

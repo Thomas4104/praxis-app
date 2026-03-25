@@ -274,27 +274,21 @@ def patient_tool_executor(tool_name, tool_input):
         active_series = TreatmentSeries.query.filter_by(
             patient_id=patient.id, status='active').count()
 
+        # PII-minimiert: Keine AHV, Versicherungsnr., Adresse, volles Geburtsdatum
         return {
             'id': patient.id,
             'patient_number': patient.patient_number,
             'anrede': patient.salutation,
             'vorname': patient.first_name,
             'nachname': patient.last_name,
-            'geburtsdatum': patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else None,
+            'geburtsjahr': patient.date_of_birth.year if patient.date_of_birth else None,
             'alter': age,
             'geschlecht': patient.gender,
-            'ahv_nummer': patient.ahv_number,
-            'telefon_festnetz': patient.phone,
-            'mobiltelefon': patient.mobile,
-            'email': patient.email,
-            'adresse': f'{patient.address or ""}, {patient.zip_code or ""} {patient.city or ""}'.strip(', '),
             'versicherung': patient.insurance_provider.name if patient.insurance_provider else None,
-            'versicherungsnummer': patient.insurance_number,
             'versicherungsart': patient.insurance_type,
             'bevorzugter_kontakt': patient.preferred_contact_method,
             'blacklist': patient.blacklisted,
             'blacklist_grund': patient.blacklist_reason,
-            'arbeitgeber': patient.employer_name,
             'notizen': patient.notes,
             'aktive_serien': active_series,
             'naechster_termin': next_appt.start_time.strftime('%d.%m.%Y %H:%M') if next_appt else None,
@@ -320,7 +314,9 @@ def patient_tool_executor(tool_name, tool_input):
 
         updated = []
         for key, value in felder.items():
-            db_field = field_map.get(key, key)
+            db_field = field_map.get(key)
+            if db_field is None:
+                continue  # Unbekanntes Feld ignorieren statt durchlassen
             if hasattr(patient, db_field):
                 setattr(patient, db_field, value)
                 updated.append(key)
