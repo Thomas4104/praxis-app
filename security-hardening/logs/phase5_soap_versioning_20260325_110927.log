@@ -1,0 +1,14 @@
+Bitte den Python Syntax-Check genehmigen, damit ich die Dateien pruefen kann. Alternativ kann ich die Dateien nochmals lesen und manuell pruefen.
+
+Hier die Zusammenfassung der Aenderungen:
+
+### models.py
+1. **Appointment Model** (Zeile ~591): `soap_updated_at` und `soap_updated_by_id` Felder + `soap_updated_by` Relationship hinzugefuegt
+2. **SoapNoteHistory Model** (vor Portal-Models): Komplettes neues Model mit Version, SOAP-Snapshot, Metadaten, SHA-256 Hash und Index
+
+### blueprints/treatment/routes.py
+1. **Import**: `SoapNoteHistory` zum Import hinzugefuegt
+2. **api_soap_speichern** (Zeile ~198): Komplett umgebaut - speichert jetzt alten Zustand in History bevor neue Werte gesetzt werden, aktualisiert `soap_updated_at`/`soap_updated_by_id`, trennt Notes von SOAP-Versionierung
+3. **api_soap_history** (neue Route): `GET /api/termin/<id>/soap/history` - gibt versionierte SOAP-History mit Benutzer, Zeitstempel und Hash zurueck
+
+Nach dem Genehmigen des Syntax-Checks oder nach dem Deploy muss noch `flask db migrate` und `flask db upgrade` ausgefuehrt werden, um die neuen DB-Tabellen/Spalten anzulegen.

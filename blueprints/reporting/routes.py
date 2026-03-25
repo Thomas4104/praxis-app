@@ -15,6 +15,7 @@ from services.reporting_service import (
 from blueprints.reporting import reporting_bp
 from utils.auth import check_org
 from utils.permissions import require_permission
+from services.audit_service import log_data_export
 
 
 # ============================================================
@@ -120,6 +121,9 @@ def api_export_csv():
                         page=1, per_page=100000)
 
     csv_content = export_to_csv(result['headers'], result['rows'])
+
+    # Audit-Logging fuer Datenexport
+    log_data_export('csv_export', len(result.get('rows', [])), columns=columns, filters=filters)
 
     cat_label = get_report_categories().get(category, category)
     filename = f"Auswertung_{cat_label}_{date.today().strftime('%Y%m%d')}.csv"

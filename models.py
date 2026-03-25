@@ -415,8 +415,8 @@ class Product(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     category = db.Column(db.String(50))
-    net_price = db.Column(db.Float, default=0.0)
-    vat_rate = db.Column(db.Float, default=0.0)
+    net_price = db.Column(db.Numeric(10, 2), default=0)
+    vat_rate = db.Column(db.Numeric(5, 2), default=0)
     unit_type = db.Column(db.String(20))
     tariff_code = db.Column(db.String(20))
     supplier = db.Column(db.String(200))
@@ -455,8 +455,8 @@ class ProductPriceHistory(db.Model):
     __tablename__ = 'product_price_history'
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
-    old_price = db.Column(db.Float, nullable=False)
-    new_price = db.Column(db.Float, nullable=False)
+    old_price = db.Column(db.Numeric(10, 2), nullable=False)
+    new_price = db.Column(db.Numeric(10, 2), nullable=False)
     changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     changed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -515,7 +515,7 @@ class TreatmentSeriesTemplate(db.Model):
     resource_type = db.Column(db.String(30))
     auto_billing_after = db.Column(db.Integer)
     cancellation_fee_type = db.Column(db.String(20))
-    cancellation_fee_amount = db.Column(db.Float)
+    cancellation_fee_amount = db.Column(db.Numeric(10, 2))
     settings_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -585,16 +585,19 @@ class Appointment(db.Model):
     soap_assessment = db.Column(EncryptedString())
     soap_plan = db.Column(EncryptedString())
     cancellation_reason = db.Column(db.Text)
-    cancellation_fee = db.Column(db.Float)
+    cancellation_fee = db.Column(db.Numeric(10, 2))
     is_domicile = db.Column(db.Boolean, default=False)
     domicile_address = db.Column(db.String(300))
     travel_time_minutes = db.Column(db.Integer)
+    soap_updated_at = db.Column(db.DateTime, nullable=True)
+    soap_updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     location = db.relationship('Location', foreign_keys=[location_id])
     resource = db.relationship('Resource', foreign_keys=[resource_id])
     resource_bookings = db.relationship('ResourceBooking', backref='appointment', lazy='dynamic')
+    soap_updated_by = db.relationship('User', foreign_keys=[soap_updated_by_id])
 
 
 # ============================================================
@@ -615,13 +618,13 @@ class Invoice(db.Model):
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
     invoice_number = db.Column(db.String(30))
-    amount_total = db.Column(db.Float, default=0.0)
-    amount_paid = db.Column(db.Float, default=0.0)
-    amount_open = db.Column(db.Float, default=0.0)
+    amount_total = db.Column(db.Numeric(10, 2), default=0)
+    amount_paid = db.Column(db.Numeric(10, 2), default=0)
+    amount_open = db.Column(db.Numeric(10, 2), default=0)
     status = db.Column(db.String(20), default='draft')
     billing_type = db.Column(db.String(20))
     billing_model = db.Column(db.String(20))
-    tax_point_value = db.Column(db.Float)
+    tax_point_value = db.Column(db.Numeric(10, 4))
     due_date = db.Column(db.Date)
     sent_at = db.Column(db.DateTime)
     sent_via = db.Column(db.String(20))
@@ -648,12 +651,12 @@ class InvoiceItem(db.Model):
     position = db.Column(db.Integer)
     tariff_code = db.Column(db.String(20))
     description = db.Column(db.String(500))
-    quantity = db.Column(db.Float, default=1.0)
-    tax_points = db.Column(db.Float, default=0.0)
-    tax_point_value = db.Column(db.Float, default=0.0)
-    amount = db.Column(db.Float, default=0.0)
-    vat_rate = db.Column(db.Float, default=0.0)
-    vat_amount = db.Column(db.Float, default=0.0)
+    quantity = db.Column(db.Numeric(10, 2), default=1)
+    tax_points = db.Column(db.Numeric(10, 2), default=0)
+    tax_point_value = db.Column(db.Numeric(10, 4), default=0)
+    amount = db.Column(db.Numeric(10, 2), default=0)
+    vat_rate = db.Column(db.Numeric(5, 2), default=0)
+    vat_amount = db.Column(db.Numeric(10, 2), default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -661,7 +664,7 @@ class Payment(db.Model):
     __tablename__ = 'payments'
     id = db.Column(db.Integer, primary_key=True)
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
     payment_date = db.Column(db.Date, nullable=False)
     payment_method = db.Column(db.String(30))
     reference = db.Column(db.String(50))
@@ -675,7 +678,7 @@ class TaxPointValue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     tariff_type = db.Column(db.String(20), nullable=False)
-    value = db.Column(db.Float, nullable=False)
+    value = db.Column(db.Numeric(10, 4), nullable=False)
     valid_from = db.Column(db.Date, nullable=False)
     valid_to = db.Column(db.Date)
     canton = db.Column(db.String(5))
@@ -707,7 +710,7 @@ class DunningRecord(db.Model):
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
     dunning_level = db.Column(db.Integer, nullable=False)  # 1, 2, 3
     dunning_date = db.Column(db.Date, nullable=False)
-    dunning_fee = db.Column(db.Float, default=0)
+    dunning_fee = db.Column(db.Numeric(10, 2), default=0)
     dunning_text = db.Column(db.Text)
     sent_via = db.Column(db.String(50))  # email, print, medidata
     pdf_path = db.Column(db.String(500))
@@ -754,8 +757,8 @@ class CostApproval(db.Model):
     valid_until = db.Column(db.Date)
     requested_sessions = db.Column(db.Integer)
     approved_sessions = db.Column(db.Integer)
-    approved_amount = db.Column(db.Float)
-    total_amount = db.Column(db.Float)
+    approved_amount = db.Column(db.Numeric(10, 2))
+    total_amount = db.Column(db.Numeric(10, 2))
     rejection_reason = db.Column(db.Text)
     justification = db.Column(db.Text)  # Begruendungstext an Versicherer
     diagnosis_code = db.Column(db.String(20))
@@ -783,8 +786,8 @@ class CostApprovalItem(db.Model):
     cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'), nullable=False)
     tariff_code = db.Column(db.String(20))
     description = db.Column(db.String(500))
-    quantity = db.Column(db.Float, default=1.0)
-    amount = db.Column(db.Float, default=0.0)
+    quantity = db.Column(db.Numeric(10, 2), default=1)
+    amount = db.Column(db.Numeric(10, 2), default=0)
     comment = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -918,8 +921,8 @@ class AISettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     intensity_level = db.Column(db.String(10), default='medium')
-    budget_monthly = db.Column(db.Float, default=100.0)
-    budget_used = db.Column(db.Float, default=0.0)
+    budget_monthly = db.Column(db.Numeric(10, 2), default=100.0)
+    budget_used = db.Column(db.Numeric(10, 2), default=0.0)
     features_enabled_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -1093,6 +1096,8 @@ class AuditLog(db.Model):
     entity_id = db.Column(db.Integer)
     changes_json = db.Column(db.Text)
     ip_address = db.Column(db.String(45))
+    user_role = db.Column(db.String(20), nullable=True)
+    integrity_hash = db.Column(db.String(64), nullable=True)  # HMAC-SHA256
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref='audit_logs')
@@ -1159,10 +1164,10 @@ class JournalEntryLine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
-    debit = db.Column(db.Float, default=0)
-    credit = db.Column(db.Float, default=0)
+    debit = db.Column(db.Numeric(12, 2), default=0)
+    credit = db.Column(db.Numeric(12, 2), default=0)
     vat_code = db.Column(db.String(20))
-    vat_amount = db.Column(db.Float, default=0)
+    vat_amount = db.Column(db.Numeric(10, 2), default=0)
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
     description = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1178,8 +1183,8 @@ class CreditorInvoice(db.Model):
     invoice_number = db.Column(db.String(50))
     invoice_date = db.Column(db.Date)
     due_date = db.Column(db.Date)
-    amount = db.Column(db.Float, nullable=False)
-    vat_amount = db.Column(db.Float, default=0)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    vat_amount = db.Column(db.Numeric(10, 2), default=0)
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     status = db.Column(db.String(20), default='open')  # open, approved, paid
     attachment_path = db.Column(db.String(500))
@@ -1203,10 +1208,10 @@ class FixedAsset(db.Model):
     name = db.Column(db.String(200), nullable=False)
     category = db.Column(db.String(50))  # furniture, devices, it, vehicles
     acquisition_date = db.Column(db.Date, nullable=False)
-    acquisition_value = db.Column(db.Float, nullable=False)
+    acquisition_value = db.Column(db.Numeric(12, 2), nullable=False)
     useful_life_years = db.Column(db.Integer, nullable=False)
     depreciation_method = db.Column(db.String(20), default='linear')  # linear, degressive
-    current_book_value = db.Column(db.Float)
+    current_book_value = db.Column(db.Numeric(12, 2))
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     depreciation_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
@@ -1275,17 +1280,17 @@ class EmployeeSalary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     salary_type = db.Column(db.String(20), default='monthly')  # monthly, hourly
-    amount = db.Column(db.Float, nullable=False)
-    hourly_rate = db.Column(db.Float)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    hourly_rate = db.Column(db.Numeric(10, 2))
     thirteenth_month = db.Column(db.Boolean, default=True)
     iban = db.Column(db.String(34))
     ahv_number = db.Column(db.String(20))
     withholding_tax = db.Column(db.Boolean, default=False)
     withholding_tax_code = db.Column(db.String(10))
     withholding_tax_canton = db.Column(db.String(5))
-    bvg_rate = db.Column(db.Float, default=7.0)  # BVG-Beitragssatz in %
-    nbuv_rate = db.Column(db.Float, default=1.5)  # NBUV-Satz in %
-    ktg_rate = db.Column(db.Float, default=0.5)  # KTG-Satz in %
+    bvg_rate = db.Column(db.Numeric(5, 2), default=7.0)  # BVG-Beitragssatz in %
+    nbuv_rate = db.Column(db.Numeric(5, 2), default=1.5)  # NBUV-Satz in %
+    ktg_rate = db.Column(db.Numeric(5, 2), default=0.5)  # KTG-Satz in %
     valid_from = db.Column(db.Date, nullable=False)
     valid_to = db.Column(db.Date)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1302,7 +1307,7 @@ class EmployeeChild(db.Model):
     last_name = db.Column(db.String(100))
     date_of_birth = db.Column(db.Date)
     allowance_type = db.Column(db.String(20), default='child')  # child (200/Mt), education (250/Mt)
-    allowance_amount = db.Column(db.Float, default=200.0)
+    allowance_amount = db.Column(db.Numeric(10, 2), default=200.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship('Employee', backref=db.backref('children', lazy='dynamic'))
@@ -1316,9 +1321,9 @@ class PayrollRun(db.Model):
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='draft')  # draft, calculated, approved, paid
-    total_gross = db.Column(db.Float, default=0)
-    total_net = db.Column(db.Float, default=0)
-    total_employer_contributions = db.Column(db.Float, default=0)
+    total_gross = db.Column(db.Numeric(12, 2), default=0)
+    total_net = db.Column(db.Numeric(12, 2), default=0)
+    total_employer_contributions = db.Column(db.Numeric(12, 2), default=0)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     approved_at = db.Column(db.DateTime)
@@ -1338,32 +1343,32 @@ class Payslip(db.Model):
     payroll_run_id = db.Column(db.Integer, db.ForeignKey('payroll_runs.id'), nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     # Bruttolohn-Komponenten
-    gross_salary = db.Column(db.Float, default=0)
-    thirteenth_month = db.Column(db.Float, default=0)
-    child_allowance = db.Column(db.Float, default=0)
-    bonuses = db.Column(db.Float, default=0)
-    expenses_total = db.Column(db.Float, default=0)
-    overtime_payout = db.Column(db.Float, default=0)
-    gross_total = db.Column(db.Float, default=0)
+    gross_salary = db.Column(db.Numeric(10, 2), default=0)
+    thirteenth_month = db.Column(db.Numeric(10, 2), default=0)
+    child_allowance = db.Column(db.Numeric(10, 2), default=0)
+    bonuses = db.Column(db.Numeric(10, 2), default=0)
+    expenses_total = db.Column(db.Numeric(10, 2), default=0)
+    overtime_payout = db.Column(db.Numeric(10, 2), default=0)
+    gross_total = db.Column(db.Numeric(10, 2), default=0)
     # Arbeitnehmer-Abzuege
-    ahv_iv_eo = db.Column(db.Float, default=0)
-    alv = db.Column(db.Float, default=0)
-    alv2 = db.Column(db.Float, default=0)
-    bvg = db.Column(db.Float, default=0)
-    nbuv = db.Column(db.Float, default=0)
-    ktg = db.Column(db.Float, default=0)
-    withholding_tax = db.Column(db.Float, default=0)
-    deductions_total = db.Column(db.Float, default=0)
-    net_salary = db.Column(db.Float, default=0)
+    ahv_iv_eo = db.Column(db.Numeric(10, 2), default=0)
+    alv = db.Column(db.Numeric(10, 2), default=0)
+    alv2 = db.Column(db.Numeric(10, 2), default=0)
+    bvg = db.Column(db.Numeric(10, 2), default=0)
+    nbuv = db.Column(db.Numeric(10, 2), default=0)
+    ktg = db.Column(db.Numeric(10, 2), default=0)
+    withholding_tax = db.Column(db.Numeric(10, 2), default=0)
+    deductions_total = db.Column(db.Numeric(10, 2), default=0)
+    net_salary = db.Column(db.Numeric(10, 2), default=0)
     # Arbeitgeber-Beitraege
-    employer_ahv_iv_eo = db.Column(db.Float, default=0)
-    employer_alv = db.Column(db.Float, default=0)
-    employer_bvg = db.Column(db.Float, default=0)
-    employer_uvg = db.Column(db.Float, default=0)
-    employer_ktg = db.Column(db.Float, default=0)
-    employer_fak = db.Column(db.Float, default=0)  # Familienzulagen-Beitrag
-    employer_vk = db.Column(db.Float, default=0)  # Verwaltungskosten AHV
-    employer_total = db.Column(db.Float, default=0)
+    employer_ahv_iv_eo = db.Column(db.Numeric(10, 2), default=0)
+    employer_alv = db.Column(db.Numeric(10, 2), default=0)
+    employer_bvg = db.Column(db.Numeric(10, 2), default=0)
+    employer_uvg = db.Column(db.Numeric(10, 2), default=0)
+    employer_ktg = db.Column(db.Numeric(10, 2), default=0)
+    employer_fak = db.Column(db.Numeric(10, 2), default=0)  # Familienzulagen-Beitrag
+    employer_vk = db.Column(db.Numeric(10, 2), default=0)  # Verwaltungskosten AHV
+    employer_total = db.Column(db.Numeric(10, 2), default=0)
     # Details
     pdf_path = db.Column(db.String(500))
     details_json = db.Column(db.Text)
@@ -1416,8 +1421,8 @@ class Expense(db.Model):
     date = db.Column(db.Date, nullable=False)
     description = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(50))  # travel, meals, material, training, other
-    amount = db.Column(db.Float, nullable=False)
-    vat_amount = db.Column(db.Float, default=0)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    vat_amount = db.Column(db.Numeric(10, 2), default=0)
     receipt_path = db.Column(db.String(500))
     status = db.Column(db.String(20), default='submitted')  # submitted, approved, rejected, paid
     approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -1464,7 +1469,7 @@ class SubscriptionTemplate(db.Model):
     name = db.Column(db.String(200), nullable=False)
     category = db.Column(db.String(50))  # fitness, mtt, prevention, other
     duration_months = db.Column(db.Integer, default=12)
-    price = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
     payment_interval = db.Column(db.String(20))  # monthly, quarterly, yearly, once
     cancellation_months = db.Column(db.Integer, default=1)
     auto_renew = db.Column(db.Boolean, default=True)
@@ -1523,6 +1528,50 @@ class FitnessVisit(db.Model):
     subscription = db.relationship('Subscription', backref=db.backref('visits', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('fitness_visits', lazy='dynamic'))
     location = db.relationship('Location', backref=db.backref('fitness_visits', lazy='dynamic'))
+
+
+# ============================================================
+# SOAP-Noten Versionierung
+# ============================================================
+
+class SoapNoteHistory(db.Model):
+    """Versionierung von SOAP-Noten fuer medizinische Compliance.
+    Jede Aenderung an SOAP-Noten wird hier archiviert.
+    Schweizer Medizinrecht verlangt unveraenderbare klinische Dokumentation."""
+    __tablename__ = 'soap_note_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    version = db.Column(db.Integer, nullable=False, default=1)
+
+    # Snapshot der SOAP-Felder zum Zeitpunkt der Aenderung
+    soap_subjective = db.Column(db.Text, nullable=True)
+    soap_objective = db.Column(db.Text, nullable=True)
+    soap_assessment = db.Column(db.Text, nullable=True)
+    soap_plan = db.Column(db.Text, nullable=True)
+
+    # Metadaten
+    changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    change_reason = db.Column(db.String(500), nullable=True)  # Aenderungsgrund (Pflicht bei Korrektur)
+
+    # Integritaet
+    content_hash = db.Column(db.String(64), nullable=False)  # SHA-256 des Inhalts
+
+    # Relationships
+    appointment = db.relationship('Appointment', backref=db.backref('soap_history', lazy='dynamic', order_by='SoapNoteHistory.version'))
+    changed_by = db.relationship('User')
+
+    # Indexes
+    __table_args__ = (
+        db.Index('ix_soap_history_appointment', 'appointment_id', 'version'),
+    )
+
+    def compute_hash(self):
+        import hashlib
+        content = f'{self.soap_subjective or ""}|{self.soap_objective or ""}|{self.soap_assessment or ""}|{self.soap_plan or ""}'
+        self.content_hash = hashlib.sha256(content.encode()).hexdigest()
+        return self.content_hash
 
 
 # ============================================================

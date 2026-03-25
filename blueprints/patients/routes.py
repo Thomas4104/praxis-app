@@ -583,6 +583,11 @@ def merge():
         source.notes = (source.notes or '') + \
             f'\n[Zusammengeführt mit Patient {target.patient_number} am {date.today().strftime("%d.%m.%Y")}]'
 
+        log_action('merge', 'patient', target.id, changes={
+            'source_patient_id': {'old': source.id, 'new': None},
+            'target_patient_id': {'new': target.id},
+            'merged_records': {'new': 'treatment_series, appointments, documents, emails'}
+        })
         db.session.commit()
         flash(f'Patient {source.first_name} {source.last_name} wurde mit '
               f'{target.first_name} {target.last_name} zusammengeführt.', 'success')

@@ -141,32 +141,35 @@ def _get_default_tax_points(tariff_type, duration_minutes):
 
 
 def generate_invoice_number(org_id):
-    """Generiert die naechste Rechnungsnummer nach Format aus Einstellungen"""
+    """Thread-sichere Rechnungsnummer-Generierung mit DB-Lock."""
     fmt = get_setting(org_id, 'billing_invoice_format', 'RE-{JAHR}-{NR}')
-    next_nr_str = get_setting(org_id, 'billing_next_invoice_number', '1')
+
+    # SELECT ... FOR UPDATE verhindert Race-Conditions bei gleichzeitigen Anfragen
+    setting = SystemSetting.query.filter_by(
+        organization_id=org_id, key='billing_next_invoice_number'
+    ).with_for_update().first()
+
+    if not setting:
+        setting = SystemSetting(
+            organization_id=org_id,
+            key='billing_next_invoice_number',
+            value='1',
+            value_type='integer',
+            category='billing'
+        )
+        db.session.add(setting)
+        db.session.flush()
 
     try:
-        next_nr = int(next_nr_str)
+        next_nr = int(setting.value)
     except (ValueError, TypeError):
         next_nr = 1
 
+    # Nummer sofort inkrementieren (wird mit der Rechnung zusammen committed)
+    setting.value = str(next_nr + 1)
+
     year = date.today().year
     invoice_number = fmt.replace('{JAHR}', str(year)).replace('{NR}', f'{next_nr:04d}')
-
-    # Nummer inkrementieren
-    setting = SystemSetting.query.filter_by(
-        organization_id=org_id, key='billing_next_invoice_number'
-    ).first()
-    if setting:
-        setting.value = str(next_nr + 1)
-    else:
-        db.session.add(SystemSetting(
-            organization_id=org_id,
-            key='billing_next_invoice_number',
-            value=str(next_nr + 1),
-            value_type='integer',
-            category='billing'
-        ))
 
     return invoice_number
 
@@ -218,18 +221,40 @@ def create_invoice_from_series(series_id, org_id, user_id=None):
 
 
 def record_payment(invoice_id, amount, payment_date, payment_method, reference='', notes=''):
-    """Verbucht eine Zahlung auf eine Rechnung"""
+    """Verbucht eine Zahlung auf eine Rechnung mit umfassender Validierung"""
     invoice = Invoice.query.get(invoice_id)
     if not invoice:
         return None, 'Rechnung nicht gefunden.'
 
-    if invoice.status in ('cancelled',):
-        return None, 'Stornierte Rechnung kann nicht bezahlt werden.'
+    # Validierung: Nur versendete/ueberfaellige/teilbezahlte Rechnungen
+    if invoice.status not in ('sent', 'overdue', 'partially_paid'):
+        return None, f'Zahlung nicht moeglich bei Status: {invoice.status}'
+
+    # Validierung: Betrag muss positiv sein
+    if not amount or amount <= 0:
+        return None, 'Zahlungsbetrag muss groesser als 0 sein.'
+
+    # Validierung: Keine Ueberzahlung (mit Toleranz fuer Rundung, 5 Rappen)
+    max_payment = (invoice.amount_open or 0) + 0.05
+    if amount > max_payment:
+        return None, (f'Zahlungsbetrag ({amount:.2f}) uebersteigt den '
+                      f'offenen Betrag ({invoice.amount_open:.2f}).')
+
+    # Zahlungsdatum parsen und validieren
+    if isinstance(payment_date, str):
+        try:
+            payment_date = datetime.strptime(payment_date, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None, 'Ungueltiges Zahlungsdatum.'
+
+    # Zahlungsdatum darf nicht in der Zukunft liegen
+    if payment_date and payment_date > date.today():
+        return None, 'Zahlungsdatum darf nicht in der Zukunft liegen.'
 
     payment = Payment(
         invoice_id=invoice_id,
         amount=amount,
-        payment_date=payment_date if isinstance(payment_date, date) else datetime.strptime(payment_date, '%Y-%m-%d').date(),
+        payment_date=payment_date,
         payment_method=payment_method,
         reference=reference,
         notes=notes

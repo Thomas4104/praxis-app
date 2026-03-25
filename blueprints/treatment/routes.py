@@ -5,12 +5,14 @@ from flask import render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, Location, InsuranceProvider,
-                    TherapyGoal, Milestone, Measurement, HealingPhase)
+                    TherapyGoal, Milestone, Measurement, HealingPhase,
+                    SoapNoteHistory)
 from blueprints.treatment import treatment_bp
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import joinedload
 from utils.auth import check_org, get_org_id
 from utils.permissions import require_permission
+from services.audit_service import log_action
 
 
 # ============================================================
@@ -198,24 +200,91 @@ def api_termin_detail(termin_id):
 @login_required
 @require_permission('treatment.edit_soap')
 def api_soap_speichern(termin_id):
-    """API: SOAP-Notes speichern"""
+    """API: SOAP-Notes speichern mit Versionierung"""
     t = Appointment.query.get_or_404(termin_id)
     check_org(t.patient)
     data = request.get_json()
 
-    if 'soap_subjective' in data:
-        t.soap_subjective = data['soap_subjective']
-    if 'soap_objective' in data:
-        t.soap_objective = data['soap_objective']
-    if 'soap_assessment' in data:
-        t.soap_assessment = data['soap_assessment']
-    if 'soap_plan' in data:
-        t.soap_plan = data['soap_plan']
+    # 1. Alten Zustand sichern
+    soap_fields = ['soap_subjective', 'soap_objective', 'soap_assessment', 'soap_plan']
+    old_values = {f: getattr(t, f, None) for f in soap_fields}
+    new_values = {f: data.get(f, old_values[f]) for f in soap_fields}
+
+    # Pruefen ob sich SOAP-Felder geaendert haben
+    has_soap_changes = any(old_values[k] != new_values[k] for k in soap_fields)
+
+    if has_soap_changes:
+        # 2. Aktuelle Version in History speichern (VOR der Aenderung)
+        current_version = t.soap_history.count() + 1
+        history = SoapNoteHistory(
+            appointment_id=t.id,
+            version=current_version,
+            soap_subjective=old_values['soap_subjective'],
+            soap_objective=old_values['soap_objective'],
+            soap_assessment=old_values['soap_assessment'],
+            soap_plan=old_values['soap_plan'],
+            changed_by_id=current_user.id,
+            change_reason=data.get('change_reason', ''),
+        )
+        history.compute_hash()
+        db.session.add(history)
+
+        # 3. Neue SOAP-Werte setzen
+        for key, value in new_values.items():
+            setattr(t, key, value)
+
+        # 4. SOAP-Timestamp aktualisieren
+        t.soap_updated_at = datetime.utcnow()
+        t.soap_updated_by_id = current_user.id
+
+        # 5. Audit-Log mit Diff
+        changes = {}
+        for key in soap_fields:
+            if old_values[key] != new_values[key]:
+                old_str = old_values[key] or ''
+                new_str = new_values[key] or ''
+                changes[key] = {
+                    'old': old_str[:100] + '...' if len(old_str) > 100 else old_str,
+                    'new': new_str[:100] + '...' if len(new_str) > 100 else new_str,
+                }
+        log_action('update', 'soap_notes', t.id, changes=changes)
+
+    # Notes-Feld separat behandeln (kein Teil der SOAP-Versionierung)
     if 'notes' in data:
-        t.notes = data['notes']
+        old_notes = t.notes or ''
+        new_notes = data['notes']
+        if old_notes != new_notes:
+            t.notes = new_notes
+            log_action('update', 'appointment_notes', t.id, changes={
+                'notes': {'old': old_notes[:100], 'new': new_notes[:100]}
+            })
 
     db.session.commit()
     return jsonify({'success': True, 'message': 'Gespeichert'})
+
+
+@treatment_bp.route('/api/termin/<int:termin_id>/soap/history')
+@login_required
+def api_soap_history(termin_id):
+    """Gibt die SOAP-Noten-History fuer einen Termin zurueck."""
+    appointment = Appointment.query.get_or_404(termin_id)
+    check_org(appointment.patient)
+
+    history = SoapNoteHistory.query.filter_by(
+        appointment_id=termin_id
+    ).order_by(SoapNoteHistory.version.desc()).all()
+
+    return jsonify([{
+        'version': h.version,
+        'soap_subjective': h.soap_subjective,
+        'soap_objective': h.soap_objective,
+        'soap_assessment': h.soap_assessment,
+        'soap_plan': h.soap_plan,
+        'changed_by': f'{h.changed_by.first_name} {h.changed_by.last_name}' if h.changed_by else 'Unbekannt',
+        'changed_at': h.changed_at.strftime('%d.%m.%Y %H:%M'),
+        'change_reason': h.change_reason,
+        'content_hash': h.content_hash,
+    } for h in history])
 
 
 @treatment_bp.route('/api/serie/<int:serie_id>/status', methods=['POST'])
@@ -231,10 +300,12 @@ def api_serie_status(serie_id):
     if neuer_status not in ('completed', 'cancelled'):
         return jsonify({'error': 'Ungueltiger Status'}), 400
 
+    old_status = serie.status
     serie.status = neuer_status
     if neuer_status == 'completed':
         serie.completed_at = datetime.utcnow()
 
+    log_action('update', 'treatment_series', serie.id, changes={'status': {'old': old_status, 'new': neuer_status}})
     db.session.commit()
     return jsonify({'success': True, 'status': neuer_status})
 

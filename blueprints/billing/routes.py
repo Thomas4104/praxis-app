@@ -19,6 +19,15 @@ from utils.permissions import require_permission
 from services.audit_service import log_action
 
 
+# Status-Set fuer unveraenderbare Rechnungen
+IMMUTABLE_STATUSES = {'sent', 'paid', 'overdue', 'cancelled'}
+
+
+def _check_invoice_immutable(invoice):
+    """Prueft ob eine Rechnung unveraenderbar ist. Gibt True zurueck wenn immutable."""
+    return invoice.status in IMMUTABLE_STATUSES
+
+
 # ============================================================
 # Rechnungsuebersicht
 # ============================================================
@@ -229,7 +238,11 @@ def create():
                     invoice.amount_total = round(invoice.amount_total + amt + vat_amt, 2)
                     invoice.amount_open = round(invoice.amount_open + amt + vat_amt, 2)
 
-            log_action('create', 'invoice', invoice.id)
+            log_action('create', 'invoice', invoice.id, changes={
+                'invoice_number': {'new': invoice.invoice_number},
+                'amount_total': {'new': str(invoice.amount_total)},
+                'patient_id': {'new': invoice.patient_id},
+            })
             db.session.commit()
             flash(f'Rechnung {invoice.invoice_number} wurde erstellt.', 'success')
             return redirect(url_for('billing.detail', id=invoice.id))
@@ -306,6 +319,7 @@ def check_invoice(id):
         return redirect(url_for('billing.detail', id=id))
 
     invoice.status = 'checked'
+    log_action('update', 'invoice', invoice.id, changes={'status': {'old': 'draft', 'new': 'checked'}})
     db.session.commit()
     flash('Rechnung wurde geprüft.', 'success')
     return redirect(url_for('billing.detail', id=id))
@@ -322,10 +336,12 @@ def send_invoice(id):
         flash('Diese Rechnung kann nicht gesendet werden.', 'error')
         return redirect(url_for('billing.detail', id=id))
 
+    old_status = invoice.status
     send_via = request.form.get('send_via', 'print')
     invoice.status = 'sent'
     invoice.sent_at = datetime.utcnow()
     invoice.sent_via = send_via
+    log_action('update', 'invoice', invoice.id, changes={'status': {'old': old_status, 'new': 'sent'}})
     db.session.commit()
     # Automatische Buchung in FiBu
     try:
@@ -346,8 +362,14 @@ def cancel_invoice(id):
     if invoice.status == 'cancelled':
         flash('Rechnung ist bereits storniert.', 'error')
         return redirect(url_for('billing.detail', id=id))
+    if invoice.status == 'paid':
+        flash('Bezahlte Rechnungen koennen nicht storniert werden. '
+              'Erstellen Sie stattdessen eine Korrekturrechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
 
+    old_status = invoice.status
     invoice.status = 'cancelled'
+    log_action('update', 'invoice', invoice.id, changes={'status': {'old': old_status, 'new': 'cancelled'}})
     db.session.commit()
     flash('Rechnung wurde storniert.', 'success')
     return redirect(url_for('billing.detail', id=id))
@@ -378,6 +400,7 @@ def add_payment(id):
     if error:
         flash(f'Fehler: {error}', 'error')
     else:
+        log_action('create', 'payment', payment.id, changes={'amount': {'new': amount}, 'invoice_id': {'new': id}})
         # Automatische Buchung in FiBu
         try:
             book_payment(payment, current_user.organization_id)
@@ -400,6 +423,7 @@ def send_dunning(id):
     if error:
         flash(f'Fehler: {error}', 'error')
     else:
+        log_action('create', 'dunning', invoice.id, changes={'level': {'new': record.dunning_level}})
         flash(f'Mahnung Stufe {record.dunning_level} wurde erstellt.', 'success')
     return redirect(url_for('billing.detail', id=id))
 
@@ -618,3 +642,192 @@ def api_stats():
         'total_open': round(total_open, 2),
         'total_paid_month': round(total_paid_month, 2),
     })
+
+
+# ============================================================
+# Rechnungspositionen bearbeiten/loeschen (mit Immutabilitaets-Schutz)
+# ============================================================
+
+@billing_bp.route('/<int:id>/edit', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def edit_invoice(id):
+    """Rechnungsdaten aendern (nur Entwurf/Geprueft)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    if _check_invoice_immutable(invoice):
+        flash('Versendete Rechnungen koennen nicht mehr geaendert werden. '
+              'Erstellen Sie stattdessen eine Korrekturrechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    old_values = {}
+    new_values = {}
+
+    billing_type = request.form.get('billing_type', '').strip()
+    if billing_type and billing_type != invoice.billing_type:
+        old_values['billing_type'] = invoice.billing_type
+        new_values['billing_type'] = billing_type
+        invoice.billing_type = billing_type
+
+    billing_model = request.form.get('billing_model', '').strip()
+    if billing_model and billing_model != invoice.billing_model:
+        old_values['billing_model'] = invoice.billing_model
+        new_values['billing_model'] = billing_model
+        invoice.billing_model = billing_model
+
+    notes = request.form.get('notes', '').strip()
+    if notes != (invoice.notes or ''):
+        old_values['notes'] = invoice.notes
+        new_values['notes'] = notes
+        invoice.notes = notes
+
+    due_date_str = request.form.get('due_date', '').strip()
+    if due_date_str:
+        try:
+            new_due = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+            if new_due != invoice.due_date:
+                old_values['due_date'] = str(invoice.due_date)
+                new_values['due_date'] = str(new_due)
+                invoice.due_date = new_due
+        except ValueError:
+            pass
+
+    if old_values:
+        changes = {k: {'old': old_values.get(k), 'new': new_values.get(k)} for k in old_values}
+        log_action('update', 'invoice', invoice.id, changes=changes)
+        db.session.commit()
+        flash('Rechnung wurde aktualisiert.', 'success')
+    else:
+        flash('Keine Aenderungen vorgenommen.', 'info')
+
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/items/add', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def add_item(id):
+    """Position zu Rechnung hinzufuegen (nur Entwurf/Geprueft)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    if _check_invoice_immutable(invoice):
+        flash('Versendete Rechnungen koennen nicht mehr geaendert werden. '
+              'Erstellen Sie stattdessen eine Korrekturrechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    tariff_code = request.form.get('tariff_code', '').strip()
+    description = request.form.get('description', '').strip()
+    quantity = request.form.get('quantity', type=float, default=1)
+    tax_points = request.form.get('tax_points', type=float, default=0)
+    tp_value = request.form.get('tp_value', type=float, default=1.0)
+    vat_rate = request.form.get('vat_rate', type=float, default=0)
+
+    if not tariff_code:
+        flash('Tarifziffer ist erforderlich.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    amt = round(tax_points * tp_value * quantity, 2)
+    vat_amt = round(amt * vat_rate / 100, 2)
+    max_pos = db.session.query(db.func.max(InvoiceItem.position)).filter_by(invoice_id=invoice.id).scalar() or 0
+
+    item = InvoiceItem(
+        invoice_id=invoice.id,
+        position=max_pos + 1,
+        tariff_code=tariff_code,
+        description=description,
+        quantity=quantity,
+        tax_points=tax_points,
+        tax_point_value=tp_value,
+        amount=amt,
+        vat_rate=vat_rate,
+        vat_amount=vat_amt
+    )
+    db.session.add(item)
+    invoice.amount_total = round(invoice.amount_total + amt + vat_amt, 2)
+    invoice.amount_open = round(invoice.amount_open + amt + vat_amt, 2)
+
+    log_action('create', 'invoice_item', item.id, changes={
+        'invoice_id': {'new': invoice.id},
+        'tariff_code': {'new': tariff_code},
+        'amount': {'new': str(amt)},
+    })
+    db.session.commit()
+    flash(f'Position {tariff_code} wurde hinzugefuegt.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/items/<int:item_id>/edit', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def edit_item(id, item_id):
+    """Position bearbeiten (nur Entwurf/Geprueft)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    if _check_invoice_immutable(invoice):
+        flash('Versendete Rechnungen koennen nicht mehr geaendert werden. '
+              'Erstellen Sie stattdessen eine Korrekturrechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    item = InvoiceItem.query.get_or_404(item_id)
+    if item.invoice_id != invoice.id:
+        flash('Position gehoert nicht zu dieser Rechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    old_amount = (item.amount or 0) + (item.vat_amount or 0)
+
+    item.tariff_code = request.form.get('tariff_code', item.tariff_code).strip()
+    item.description = request.form.get('description', item.description or '').strip()
+    item.quantity = request.form.get('quantity', type=float, default=item.quantity)
+    item.tax_points = request.form.get('tax_points', type=float, default=item.tax_points)
+    item.tax_point_value = request.form.get('tp_value', type=float, default=item.tax_point_value)
+    item.vat_rate = request.form.get('vat_rate', type=float, default=item.vat_rate)
+    item.amount = round(item.tax_points * item.tax_point_value * item.quantity, 2)
+    item.vat_amount = round(item.amount * item.vat_rate / 100, 2)
+
+    new_amount = item.amount + item.vat_amount
+    diff = round(new_amount - old_amount, 2)
+    invoice.amount_total = round(invoice.amount_total + diff, 2)
+    invoice.amount_open = round(invoice.amount_open + diff, 2)
+
+    log_action('update', 'invoice_item', item.id, changes={
+        'amount': {'old': str(old_amount), 'new': str(new_amount)},
+    })
+    db.session.commit()
+    flash('Position wurde aktualisiert.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/items/<int:item_id>/delete', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def delete_item(id, item_id):
+    """Position loeschen (nur Entwurf/Geprueft)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    if _check_invoice_immutable(invoice):
+        flash('Versendete Rechnungen koennen nicht mehr geaendert werden. '
+              'Erstellen Sie stattdessen eine Korrekturrechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    item = InvoiceItem.query.get_or_404(item_id)
+    if item.invoice_id != invoice.id:
+        flash('Position gehoert nicht zu dieser Rechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    removed_amount = round((item.amount or 0) + (item.vat_amount or 0), 2)
+    invoice.amount_total = round(invoice.amount_total - removed_amount, 2)
+    invoice.amount_open = round(invoice.amount_open - removed_amount, 2)
+
+    log_action('delete', 'invoice_item', item.id, changes={
+        'invoice_id': {'old': invoice.id},
+        'tariff_code': {'old': item.tariff_code},
+        'amount': {'old': str(removed_amount)},
+    })
+    db.session.delete(item)
+    db.session.commit()
+    flash('Position wurde geloescht.', 'success')
+    return redirect(url_for('billing.detail', id=id))
