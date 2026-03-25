@@ -33,6 +33,9 @@ class Config:
     # App
     APP_NAME = 'OMNIA Praxissoftware'
 
+    # Feld-Level-Verschluesselung
+    ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', '')
+
     # KI
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
     ANTHROPIC_MODEL = os.environ.get('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')

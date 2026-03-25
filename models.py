@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, time
+from utils.encryption import EncryptedString
 
 db = SQLAlchemy()
 
@@ -248,9 +249,9 @@ class Patient(db.Model):
     zip_code = db.Column(db.String(10))
     country = db.Column(db.String(5), default='CH')
     insurance_provider_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
-    insurance_number = db.Column(db.String(30))
+    insurance_number = db.Column(EncryptedString())
     insurance_type = db.Column(db.String(10), default='KVG')
-    ahv_number = db.Column(db.String(16))
+    ahv_number = db.Column(EncryptedString())
     preferred_contact_method = db.Column(db.String(20), default='phone')
     preferred_appointment_times_json = db.Column(db.Text)
     blacklisted = db.Column(db.Boolean, default=False)
@@ -504,8 +505,8 @@ class TreatmentSeries(db.Model):
     therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     prescribing_doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'))
-    diagnosis_code = db.Column(db.String(20))
-    diagnosis_text = db.Column(db.String(500))
+    diagnosis_code = db.Column(EncryptedString())
+    diagnosis_text = db.Column(EncryptedString())
     prescription_date = db.Column(db.Date)
     prescription_type = db.Column(db.String(30))
     prescription_document_path = db.Column(db.String(500))
@@ -547,10 +548,10 @@ class Appointment(db.Model):
     appointment_type = db.Column(db.String(30), default='treatment')
     title = db.Column(db.String(200))
     notes = db.Column(db.Text)
-    soap_subjective = db.Column(db.Text)
-    soap_objective = db.Column(db.Text)
-    soap_assessment = db.Column(db.Text)
-    soap_plan = db.Column(db.Text)
+    soap_subjective = db.Column(EncryptedString())
+    soap_objective = db.Column(EncryptedString())
+    soap_assessment = db.Column(EncryptedString())
+    soap_plan = db.Column(EncryptedString())
     cancellation_reason = db.Column(db.Text)
     cancellation_fee = db.Column(db.Float)
     is_domicile = db.Column(db.Boolean, default=False)
@@ -658,8 +659,8 @@ class BankAccount(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     bank_name = db.Column(db.String(200))
-    iban = db.Column(db.String(34), nullable=False)
-    qr_iban = db.Column(db.String(34))
+    iban = db.Column(EncryptedString(), nullable=False)
+    qr_iban = db.Column(EncryptedString())
     bic_swift = db.Column(db.String(11))
     account_name = db.Column(db.String(200))
     is_default = db.Column(db.Boolean, default=False)

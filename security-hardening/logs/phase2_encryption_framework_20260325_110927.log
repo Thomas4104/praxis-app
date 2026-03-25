@@ -1,0 +1,20 @@
+Der Syntax-Check braucht deine Genehmigung - bitte bestaetige den Befehl.
+
+Hier eine Zusammenfassung der erledigten Aufgaben:
+
+**Erstellt:**
+- `utils/encryption.py` — Komplettes Feld-Level-Verschluesselungs-Framework mit:
+  - `_get_encryption_key()` — Key aus Umgebungsvariable, unterstuetzt direkte Fernet-Keys und PBKDF2-Ableitung
+  - `encrypt_value()` / `decrypt_value()` — Verschluesselung/Entschluesselung einzelner Werte
+  - `EncryptedString` — SQLAlchemy `TypeDecorator` fuer transparente DB-Verschluesselung
+
+**Aktualisiert:**
+- `requirements.txt` — `cryptography>=42.0.0` hinzugefuegt
+- `config.py` — `ENCRYPTION_KEY` in die Basis-Config aufgenommen
+- `.env.example` — `ENCRYPTION_KEY` und `ENCRYPTION_SALT` dokumentiert
+
+**Verwendung in models.py:**
+```python
+from utils.encryption import EncryptedString
+ahv_number = db.Column(EncryptedString(), nullable=True)
+```
