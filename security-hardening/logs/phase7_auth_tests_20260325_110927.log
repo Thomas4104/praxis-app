@@ -1,0 +1,31 @@
+Es scheint, dass Python-Befehle eine Genehmigung brauchen. Bitte erlaube die Ausfuehrung, damit ich den Syntax-Check durchfuehren kann.
+
+In der Zwischenzeit hier die Zusammenfassung der erstellten Dateien:
+
+## Erstellte Dateien
+
+### 1. `tests/__init__.py` — Leere Datei (macht `tests` zum Python-Package)
+
+### 2. `tests/conftest.py` — Test-Konfiguration
+Anpassungen gegenueber der Vorlage:
+- **`slug` entfernt** — `Organization` hat kein `slug`-Feld
+- Login-Route bleibt `/login` (auth Blueprint ohne URL-Prefix registriert)
+
+### 3. `tests/test_auth.py` — 12 Sicherheitstests
+| Test | Prueft |
+|------|--------|
+| `TestLogin` (5 Tests) | Login, falsches Passwort, nicht-existierender User, **Account-Lockout nach 5 Fehlversuchen**, inaktiver User |
+| `TestOpenRedirect` (4 Tests) | Interner Redirect, externer Redirect blockiert, JavaScript-URI blockiert, **protocol-relative URL blockiert** |
+| `TestSessionSecurity` (2 Tests) | Unauthentifizierter Zugriff, Logout raeumt Session auf |
+| `TestSecurityHeaders` (1 Test) | X-Content-Type-Options, X-Frame-Options, Referrer-Policy |
+| `TestPasswordPolicy` (2 Tests) | Zu kurzes Passwort, fehlendes Sonderzeichen |
+
+### 4. `tests/test_rbac.py` — 8 RBAC/Multi-Tenancy-Tests
+| Test | Prueft |
+|------|--------|
+| `TestReceptionAccess` (4 Tests) | Empfang darf nicht auf Settings/Accounting/HR, darf auf Kalender |
+| `TestTherapistAccess` (2 Tests) | Therapeut kein Admin-Zugriff, darf Patienten sehen |
+| `TestAdminAccess` (1 Test) | Admin hat vollen Zugriff |
+| `TestMultiTenancy` (2 Tests) | **Patient-Isolation zwischen Organisationen**, URL-Parameter-Manipulation blockiert |
+
+Bitte den Syntax-Check erlauben, damit ich die Dateien verifizieren kann. Alternativ kannst du `python3 -m pytest tests/ --collect-only` ausfuehren um zu pruefen, ob alle Tests gefunden werden.

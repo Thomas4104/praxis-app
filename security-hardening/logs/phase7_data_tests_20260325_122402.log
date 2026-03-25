@@ -1,0 +1,25 @@
+Der Befehl wartet auf deine Genehmigung. Bitte erlaube die Ausfuehrung des Python-Syntax-Checks.
+
+In der Zwischenzeit hier die Zusammenfassung der erstellten Test-Dateien:
+
+### 4 Test-Dateien erstellt:
+
+**1. `tests/test_billing_integrity.py`** — 12 Tests
+- `TestInvoiceImmutability`: Versendete Rechnungen nicht aenderbar, stornierte nicht reaktivierbar
+- `TestPaymentValidation`: Ueberzahlung blockiert, negative/null Betraege abgelehnt, Draft/Cancelled-Status blockiert, Zukunfts-Datum abgelehnt, Teil-/Vollzahlung korrekt
+- `TestInvoiceNumberUniqueness`: Duplikate pro Org blockiert (UniqueConstraint), cross-Org erlaubt, sequentielle Generierung
+
+**2. `tests/test_encryption.py`** — 13 Tests
+- `TestEncryptDecrypt`: Roundtrip, None/Empty-Handling, verschiedene Ciphertexte, Unicode
+- `TestEncryptedStringType`: TypeDecorator-Funktionen (bind/result)
+- `TestPatientDataEncryption`: AHV-Nummer und Versicherungsnummer per Raw-SQL auf Klartext geprüft
+
+**3. `tests/test_audit.py`** — 13 Tests
+- `TestAuditLogging`: Login/Failed-Login geloggt, Patientenzugriff geloggt, User-ID/IP/Rolle/Integrity-Hash vorhanden
+- `TestSensitiveDataRedaction`: AHV, Insurance, IBAN, Password, TOTP maskiert; nicht-sensible Felder unveraendert
+- `TestAuditServiceFunctions`: HMAC deterministisch, log_action mit sanitisierten Changes
+
+**4. `tests/test_soap_versioning.py`** — 7 Tests
+- History-Eintrag erstellen, sequentielle Versionsnummern, Content-Hash korrekt (SHA-256), verschiedene Inhalte = verschiedene Hashes, alte Werte bewahrt, changed_by_id Pflichtfeld, API-Route Antwort
+
+Alle Tests nutzen die tatsaechlichen Model-Felder (`Invoice.status`, `amount_open`, `SoapNoteHistory.content_hash` etc.) und Service-Funktionen (`record_payment`, `_sanitize_changes`, `generate_invoice_number`).

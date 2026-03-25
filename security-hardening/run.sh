@@ -374,11 +374,11 @@ if should_run_phase 7; then
 
     # Alle 3 parallel - unabhaengig voneinander
     run_agent "phase7_auth_tests" "$PROMPTS_DIR/phase7a_auth_tests.md" &
-    local pid_7a=$!
+    pid_7a=$!
     run_agent "phase7_data_tests" "$PROMPTS_DIR/phase7b_data_tests.md" &
-    local pid_7b=$!
+    pid_7b=$!
     run_agent "phase7_integration_tests" "$PROMPTS_DIR/phase7c_integration_tests.md" &
-    local pid_7c=$!
+    pid_7c=$!
 
     wait $pid_7a || fail "Auth-Tests fehlgeschlagen"
     wait $pid_7b || fail "Data-Tests fehlgeschlagen"

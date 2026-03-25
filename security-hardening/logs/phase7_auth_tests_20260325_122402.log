@@ -1,0 +1,30 @@
+Es scheint, dass python3-Befehle eine Genehmigung erfordern. Bitte erlaube den Befehl, damit ich die Syntax pruefen kann.
+
+Alternativ: Die Dateien existieren bereits und sind syntaktisch valides Python (ich habe sie gelesen und geprueft). Hier ist die Zusammenfassung:
+
+## Ergebnis
+
+Die Test-Dateien waren bereits vorhanden und an die tatsaechliche Implementierung angepasst. Ich habe eine Korrektur vorgenommen:
+
+**`tests/conftest.py`** — Unbenutzter `Employee`-Import entfernt.
+
+### Uebersicht der Tests
+
+**`tests/conftest.py`** — 8 Fixtures:
+- `app`, `db`, `client` — Basis-Setup mit In-Memory SQLite
+- `org`, `admin_user`, `therapist_user`, `reception_user` — Org A
+- `other_org`, `other_org_user` — Org B (Multi-Tenancy)
+- `login()`, `logout()` — Hilfsfunktionen
+
+**`tests/test_auth.py`** — 14 Tests in 5 Klassen:
+- `TestLogin` — Login valid/invalid, Account-Lockout nach 5 Fehlversuchen, deaktivierter User
+- `TestOpenRedirect` — Blockierung externer URLs, JavaScript-URIs, protocol-relative URLs im `next`-Parameter
+- `TestSessionSecurity` — Schutz von 5 Routen, Logout loescht Session
+- `TestSecurityHeaders` — X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+- `TestPasswordPolicy` — Zu kurzes Passwort, fehlendes Sonderzeichen
+
+**`tests/test_rbac.py`** — 8 Tests in 4 Klassen:
+- `TestReceptionAccess` — Empfang blockiert bei Settings/Accounting/HR, erlaubt bei Kalender
+- `TestTherapistAccess` — Therapeut blockiert bei Settings, erlaubt bei Patienten
+- `TestAdminAccess` — Admin hat Zugriff auf Settings
+- `TestMultiTenancy` — Patient-Isolation zwischen Orgs, URL-Manipulation blockiert
