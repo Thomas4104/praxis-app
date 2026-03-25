@@ -1,0 +1,29 @@
+Bitte genehmige den `chmod +x` Befehl, damit die Scripts ausfuehrbar werden.
+
+Hier eine Zusammenfassung der Aenderungen:
+
+### 1. backup.sh - Gehaertet
+- AES-256-CBC Verschluesselung mit PBKDF2 (100'000 Iterationen)
+- Encryption Key aus Umgebungsvariable oder `/run/secrets/backup_key`
+- SHA256 Checksum-Verifizierung nach jedem Backup
+- Backup-Groesse Sanity-Check (min. 1KB)
+- Upload-Verzeichnis (Patientendokumente) wird mit verschluesselt
+- Retention: 90 Tage lokal, 7 Jahre Archiv (med. Aufbewahrungspflicht)
+- Strukturiertes Logging mit Timestamps
+
+### 2. restore.sh - Neu erstellt
+- Entschluesselung und pg_restore in einem Schritt
+- Sicherheitsabfrage vor Ueberschreiben der DB
+- Listet verfuegbare Backups auf wenn ohne Argument aufgerufen
+
+### 3. requirements.txt - Aktualisiert
+- Flask 3.1.0 → 3.1.1, SQLAlchemy 2.0.36 → 2.0.38, psycopg2-binary 2.9.9 → 2.9.10
+- flask-migrate 4.0.7 → 4.1.0, reportlab 4.1.0 → 4.2.5, qrcode 7.4.2 → 8.0
+- Pillow 10.4.0 → 11.1.0, cryptography ≥42 → ≥43
+- Saubere Kategorisierung mit Kommentaren
+
+### 4. deploy.sh - Gehaertet
+- Pre-Deploy Backup (bricht ab wenn Backup fehlschlaegt)
+- Commit-Tracking fuer Rollback
+- Health-Check nach 5 Sekunden
+- Automatischer Rollback auf vorherigen Commit bei fehlgeschlagenem Health-Check

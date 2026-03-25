@@ -1,0 +1,32 @@
+Alle vier Dateien wurden gehaertet. Hier die Zusammenfassung der Aenderungen:
+
+### docker-compose.yml
+- **Credentials parametrisiert:** `${DB_USER:-omnia}`, `${DB_PASSWORD}`, `${REDIS_PASSWORD}` statt hardcoded Werte
+- **Redis abgesichert:** `--requirepass` mit Passwort, Celery-URLs mit Passwort-Auth
+- **Nginx-Service hinzugefuegt:** Ports 80/443, read-only Volumes, nur im frontend-Netzwerk
+- **security_opt: no-new-privileges** auf allen Services
+- **read_only: true** auf db, redis und nginx mit tmpfs fuer noetige Schreibzugriffe
+- **Resource-Limits** auf db (4G) und redis (512M) ergaenzt
+- **ENCRYPTION_KEY, AUDIT_HMAC_KEY** als Umgebungsvariablen hinzugefuegt
+- **certbot_webroot Volume** fuer Zertifikatserneuerung
+
+### nginx.conf
+- **3 Rate-Limiting Zonen:** login (5r/m), api (30r/m), general (60r/m)
+- **Login-Rate reduziert:** 10r/m auf 5r/m mit burst=3 (Brute-Force-Schutz)
+- **API-Rate-Limiting:** Neuer `/api/` Location-Block mit eigener Zone
+- **General-Rate-Limiting:** Catch-all `/` mit 60r/m
+- **Security Headers:** HSTS (2 Jahre + preload), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **Sensible Pfade blockiert:** `.env`, `.git`, `.bak`, `.sql`, `.log` und Dot-Files
+- **Health-Check Endpoint** fuer Docker auf Port 80
+
+### Dockerfile
+- **apt-get upgrade -y** fuer Sicherheits-Updates
+- **HEALTHCHECK** Direktive hinzugefuegt (curl auf /health)
+- **/app/instance** Verzeichnis fuer SQLite/Session-Daten
+
+### .env.example
+- **DB_USER, DB_NAME** als separate Variablen (konsistent mit docker-compose)
+- **REDIS_PASSWORD** mit Generierungshinweis
+- **AUDIT_HMAC_KEY** hinzugefuegt
+- **WEB_PORT** konfigurierbar
+- Celery-URLs mit Redis-Passwort-Auth

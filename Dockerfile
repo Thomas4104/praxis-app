@@ -1,8 +1,9 @@
-# OMNIA Praxissoftware - Docker Image
+# OMNIA Praxissoftware - Docker Image (gehaertet)
 FROM python:3.12-slim-bookworm
 
-# System-Dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Sicherheits-Updates und System-Dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     curl \
@@ -21,14 +22,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App-Code kopieren
 COPY . .
 
-# Uploads-Verzeichnis erstellen und Berechtigungen setzen
-RUN mkdir -p /app/uploads && chown -R appuser:appuser /app
+# Verzeichnisse erstellen und Berechtigungen setzen
+RUN mkdir -p /app/uploads /app/instance && \
+    chown -R appuser:appuser /app/uploads /app/instance
 
 # Als non-root User ausfuehren
 USER appuser
 
 # Port exponieren
 EXPOSE 8000
+
+# Health-Check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Gunicorn starten
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]

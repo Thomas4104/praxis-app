@@ -1,0 +1,64 @@
+## Phase 6 Validierung - Infrastruktur Security
+
+### 1. docker-compose.yml
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Keine hardcoded Passwoerter | **PASS** | Alle Secrets via `${ENV_VAR}` referenziert, kein "omnia_secret" gefunden |
+| DB Ports nicht exponiert | **PASS** | `db` und `redis` haben keine `ports`-Sektion, Kommentar bestaetigt Absicht (Zeile 54, 78) |
+| Netzwerk-Segmentierung | **PASS** | `frontend` + `backend` Netzwerke; backend ist `internal: true` (Zeile 140); db/redis nur in backend, nginx nur in frontend |
+| Health-Checks | **PASS** | Alle 4 Services (web, db, redis, nginx) haben Healthchecks mit `condition: service_healthy` Dependencies |
+| Bonus | **PASS** | `security_opt: no-new-privileges`, `read_only: true` fuer db/redis/nginx, Resource-Limits, `tmpfs` Mounts |
+
+### 2. nginx.conf
+
+| Check | Status | Details |
+|-------|--------|---------|
+| HTTPS/TLS | **PASS** | TLS 1.2+1.3, starke Cipher-Suite, OCSP Stapling, Session Tickets off (Zeile 51-56) |
+| HTTP -> HTTPS Redirect | **PASS** | `return 301 https://$host$request_uri` (Zeile 36) |
+| server_tokens off | **PASS** | Zeile 7 |
+| Rate-Limiting | **PASS** | 3 Zonen: `login` (5r/m), `api` (30r/m), `general` (60r/m) mit burst-Konfiguration |
+| Bonus | **PASS** | HSTS mit preload, Security Headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy), sensible Pfade blockiert (.env, .git, .sql, .log) |
+
+### 3. Dockerfile
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Non-root USER | **PASS** | `groupadd/useradd appuser` (Zeile 13), `USER appuser` (Zeile 30) |
+| HEALTHCHECK | **PASS** | `curl -f http://localhost:8000/health` mit 30s Intervall (Zeile 36-37) |
+| Bonus | **PASS** | `apt-get upgrade -y` fuer Security-Updates, `--no-cache-dir`, slim-bookworm Base Image |
+
+### 4. backup.sh
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Verschluesselung | **PASS** | `openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000` fuer DB-Dump und Uploads (Zeile 50-51, 77-78) |
+| Checksum-Verifizierung | **PASS** | SHA256 Erstellung + Verifizierung mit `sha256sum -c` (Zeile 61, 92) |
+| Retention | **PASS** | 90 Tage lokal, 7 Jahre Archiv-Konstante (Zeile 14-15), `find -mtime +$RETENTION_DAYS -delete` (Zeile 86-88) |
+| Bonus | **PASS** | `set -euo pipefail`, Backup-Groessen-Sanity-Check, Docker Secrets Support (`/run/secrets/backup_key`) |
+
+### 5. requirements.txt
+
+| Check | Status | Details |
+|-------|--------|---------|
+| cryptography | **PASS** | `cryptography>=43.0.0` (Zeile 15) |
+| pyotp | **PASS** | `pyotp>=2.9.0` (Zeile 16) |
+
+### 6. .env.example
+
+| Check | Status | Details |
+|-------|--------|---------|
+| ENCRYPTION_KEY | **PASS** | Dokumentiert mit Generierungs-Anleitung (Zeile 26) |
+| AUDIT_HMAC_KEY | **PASS** | Dokumentiert mit `openssl rand -base64 32` (Zeile 30) |
+| BACKUP_ENCRYPTION_KEY | **FAIL** | Fehlt in .env.example, wird aber in backup.sh und docker-compose.yml benoetigt |
+
+---
+
+### Zusammenfassung
+
+**23/24 Checks bestanden.** Phase 6 ist sehr solide umgesetzt.
+
+**1 Finding:**
+- `BACKUP_ENCRYPTION_KEY` fehlt in `.env.example` - Admins koennten vergessen, diesen Key zu setzen, was zum Backup-Fehler fuehrt.
+
+Soll ich `BACKUP_ENCRYPTION_KEY` in `.env.example` ergaenzen?
