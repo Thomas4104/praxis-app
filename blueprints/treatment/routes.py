@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, Location, InsuranceProvider,
                     TherapyGoal, Milestone, Measurement, HealingPhase,
-                    SoapNoteHistory)
+                    SoapNoteHistory, AppointmentTariffPosition)
 from blueprints.treatment import treatment_bp
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import joinedload
@@ -192,7 +192,11 @@ def api_termin_detail(termin_id):
         'soap_objective': t.soap_objective or '',
         'soap_assessment': t.soap_assessment or '',
         'soap_plan': t.soap_plan or '',
-        'notes': t.notes or ''
+        'notes': t.notes or '',
+        'series_number': t.series_number,
+        'is_termin_0': t.is_termin_0,
+        'charge_despite_cancel': t.charge_despite_cancel,
+        'tariff_positions_count': t.tariff_positions.count() if hasattr(t, 'tariff_positions') else 0,
     })
 
 
@@ -636,3 +640,383 @@ def api_filter_optionen():
             for s in standorte
         ]
     })
+
+
+# ============================================================================
+# Tarmed-Positionen pro Termin
+# ============================================================================
+
+@treatment_bp.route('/api/termin/<int:termin_id>/tariff-positions')
+@login_required
+def api_tariff_positions(termin_id):
+    """Tarmed-Positionen eines Termins laden"""
+    appointment = Appointment.query.get_or_404(termin_id)
+    check_org(appointment)
+
+    positions = AppointmentTariffPosition.query.filter_by(
+        appointment_id=termin_id
+    ).order_by(AppointmentTariffPosition.position).all()
+
+    return jsonify([{
+        'id': p.id,
+        'tariff_type': p.tariff_type,
+        'tariff_code': p.tariff_code,
+        'description': p.description,
+        'quantity': float(p.quantity or 1),
+        'tax_points': float(p.tax_points),
+        'tax_point_value': float(p.tax_point_value),
+        'amount': float(p.amount),
+        'vat_rate': float(p.vat_rate or 0),
+        'vat_amount': float(p.vat_amount or 0),
+        'position': p.position,
+    } for p in positions])
+
+
+@treatment_bp.route('/api/termin/<int:termin_id>/tariff-positions', methods=['POST'])
+@login_required
+def api_tariff_position_create(termin_id):
+    """Tarmed-Position zu Termin hinzufuegen"""
+    appointment = Appointment.query.get_or_404(termin_id)
+    check_org(appointment)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten erhalten'}), 400
+
+    # Validierung
+    required = ['tariff_type', 'tariff_code', 'tax_points', 'tax_point_value']
+    for field in required:
+        if field not in data:
+            return jsonify({'error': f'Pflichtfeld fehlt: {field}'}), 400
+
+    quantity = float(data.get('quantity', 1))
+    tax_points = float(data['tax_points'])
+    tp_value = float(data['tax_point_value'])
+    amount = round(quantity * tax_points * tp_value, 2)
+    vat_rate = float(data.get('vat_rate', 0))
+    vat_amount = round(amount * vat_rate / 100, 2)
+
+    # Naechste Position bestimmen
+    max_pos = db.session.query(db.func.max(AppointmentTariffPosition.position)).filter_by(
+        appointment_id=termin_id
+    ).scalar() or 0
+
+    position = AppointmentTariffPosition(
+        appointment_id=termin_id,
+        tariff_type=data['tariff_type'],
+        tariff_code=data['tariff_code'],
+        description=data.get('description', ''),
+        quantity=quantity,
+        tax_points=tax_points,
+        tax_point_value=tp_value,
+        amount=amount,
+        vat_rate=vat_rate,
+        vat_amount=vat_amount,
+        position=max_pos + 1,
+        created_by_id=current_user.id,
+    )
+    db.session.add(position)
+    db.session.commit()
+
+    log_action('create', 'tariff_position', position.id, changes={
+        'appointment_id': {'new': termin_id},
+        'tariff_code': {'new': data['tariff_code']},
+        'amount': {'new': str(amount)},
+    })
+
+    return jsonify({
+        'id': position.id,
+        'amount': float(position.amount),
+        'message': 'Tarmed-Position hinzugefuegt'
+    }), 201
+
+
+@treatment_bp.route('/api/tariff-position/<int:position_id>', methods=['PUT'])
+@login_required
+def api_tariff_position_update(position_id):
+    """Tarmed-Position bearbeiten"""
+    position = AppointmentTariffPosition.query.get_or_404(position_id)
+    # Org-Check ueber Appointment
+    check_org(position.appointment)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten erhalten'}), 400
+
+    if 'tariff_type' in data:
+        position.tariff_type = data['tariff_type']
+    if 'tariff_code' in data:
+        position.tariff_code = data['tariff_code']
+    if 'description' in data:
+        position.description = data['description']
+    if 'quantity' in data:
+        position.quantity = float(data['quantity'])
+    if 'tax_points' in data:
+        position.tax_points = float(data['tax_points'])
+    if 'tax_point_value' in data:
+        position.tax_point_value = float(data['tax_point_value'])
+    if 'vat_rate' in data:
+        position.vat_rate = float(data['vat_rate'])
+
+    # Betrag neu berechnen
+    position.amount = round(float(position.quantity) * float(position.tax_points) * float(position.tax_point_value), 2)
+    position.vat_amount = round(float(position.amount) * float(position.vat_rate or 0) / 100, 2)
+
+    db.session.commit()
+    return jsonify({'message': 'Position aktualisiert', 'amount': float(position.amount)})
+
+
+@treatment_bp.route('/api/tariff-position/<int:position_id>', methods=['DELETE'])
+@login_required
+def api_tariff_position_delete(position_id):
+    """Tarmed-Position loeschen"""
+    position = AppointmentTariffPosition.query.get_or_404(position_id)
+    check_org(position.appointment)
+
+    log_action('delete', 'tariff_position', position_id, changes={
+        'appointment_id': {'old': position.appointment_id},
+        'tariff_code': {'old': position.tariff_code},
+        'amount': {'old': str(position.amount)},
+    })
+
+    db.session.delete(position)
+    db.session.commit()
+    return jsonify({'message': 'Position geloescht'})
+
+
+@treatment_bp.route('/api/tariff-codes')
+@login_required
+def api_tariff_codes():
+    """Gaengige Tarmed-Tarifziffern zurueckgeben (fuer Autocomplete)"""
+    codes = [
+        {'type': 'Tarif 590', 'code': '7301', 'description': 'Physiotherapie Einzelbehandlung', 'default_tp': 48},
+        {'type': 'Tarif 590', 'code': '7311', 'description': 'Physiotherapie Gruppenbehandlung', 'default_tp': 28},
+        {'type': 'Tarif 590', 'code': '7320', 'description': 'Physiotherapie Erstbefunderhebung', 'default_tp': 65},
+        {'type': 'Tarif 590', 'code': '7330', 'description': 'Manuelle Lymphdrainage', 'default_tp': 60},
+        {'type': 'Tarif 590', 'code': '7340', 'description': 'Atemtherapie', 'default_tp': 48},
+        {'type': 'Tarif 590', 'code': '7350', 'description': 'Medizinische Trainingstherapie', 'default_tp': 24},
+        {'type': 'Tarif 312', 'code': '5901', 'description': 'Komplementaermedizin Einzelbehandlung', 'default_tp': 72},
+        {'type': 'TarReha', 'code': '9501', 'description': 'Ambulante Rehabilitation', 'default_tp': 48},
+    ]
+    q = request.args.get('q', '').lower()
+    if q:
+        codes = [c for c in codes if q in c['code'] or q in c['description'].lower()]
+    return jsonify(codes)
+
+
+# ============================================================================
+# Klinische Befunde
+# ============================================================================
+
+@treatment_bp.route('/befunde/<int:patient_id>')
+@login_required
+def befunde(patient_id):
+    """Befund-Uebersicht fuer einen Patienten"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+    return render_template('treatment/befunde.html', patient=patient)
+
+
+@treatment_bp.route('/api/befund-vorlagen')
+@login_required
+def api_befund_vorlagen():
+    """Verfuegbare Befund-Vorlagen laden"""
+    from models import FindingTemplate
+    org_id = current_user.organization_id
+
+    templates = FindingTemplate.query.filter_by(
+        organization_id=org_id,
+        is_active=True
+    ).order_by(FindingTemplate.sort_order, FindingTemplate.name).all()
+
+    return jsonify([{
+        'id': t.id,
+        'name': t.name,
+        'template_type': t.template_type,
+        'location_id': t.location_id,
+        'location_name': t.location.name if t.location else 'Alle Standorte',
+        'fields': json.loads(t.fields_json) if t.fields_json else [],
+        'is_default': t.is_default,
+    } for t in templates])
+
+
+@treatment_bp.route('/api/befunde/<int:patient_id>')
+@login_required
+def api_befunde(patient_id):
+    """Alle Befunde eines Patienten laden"""
+    from models import ClinicalFinding
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    findings = ClinicalFinding.query.filter_by(
+        patient_id=patient_id
+    ).order_by(ClinicalFinding.created_at.desc()).all()
+
+    return jsonify([{
+        'id': f.id,
+        'finding_type': f.finding_type,
+        'template_name': f.template.name if f.template else 'Ohne Vorlage',
+        'series_id': f.series_id,
+        'data': json.loads(f.data_json) if f.data_json else {},
+        'created_by': f'{f.created_by.first_name} {f.created_by.last_name}' if f.created_by else '',
+        'created_at': f.created_at.strftime('%d.%m.%Y %H:%M') if f.created_at else '',
+        'updated_at': f.updated_at.strftime('%d.%m.%Y %H:%M') if f.updated_at else '',
+    } for f in findings])
+
+
+@treatment_bp.route('/api/befund', methods=['POST'])
+@login_required
+def api_befund_erstellen():
+    """Neuen klinischen Befund erstellen"""
+    from models import ClinicalFinding
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten erhalten'}), 400
+
+    patient_id = data.get('patient_id')
+    if not patient_id:
+        return jsonify({'error': 'patient_id erforderlich'}), 400
+
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    finding = ClinicalFinding(
+        patient_id=patient_id,
+        series_id=data.get('series_id'),
+        appointment_id=data.get('appointment_id'),
+        template_id=data.get('template_id'),
+        finding_type=data.get('finding_type', 'erstbefund'),
+        data_json=json.dumps(data.get('data', {}), ensure_ascii=False),
+        created_by_id=current_user.id,
+    )
+    db.session.add(finding)
+    db.session.commit()
+
+    log_action('create', 'clinical_finding', finding.id)
+
+    return jsonify({'id': finding.id, 'message': 'Befund erstellt'}), 201
+
+
+@treatment_bp.route('/api/befund/<int:befund_id>', methods=['PUT'])
+@login_required
+def api_befund_aktualisieren(befund_id):
+    """Befund bearbeiten"""
+    from models import ClinicalFinding
+
+    finding = ClinicalFinding.query.get_or_404(befund_id)
+    check_org(finding.patient)
+
+    data = request.get_json()
+    if data and 'data' in data:
+        finding.data_json = json.dumps(data['data'], ensure_ascii=False)
+    if data and 'finding_type' in data:
+        finding.finding_type = data['finding_type']
+
+    db.session.commit()
+
+    log_action('update', 'clinical_finding', finding.id)
+
+    return jsonify({'message': 'Befund aktualisiert'})
+
+
+@treatment_bp.route('/api/befund/<int:befund_id>', methods=['DELETE'])
+@login_required
+def api_befund_loeschen(befund_id):
+    """Befund loeschen"""
+    from models import ClinicalFinding
+    finding = ClinicalFinding.query.get_or_404(befund_id)
+    check_org(finding.patient)
+
+    log_action('delete', 'clinical_finding', befund_id)
+
+    db.session.delete(finding)
+    db.session.commit()
+    return jsonify({'message': 'Befund geloescht'})
+
+
+# ============================================================================
+# Behandlungsplan-Vorlagen
+# ============================================================================
+
+@treatment_bp.route('/api/plan-vorlagen')
+@login_required
+def api_plan_vorlagen():
+    """Behandlungsplan-Vorlagen laden"""
+    from models import TreatmentPlanTemplate
+    import json
+
+    org_id = current_user.organization_id
+    insurance_type = request.args.get('insurance_type')
+
+    query = TreatmentPlanTemplate.query.filter_by(
+        organization_id=org_id,
+        is_active=True
+    )
+    if insurance_type:
+        query = query.filter(
+            db.or_(
+                TreatmentPlanTemplate.insurance_type == insurance_type,
+                TreatmentPlanTemplate.insurance_type.is_(None)
+            )
+        )
+
+    templates = query.order_by(TreatmentPlanTemplate.sort_order).all()
+
+    return jsonify([{
+        'id': t.id,
+        'name': t.name,
+        'description': t.description,
+        'goals': json.loads(t.goals_json) if t.goals_json else [],
+        'measures': json.loads(t.measures_json) if t.measures_json else [],
+        'frequency': json.loads(t.frequency_json) if t.frequency_json else {},
+        'insurance_type': t.insurance_type,
+    } for t in templates])
+
+
+@treatment_bp.route('/api/iv-status')
+@login_required
+def api_iv_status():
+    """IV-Status-Zusammenfassung"""
+    from services.iv_monitoring_service import get_iv_status_summary
+    summary = get_iv_status_summary(current_user.organization_id)
+    return jsonify(summary)
+
+
+# ============================================================================
+# Arztberichte
+# ============================================================================
+
+@treatment_bp.route('/arztbericht/<int:serie_id>')
+@login_required
+def arztbericht(serie_id):
+    """Arztbericht-Vorschau"""
+    from services.medical_report_service import generate_report_data
+    series = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(series.patient)
+
+    data, error = generate_report_data(serie_id)
+    if error:
+        flash(f'Fehler beim Erstellen des Berichts: {error}', 'error')
+        return redirect(url_for('treatment.serie_detail', serie_id=serie_id))
+
+    return render_template('treatment/arztbericht.html', report=data, serie=series)
+
+
+@treatment_bp.route('/arztbericht/<int:serie_id>/pdf')
+@login_required
+def arztbericht_pdf(serie_id):
+    """Arztbericht als PDF herunterladen"""
+    from services.medical_report_service import generate_report_pdf
+    series = TreatmentSeries.query.get_or_404(serie_id)
+    check_org(series.patient)
+
+    filepath, error = generate_report_pdf(serie_id)
+    if error:
+        flash(f'Fehler beim PDF-Erstellen: {error}', 'error')
+        return redirect(url_for('treatment.arztbericht', serie_id=serie_id))
+
+    import os
+    from flask import send_file
+    return send_file(filepath, as_attachment=True,
+                    download_name=f'Arztbericht_{series.patient.last_name}_{series.patient.first_name}.pdf')

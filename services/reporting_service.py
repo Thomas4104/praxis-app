@@ -1091,3 +1091,153 @@ def export_to_csv(headers, rows):
     for row in rows:
         writer.writerow(row)
     return output.getvalue()
+
+
+# ============================================================
+# Erweiterte KPI-Funktionen (Finanz, Termine, Monatsvergleich)
+# ============================================================
+
+def get_financial_kpis(org_id, period_start, period_end):
+    """Finanz-KPIs: Umsatz, offene Forderungen, TP-Volumen"""
+    # Umsatz (bezahlte Rechnungen im Zeitraum)
+    revenue = db.session.query(func.sum(Payment.amount)).join(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Payment.payment_date >= period_start,
+        Payment.payment_date <= period_end,
+    ).scalar() or 0
+
+    # Offene Forderungen
+    open_amount = db.session.query(func.sum(Invoice.amount_open)).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['sent', 'overdue']),
+    ).scalar() or 0
+
+    # Rechnungsvolumen im Zeitraum
+    invoice_volume = db.session.query(func.sum(Invoice.amount_total)).filter(
+        Invoice.organization_id == org_id,
+        Invoice.created_at >= period_start,
+        Invoice.created_at <= period_end,
+    ).scalar() or 0
+
+    # Anzahl Rechnungen
+    invoice_count = Invoice.query.filter(
+        Invoice.organization_id == org_id,
+        Invoice.created_at >= period_start,
+        Invoice.created_at <= period_end,
+    ).count()
+
+    return {
+        'revenue': float(revenue),
+        'open_amount': float(open_amount),
+        'invoice_volume': float(invoice_volume),
+        'invoice_count': invoice_count,
+    }
+
+
+def get_appointment_kpis(org_id, period_start, period_end):
+    """Termin-KPIs: Auslastung, No-Show-Rate, Absagequote"""
+    total = Appointment.query.join(Employee).filter(
+        Employee.organization_id == org_id,
+        Appointment.start_time >= period_start,
+        Appointment.start_time <= period_end,
+    ).count()
+
+    completed = Appointment.query.join(Employee).filter(
+        Employee.organization_id == org_id,
+        Appointment.start_time >= period_start,
+        Appointment.start_time <= period_end,
+        Appointment.status.in_(['completed', 'appeared']),
+    ).count()
+
+    no_shows = Appointment.query.join(Employee).filter(
+        Employee.organization_id == org_id,
+        Appointment.start_time >= period_start,
+        Appointment.start_time <= period_end,
+        Appointment.status == 'no_show',
+    ).count()
+
+    cancelled = Appointment.query.join(Employee).filter(
+        Employee.organization_id == org_id,
+        Appointment.start_time >= period_start,
+        Appointment.start_time <= period_end,
+        Appointment.status == 'cancelled',
+    ).count()
+
+    return {
+        'total': total,
+        'completed': completed,
+        'no_shows': no_shows,
+        'cancelled': cancelled,
+        'no_show_rate': round(no_shows / total * 100, 1) if total > 0 else 0,
+        'cancel_rate': round(cancelled / total * 100, 1) if total > 0 else 0,
+        'completion_rate': round(completed / total * 100, 1) if total > 0 else 0,
+    }
+
+
+def get_chart_data_monthly(org_id, year, category='revenue'):
+    """Monatliche Daten fuer Diagramme (aktuelles Jahr + Vorjahr)"""
+    data_current = []
+    data_previous = []
+    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+
+    for month in range(1, 13):
+        start_current = date(year, month, 1)
+        if month == 12:
+            end_current = date(year + 1, 1, 1)
+        else:
+            end_current = date(year, month + 1, 1)
+
+        start_previous = date(year - 1, month, 1)
+        if month == 12:
+            end_previous = date(year, 1, 1)
+        else:
+            end_previous = date(year - 1, month + 1, 1)
+
+        if category == 'revenue':
+            val_current = db.session.query(func.sum(Payment.amount)).join(Invoice).filter(
+                Invoice.organization_id == org_id,
+                Payment.payment_date >= start_current,
+                Payment.payment_date < end_current,
+            ).scalar() or 0
+            val_previous = db.session.query(func.sum(Payment.amount)).join(Invoice).filter(
+                Invoice.organization_id == org_id,
+                Payment.payment_date >= start_previous,
+                Payment.payment_date < end_previous,
+            ).scalar() or 0
+        elif category == 'appointments':
+            val_current = Appointment.query.join(Employee).filter(
+                Employee.organization_id == org_id,
+                Appointment.start_time >= start_current,
+                Appointment.start_time < end_current,
+                Appointment.status.in_(['completed', 'appeared']),
+            ).count()
+            val_previous = Appointment.query.join(Employee).filter(
+                Employee.organization_id == org_id,
+                Appointment.start_time >= start_previous,
+                Appointment.start_time < end_previous,
+                Appointment.status.in_(['completed', 'appeared']),
+            ).count()
+        elif category == 'invoices':
+            val_current = db.session.query(func.sum(Invoice.amount_total)).filter(
+                Invoice.organization_id == org_id,
+                Invoice.created_at >= start_current,
+                Invoice.created_at < end_current,
+            ).scalar() or 0
+            val_previous = db.session.query(func.sum(Invoice.amount_total)).filter(
+                Invoice.organization_id == org_id,
+                Invoice.created_at >= start_previous,
+                Invoice.created_at < end_previous,
+            ).scalar() or 0
+        else:
+            val_current = 0
+            val_previous = 0
+
+        data_current.append(float(val_current))
+        data_previous.append(float(val_previous))
+
+    return {
+        'labels': labels,
+        'current_year': data_current,
+        'previous_year': data_previous,
+        'year': year,
+    }

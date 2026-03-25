@@ -1,7 +1,7 @@
 """Routen fuer den Einstellungen-Bereich"""
 import json
 from datetime import datetime
-from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_login import login_required, current_user
 from blueprints.settings import settings_bp
 from models import db, Organization, User, Employee, Location, Permission, \
@@ -331,9 +331,14 @@ def toggle_email_template(template_id):
 # ============================================================
 
 def _billing_category(org):
+    from models import InvoiceCopyConfig
     settings = get_settings_by_category(org.id, 'billing')
+    # TP-Rechnungskopie Konfiguration laden
+    tp_copy_config = InvoiceCopyConfig.query.filter_by(
+        organization_id=org.id
+    ).first()
     return render_template('settings/index.html', category='billing', org=org,
-                           settings=settings)
+                           settings=settings, tp_copy_config=tp_copy_config)
 
 
 @settings_bp.route('/billing/save', methods=['POST'])
@@ -360,6 +365,35 @@ def save_billing():
     set_setting(org_id, 'dunning_3_text', request.form.get('dunning_3_text', ''), 'string', 'billing')
 
     flash('Abrechnungs-Einstellungen wurden gespeichert.', 'success')
+    return redirect(url_for('settings.index', category='billing'))
+
+
+@settings_bp.route('/tp-copy/save', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def tp_copy_save():
+    """TP-Rechnungskopie Konfiguration speichern"""
+    from models import InvoiceCopyConfig
+
+    config = InvoiceCopyConfig.query.filter_by(
+        organization_id=current_user.organization_id
+    ).first()
+
+    if not config:
+        config = InvoiceCopyConfig(organization_id=current_user.organization_id)
+        db.session.add(config)
+
+    config.is_active = 'is_active' in request.form
+    config.send_channel = request.form.get('send_channel', 'email')
+    config.send_timing = request.form.get('send_timing', 'on_send')
+    config.sender_email = request.form.get('sender_email', '').strip()
+    config.create_task_on_failure = 'create_task_on_failure' in request.form
+
+    template_id = request.form.get('email_template_id')
+    config.email_template_id = int(template_id) if template_id else None
+
+    db.session.commit()
+    flash('TP-Rechnungskopie Einstellungen gespeichert.', 'success')
     return redirect(url_for('settings.index', category='billing'))
 
 
@@ -605,3 +639,350 @@ def api_get_print_template(template_id):
         'body_html': template.body_html,
         'is_active': template.is_active
     })
+
+
+# ============================================================
+# Befund-Vorlagen
+# ============================================================
+
+@settings_bp.route('/finding-templates')
+@login_required
+@require_permission('settings.edit')
+def finding_templates():
+    """Befund-Vorlagen verwalten"""
+    from models import FindingTemplate
+    templates = FindingTemplate.query.filter_by(
+        organization_id=current_user.organization_id
+    ).order_by(FindingTemplate.sort_order, FindingTemplate.name).all()
+    return render_template('settings/finding_templates.html', templates=templates)
+
+
+@settings_bp.route('/finding-templates/new', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def finding_template_new():
+    """Neue Befund-Vorlage erstellen"""
+    from models import FindingTemplate, Location
+
+    if request.method == 'POST':
+        fields = request.form.get('fields_json', '[]')
+        # JSON validieren
+        try:
+            json.loads(fields)
+        except json.JSONDecodeError:
+            flash('Ungueltiges JSON in Felddefinition.', 'error')
+            return redirect(url_for('settings.finding_template_new'))
+
+        template = FindingTemplate(
+            organization_id=current_user.organization_id,
+            name=request.form.get('name', '').strip(),
+            template_type=request.form.get('template_type', 'erstbefund'),
+            location_id=request.form.get('location_id') or None,
+            fields_json=fields,
+            is_default='is_default' in request.form,
+        )
+
+        # Wenn Standard: andere Standards deaktivieren
+        if template.is_default:
+            FindingTemplate.query.filter_by(
+                organization_id=current_user.organization_id,
+                is_default=True
+            ).update({'is_default': False})
+
+        db.session.add(template)
+        db.session.commit()
+        flash('Befund-Vorlage erstellt.', 'success')
+        return redirect(url_for('settings.finding_templates'))
+
+    locations = Location.query.filter_by(
+        organization_id=current_user.organization_id,
+        is_active=True
+    ).all()
+    return render_template('settings/finding_template_form.html',
+                         template=None, locations=locations)
+
+
+@settings_bp.route('/finding-templates/<int:template_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def finding_template_edit(template_id):
+    """Befund-Vorlage bearbeiten"""
+    from models import FindingTemplate, Location
+
+    template = FindingTemplate.query.get_or_404(template_id)
+    if template.organization_id != current_user.organization_id:
+        abort(403)
+
+    if request.method == 'POST':
+        template.name = request.form.get('name', '').strip()
+        template.template_type = request.form.get('template_type', 'erstbefund')
+        template.location_id = request.form.get('location_id') or None
+        template.fields_json = request.form.get('fields_json', '[]')
+        template.is_default = 'is_default' in request.form
+
+        if template.is_default:
+            FindingTemplate.query.filter(
+                FindingTemplate.organization_id == current_user.organization_id,
+                FindingTemplate.id != template.id,
+                FindingTemplate.is_default == True
+            ).update({'is_default': False})
+
+        db.session.commit()
+        flash('Befund-Vorlage aktualisiert.', 'success')
+        return redirect(url_for('settings.finding_templates'))
+
+    locations = Location.query.filter_by(
+        organization_id=current_user.organization_id,
+        is_active=True
+    ).all()
+    return render_template('settings/finding_template_form.html',
+                         template=template, locations=locations)
+
+
+@settings_bp.route('/finding-templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def finding_template_delete(template_id):
+    """Befund-Vorlage loeschen"""
+    from models import FindingTemplate
+    template = FindingTemplate.query.get_or_404(template_id)
+    if template.organization_id != current_user.organization_id:
+        abort(403)
+
+    db.session.delete(template)
+    db.session.commit()
+    flash('Befund-Vorlage geloescht.', 'success')
+    return redirect(url_for('settings.finding_templates'))
+
+
+# ============================================================
+# Behandlungsplan-Vorlagen
+# ============================================================
+
+@settings_bp.route('/plan-templates')
+@login_required
+@require_permission('settings.edit')
+def plan_templates():
+    """Behandlungsplan-Vorlagen verwalten"""
+    from models import TreatmentPlanTemplate
+    templates = TreatmentPlanTemplate.query.filter_by(
+        organization_id=current_user.organization_id
+    ).order_by(TreatmentPlanTemplate.sort_order, TreatmentPlanTemplate.name).all()
+    return render_template('settings/plan_templates.html', templates=templates)
+
+
+@settings_bp.route('/plan-templates/new', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def plan_template_new():
+    """Neue Behandlungsplan-Vorlage erstellen"""
+    from models import TreatmentPlanTemplate
+    import json
+
+    if request.method == 'POST':
+        template = TreatmentPlanTemplate(
+            organization_id=current_user.organization_id,
+            name=request.form.get('name', '').strip(),
+            description=request.form.get('description', '').strip(),
+            goals_json=request.form.get('goals_json', '[]'),
+            measures_json=request.form.get('measures_json', '[]'),
+            frequency_json=request.form.get('frequency_json', '{}'),
+            insurance_type=request.form.get('insurance_type') or None,
+        )
+        db.session.add(template)
+        db.session.commit()
+        flash('Behandlungsplan-Vorlage erstellt.', 'success')
+        return redirect(url_for('settings.plan_templates'))
+
+    return render_template('settings/plan_template_form.html', template=None)
+
+
+@settings_bp.route('/plan-templates/<int:template_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def plan_template_edit(template_id):
+    """Behandlungsplan-Vorlage bearbeiten"""
+    from models import TreatmentPlanTemplate
+
+    template = TreatmentPlanTemplate.query.get_or_404(template_id)
+    if template.organization_id != current_user.organization_id:
+        abort(403)
+
+    if request.method == 'POST':
+        template.name = request.form.get('name', '').strip()
+        template.description = request.form.get('description', '').strip()
+        template.goals_json = request.form.get('goals_json', '[]')
+        template.measures_json = request.form.get('measures_json', '[]')
+        template.frequency_json = request.form.get('frequency_json', '{}')
+        template.insurance_type = request.form.get('insurance_type') or None
+        db.session.commit()
+        flash('Vorlage aktualisiert.', 'success')
+        return redirect(url_for('settings.plan_templates'))
+
+    return render_template('settings/plan_template_form.html', template=template)
+
+
+@settings_bp.route('/plan-templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def plan_template_delete(template_id):
+    """Behandlungsplan-Vorlage loeschen"""
+    from models import TreatmentPlanTemplate
+    template = TreatmentPlanTemplate.query.get_or_404(template_id)
+    if template.organization_id != current_user.organization_id:
+        abort(403)
+    db.session.delete(template)
+    db.session.commit()
+    flash('Vorlage geloescht.', 'success')
+    return redirect(url_for('settings.plan_templates'))
+
+
+# ============================================================
+# Frageboegen-Vorlagen
+# ============================================================
+
+@settings_bp.route('/questionnaires')
+@login_required
+@require_permission('settings.edit')
+def questionnaires():
+    """Frageboegen verwalten"""
+    from models import Questionnaire
+    items = Questionnaire.query.filter_by(
+        organization_id=current_user.organization_id
+    ).order_by(Questionnaire.sort_order, Questionnaire.name).all()
+    return render_template('settings/questionnaires.html', questionnaires=items)
+
+
+@settings_bp.route('/questionnaires/new', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def questionnaire_new():
+    """Neuen Fragebogen erstellen"""
+    from models import Questionnaire
+
+    if request.method == 'POST':
+        questions = request.form.get('questions_json', '[]')
+        # JSON validieren
+        try:
+            json.loads(questions)
+        except json.JSONDecodeError:
+            flash('Ungueltiges JSON in Fragendefinition.', 'error')
+            return redirect(url_for('settings.questionnaire_new'))
+
+        q = Questionnaire(
+            organization_id=current_user.organization_id,
+            name=request.form.get('name', '').strip(),
+            description=request.form.get('description', '').strip() or None,
+            questions_json=questions,
+            scoring_json=request.form.get('scoring_json', '').strip() or None,
+            is_portal_visible='is_portal_visible' in request.form,
+            is_active='is_active' in request.form,
+            sort_order=int(request.form.get('sort_order', 0) or 0),
+        )
+        db.session.add(q)
+        db.session.commit()
+        flash('Fragebogen erstellt.', 'success')
+        return redirect(url_for('settings.questionnaires'))
+
+    return render_template('settings/questionnaire_form.html', questionnaire=None)
+
+
+@settings_bp.route('/questionnaires/<int:questionnaire_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('settings.edit')
+def questionnaire_edit(questionnaire_id):
+    """Fragebogen bearbeiten"""
+    from models import Questionnaire
+
+    q = Questionnaire.query.get_or_404(questionnaire_id)
+    if q.organization_id != current_user.organization_id:
+        abort(403)
+
+    if request.method == 'POST':
+        q.name = request.form.get('name', '').strip()
+        q.description = request.form.get('description', '').strip() or None
+        q.questions_json = request.form.get('questions_json', '[]')
+        q.scoring_json = request.form.get('scoring_json', '').strip() or None
+        q.is_portal_visible = 'is_portal_visible' in request.form
+        q.is_active = 'is_active' in request.form
+        q.sort_order = int(request.form.get('sort_order', 0) or 0)
+
+        # JSON validieren
+        try:
+            json.loads(q.questions_json)
+        except json.JSONDecodeError:
+            flash('Ungueltiges JSON in Fragendefinition.', 'error')
+            return render_template('settings/questionnaire_form.html', questionnaire=q)
+
+        db.session.commit()
+        flash('Fragebogen aktualisiert.', 'success')
+        return redirect(url_for('settings.questionnaires'))
+
+    return render_template('settings/questionnaire_form.html', questionnaire=q)
+
+
+@settings_bp.route('/questionnaires/<int:questionnaire_id>/delete', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def questionnaire_delete(questionnaire_id):
+    """Fragebogen loeschen"""
+    from models import Questionnaire
+    q = Questionnaire.query.get_or_404(questionnaire_id)
+    if q.organization_id != current_user.organization_id:
+        abort(403)
+    db.session.delete(q)
+    db.session.commit()
+    flash('Fragebogen geloescht.', 'success')
+    return redirect(url_for('settings.questionnaires'))
+
+
+# ============================================================
+# Terminkarten-Darstellung
+# ============================================================
+
+@settings_bp.route('/appointment-display/save', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def appointment_display_save():
+    """Terminkarten-Darstellung konfigurieren"""
+    org_id = current_user.organization_id
+
+    config = {
+        'display_mode': request.form.get('display_mode', 'compact'),  # compact, expanded
+        'show_patient_name': 'show_patient_name' in request.form,
+        'show_time': 'show_time' in request.form,
+        'show_room': 'show_room' in request.form,
+        'show_series_counter': 'show_series_counter' in request.form,
+        'show_status_icon': 'show_status_icon' in request.form,
+        'show_documentation_icon': 'show_documentation_icon' in request.form,
+        'show_billing_icon': 'show_billing_icon' in request.form,
+    }
+
+    # Farbkategorien aus Formular lesen
+    categories = []
+    cat_names = request.form.getlist('category_name')
+    cat_colors = request.form.getlist('category_color')
+    for name, color in zip(cat_names, cat_colors):
+        if name.strip():
+            categories.append({'name': name.strip(), 'color': color})
+    config['color_categories'] = categories
+
+    # In SystemSetting speichern
+    setting = SystemSetting.query.filter_by(
+        organization_id=org_id,
+        key='appointment_display_config'
+    ).first()
+
+    if not setting:
+        setting = SystemSetting(
+            organization_id=org_id,
+            key='appointment_display_config',
+            value=json.dumps(config, ensure_ascii=False)
+        )
+        db.session.add(setting)
+    else:
+        setting.value = json.dumps(config, ensure_ascii=False)
+
+    db.session.commit()
+    flash('Terminkarten-Einstellungen gespeichert.', 'success')
+    return redirect(url_for('settings.index', category='calendar'))

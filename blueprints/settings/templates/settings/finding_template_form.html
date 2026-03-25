@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Befund-Vorlage bearbeiten' if template else 'Neue Befund-Vorlage' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.index') }}">Einstellungen</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.finding_templates') }}">Befund-Vorlagen</a>
+<span class="breadcrumb-separator">/</span>
+<span>{{ 'Bearbeiten' if template else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Befund-Vorlage bearbeiten' if template else 'Neue Befund-Vorlage' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <form method="POST" action="{{ url_for('settings.finding_template_edit', template_id=template.id) if template else url_for('settings.finding_template_new') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card-body" style="padding: 1.5rem;">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="name" class="form-label required">Name</label>
+                    <input type="text" id="name" name="name" class="form-input" required
+                           value="{{ template.name if template else '' }}"
+                           placeholder="z.B. Standard Erstbefund, Atemtherapiebefund">
+                </div>
+
+                <div class="form-group">
+                    <label for="template_type" class="form-label">Typ</label>
+                    <select id="template_type" name="template_type" class="form-select">
+                        <option value="erstbefund" {{ 'selected' if template and template.template_type == 'erstbefund' }}>Erstbefund</option>
+                        <option value="verlaufsbefund" {{ 'selected' if template and template.template_type == 'verlaufsbefund' }}>Verlaufsbefund</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="location_id" class="form-label">Standort (optional)</label>
+                    <select id="location_id" name="location_id" class="form-select">
+                        <option value="">Alle Standorte</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.id }}" {{ 'selected' if template and template.location_id == loc.id }}>{{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group" style="display:flex; align-items:center; padding-top:1.5rem;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_default" {{ 'checked' if template and template.is_default }}>
+                        Als Standard-Vorlage verwenden
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="fields_json" class="form-label required">Felder (JSON)</label>
+                <textarea id="fields_json" name="fields_json" class="form-textarea" rows="12" required
+                          placeholder='[
+  {"name": "diagnose", "label": "Diagnose", "type": "text", "placeholder": "ICD-Code und Beschreibung"},
+  {"name": "anamnese", "label": "Anamnese", "type": "text", "placeholder": "Patientengeschichte"},
+  {"name": "befund_inspektion", "label": "Inspektion", "type": "text"},
+  {"name": "befund_palpation", "label": "Palpation", "type": "text"},
+  {"name": "rom_flexion", "label": "ROM Flexion (Grad)", "type": "number"},
+  {"name": "rom_extension", "label": "ROM Extension (Grad)", "type": "number"},
+  {"name": "schmerz_vas", "label": "Schmerz VAS (0-10)", "type": "number"},
+  {"name": "oedem", "label": "Oedem vorhanden", "type": "boolean", "description": "Ja"},
+  {"name": "therapieziel", "label": "Therapieziel", "type": "text"},
+  {"name": "massnahmen", "label": "Geplante Massnahmen", "type": "text"}
+]'>{{ template.fields_json if template else '' }}</textarea>
+                <small class="form-hint">
+                    JSON-Array mit Feld-Definitionen. Unterstuetzte Typen: "text" (Textarea), "number" (Zahleneingabe), "boolean" (Checkbox).
+                    Jedes Feld braucht mindestens "name", "label" und "type".
+                </small>
+            </div>
+        </div>
+
+        <div class="card-footer" style="padding: 1rem 1.5rem; display:flex; gap:0.5rem; justify-content:flex-end;">
+            <a href="{{ url_for('settings.finding_templates') }}" class="btn btn-secondary">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

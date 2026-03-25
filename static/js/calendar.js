@@ -23,15 +23,45 @@
     let resizeState = null;
     let appointmentMap = {}; // id -> appointment object for event delegation
 
+    // Terminkarten-Konfiguration (wird beim Laden abgerufen)
+    window._appointmentConfig = null;
+
     // ==========================================================
     // Initialisierung
     // ==========================================================
     document.addEventListener('DOMContentLoaded', function() {
+        // Terminkarten-Konfiguration laden (Farben, Domizil, Gruppen)
+        loadAppointmentConfig();
+
         if (CFG.viewType === 'day') initDayView();
         else if (CFG.viewType === 'week') initWeekView();
         else if (CFG.viewType === 'month') initMonthView();
         else if (CFG.viewType === 'serie_planen') initSerieWizard();
     });
+
+    // Terminkarten-Konfiguration vom Server laden
+    function loadAppointmentConfig() {
+        fetch(BASE_URL + '/api/appointment-config')
+            .then(function(r) { return r.ok ? r.json() : {}; })
+            .then(function(config) { window._appointmentConfig = config; })
+            .catch(function() { window._appointmentConfig = {}; });
+    }
+
+    // Farbe bestimmen basierend auf Termintyp und Farbkategorie
+    function getAppointmentColor(appt) {
+        if (appt.is_domicile) return '#198754';   // Gruen fuer Domizil
+        if (appt.is_group) return '#6f42c1';      // Lila fuer Gruppe
+        if (appt.color_category) {
+            var config = window._appointmentConfig;
+            if (config && config.color_categories) {
+                var cat = config.color_categories.find(function(c) {
+                    return c.name === appt.color_category;
+                });
+                if (cat) return cat.color;
+            }
+        }
+        return '';  // Standard-Farbe (Employee-Farbe)
+    }
 
     // ==========================================================
     // TAGESANSICHT
@@ -206,16 +236,21 @@
             block.dataset.appointmentId = appt.id;
             block.style.top = topPx + 'px';
             block.style.height = heightPx + 'px';
-            block.style.background = hexToRgba(appt.employee_color, 0.15);
-            block.style.borderLeftColor = appt.employee_color;
-            block.style.color = darkenColor(appt.employee_color, 0.6);
+
+            // Farblogik: Kategorie/Domizil/Gruppe ueberschreibt Employee-Farbe
+            var categoryColor = getAppointmentColor(appt);
+            var displayColor = categoryColor || appt.employee_color;
+            block.style.background = hexToRgba(displayColor, 0.15);
+            block.style.borderLeftColor = displayColor;
+            block.style.color = darkenColor(displayColor, 0.6);
+            if (categoryColor) block.dataset.colorCategory = appt.color_category || '';
             block.draggable = true;
 
             // Icons
             var icons = '';
             if (appt.appointment_type === 'initial') icons += '🆕';
             if (appt.is_domicile) icons += '🏠';
-            if (appt.appointment_type === 'group') icons += '👥';
+            if (appt.is_group) icons += '👥';
             if (appt.notes) icons += '📝';
 
             block.innerHTML =
@@ -889,12 +924,23 @@
             block.dataset.appointmentId = appt.id;
             block.style.top = topPx + 'px';
             block.style.height = heightPx + 'px';
-            block.style.background = hexToRgba(appt.employee_color, 0.15);
-            block.style.borderLeftColor = appt.employee_color;
-            block.style.color = darkenColor(appt.employee_color, 0.6);
+
+            // Farblogik: Kategorie/Domizil/Gruppe ueberschreibt Employee-Farbe
+            var categoryColor = getAppointmentColor(appt);
+            var displayColor = categoryColor || appt.employee_color;
+            block.style.background = hexToRgba(displayColor, 0.15);
+            block.style.borderLeftColor = displayColor;
+            block.style.color = darkenColor(displayColor, 0.6);
+            if (categoryColor) block.dataset.colorCategory = appt.color_category || '';
             block.draggable = true;
 
+            // Icons fuer Wochenansicht
+            var weekIcons = '';
+            if (appt.is_domicile) weekIcons += '🏠';
+            if (appt.is_group) weekIcons += '👥';
+
             block.innerHTML =
+                (weekIcons ? '<span class="appt-icons">' + weekIcons + '</span>' : '') +
                 '<div class="appt-patient">' + escapeHtml(appt.patient_name) + '</div>' +
                 '<div class="appt-time">' + formatTime(startDt) + ' – ' + formatTime(endDt) + '</div>' +
                 '<div class="resize-handle"></div>';

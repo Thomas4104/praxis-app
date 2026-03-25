@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Fragebogen bearbeiten' if questionnaire else 'Neuer Fragebogen' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.index') }}">Einstellungen</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.questionnaires') }}">Frageboegen</a>
+<span class="breadcrumb-separator">/</span>
+<span>{{ 'Bearbeiten' if questionnaire else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Fragebogen bearbeiten' if questionnaire else 'Neuer Fragebogen' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <form method="POST" action="{{ url_for('settings.questionnaire_edit', questionnaire_id=questionnaire.id) if questionnaire else url_for('settings.questionnaire_new') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card-body" style="padding: 1.5rem;">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="name" class="form-label required">Name</label>
+                    <input type="text" id="name" name="name" class="form-input" required
+                           value="{{ questionnaire.name if questionnaire else '' }}"
+                           placeholder="z.B. Schmerzfragebogen, Anamnese, PHQ-9">
+                </div>
+
+                <div class="form-group">
+                    <label for="sort_order" class="form-label">Reihenfolge</label>
+                    <input type="number" id="sort_order" name="sort_order" class="form-input"
+                           value="{{ questionnaire.sort_order if questionnaire else 0 }}" min="0">
+                </div>
+
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label for="description" class="form-label">Beschreibung</label>
+                    <textarea id="description" name="description" class="form-textarea" rows="2"
+                              placeholder="Kurze Beschreibung fuer den Patienten">{{ questionnaire.description if questionnaire else '' }}</textarea>
+                </div>
+
+                <div class="form-group" style="display:flex; align-items:center; gap:1.5rem; padding-top:0.5rem;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_portal_visible" {{ 'checked' if not questionnaire or questionnaire.is_portal_visible }}>
+                        Im Portal sichtbar
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_active" {{ 'checked' if not questionnaire or questionnaire.is_active }}>
+                        Aktiv
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="questions_json" class="form-label required">Fragen (JSON)</label>
+                <textarea id="questions_json" name="questions_json" class="form-textarea" rows="14" required
+                          placeholder='[
+  {"key": "schmerz_ort", "label": "Wo haben Sie Schmerzen?", "type": "text"},
+  {"key": "schmerz_intensitaet", "label": "Schmerzstaerke", "type": "scale", "min": 0, "max": 10, "min_label": "Kein Schmerz", "max_label": "Staerkster Schmerz"},
+  {"key": "schmerz_art", "label": "Art der Schmerzen", "type": "choice", "options": ["Stechend", "Brennend", "Dumpf", "Ziehend"]},
+  {"key": "einschraenkung_alltag", "label": "Einschraenkung im Alltag?", "type": "boolean"},
+  {"key": "bemerkungen", "label": "Weitere Bemerkungen", "type": "text"}
+]'>{{ questionnaire.questions_json if questionnaire else '' }}</textarea>
+                <small class="form-hint">
+                    JSON-Array mit Fragen-Definitionen. Unterstuetzte Typen:
+                    <strong>text</strong> (Textarea),
+                    <strong>choice</strong> (Radio-Buttons, mit "options" Array),
+                    <strong>scale</strong> (Slider 1-10, mit optionalem min/max/min_label/max_label),
+                    <strong>boolean</strong> (Ja/Nein).
+                    Jede Frage braucht mindestens "key", "label" und "type".
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="scoring_json" class="form-label">Auswertungslogik (JSON, optional)</label>
+                <textarea id="scoring_json" name="scoring_json" class="form-textarea" rows="4"
+                          placeholder='{"method": "sum", "fields": ["schmerz_intensitaet"], "ranges": [{"min": 0, "max": 3, "label": "Gering"}, {"min": 4, "max": 7, "label": "Mittel"}, {"min": 8, "max": 10, "label": "Stark"}]}'>{{ questionnaire.scoring_json if questionnaire else '' }}</textarea>
+                <small class="form-hint">Optionale JSON-Konfiguration fuer automatische Score-Berechnung.</small>
+            </div>
+        </div>
+
+        <div class="card-footer" style="padding: 1rem 1.5rem; display:flex; gap:0.5rem; justify-content:flex-end;">
+            <a href="{{ url_for('settings.questionnaires') }}" class="btn btn-secondary">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -348,7 +348,16 @@ def send_invoice(id):
         book_invoice(invoice, current_user.organization_id)
     except Exception:
         pass  # FiBu-Buchung optional, Rechnung trotzdem gesendet
-    flash(f'Rechnung wurde als "{send_via}" gesendet.', 'success')
+    # Automatischer TP-Rechnungskopie-Versand (seit 01.01.2022 Pflicht)
+    from services.tp_copy_service import should_send_tp_copy, send_tp_copy_to_patient
+    if should_send_tp_copy(invoice):
+        copy, error = send_tp_copy_to_patient(invoice.id)
+        if error:
+            flash(f'Rechnung gesendet, aber TP-Kopie fehlgeschlagen: {error}', 'warning')
+        else:
+            flash('Rechnung gesendet. TP-Rechnungskopie an Patient versendet.', 'success')
+    else:
+        flash(f'Rechnung wurde als "{send_via}" gesendet.', 'success')
     return redirect(url_for('billing.detail', id=id))
 
 

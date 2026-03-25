@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Befund-Vorlagen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.index') }}">Einstellungen</a>
+<span class="breadcrumb-separator">/</span>
+<span>Befund-Vorlagen</span>
+{% endblock %}
+
+{% block page_title %}Befund-Vorlagen{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('settings.finding_template_new') }}" class="btn btn-primary">Neue Vorlage</a>
+<a href="{{ url_for('settings.index') }}" class="btn btn-outline">Zurueck</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Vorlagen</h2>
+    </div>
+
+    {% if templates %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Standort</th>
+                    <th>Standard</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in templates %}
+                <tr>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>
+                        <span class="badge">
+                            {% if t.template_type == 'erstbefund' %}Erstbefund
+                            {% elif t.template_type == 'verlaufsbefund' %}Verlaufsbefund
+                            {% else %}{{ t.template_type }}{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ t.location.name if t.location else 'Alle Standorte' }}</td>
+                    <td>
+                        {% if t.is_default %}
+                        <span class="status-badge status-active">Standard</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge {% if t.is_active %}status-active{% else %}status-inactive{% endif %}">
+                            {{ 'Aktiv' if t.is_active else 'Inaktiv' }}
+                        </span>
+                    </td>
+                    <td class="actions-cell">
+                        <a href="{{ url_for('settings.finding_template_edit', template_id=t.id) }}" class="btn btn-sm btn-ghost" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </a>
+                        <form method="POST" action="{{ url_for('settings.finding_template_delete', template_id=t.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Vorlage wirklich loeschen?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-ghost btn-danger" title="Loeschen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Noch keine Befund-Vorlagen vorhanden.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

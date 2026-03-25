@@ -1,0 +1,92 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}{{ questionnaire.name }}{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <h1>{{ questionnaire.name }}</h1>
+    {% if questionnaire.description %}
+    <p class="portal-text-muted" style="margin-bottom: 1.5rem;">{{ questionnaire.description }}</p>
+    {% endif %}
+
+    <div class="portal-card">
+        <div class="portal-card-body">
+            <form method="POST" action="{{ url_for('portal.portal_questionnaire_fill', questionnaire_id=questionnaire.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                {% for q in questions %}
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display:block; font-weight:600; margin-bottom:0.5rem; color:#1e293b;">
+                        {{ q.get('label', q.get('key', '')) }}
+                        {% if q.get('required') %}<span style="color:#e74c3c;">*</span>{% endif %}
+                    </label>
+
+                    {% if q.get('description') %}
+                    <p style="font-size:0.875rem; color:#64748b; margin-bottom:0.5rem;">{{ q.description }}</p>
+                    {% endif %}
+
+                    {# Typ: text (Textarea) #}
+                    {% if q.get('type') == 'text' %}
+                    <textarea name="{{ q.get('key', '') }}" rows="3"
+                              style="width:100%; padding:0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:1rem; font-family:inherit; resize:vertical;"
+                              placeholder="{{ q.get('placeholder', '') }}"
+                              {% if q.get('required') %}required{% endif %}></textarea>
+
+                    {# Typ: choice (Radio-Buttons) #}
+                    {% elif q.get('type') == 'choice' %}
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        {% for option in q.get('options', []) %}
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:normal;">
+                            <input type="radio" name="{{ q.get('key', '') }}" value="{{ option }}"
+                                   {% if q.get('required') %}required{% endif %}
+                                   style="width:18px; height:18px; accent-color:#4a90d9;">
+                            {{ option }}
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    {# Typ: scale (1-10 Slider) #}
+                    {% elif q.get('type') == 'scale' %}
+                    <div style="display:flex; align-items:center; gap:1rem;">
+                        <span style="font-size:0.875rem; color:#64748b;">{{ q.get('min_label', '1') }}</span>
+                        <input type="range" name="{{ q.get('key', '') }}" min="{{ q.get('min', 1) }}" max="{{ q.get('max', 10) }}" value="{{ q.get('default', 5) }}"
+                               style="flex:1; accent-color:#4a90d9;"
+                               oninput="this.nextElementSibling.textContent=this.value">
+                        <span style="font-weight:600; min-width:2rem; text-align:center;">{{ q.get('default', 5) }}</span>
+                        <span style="font-size:0.875rem; color:#64748b;">{{ q.get('max_label', '10') }}</span>
+                    </div>
+
+                    {# Typ: boolean (Ja/Nein) #}
+                    {% elif q.get('type') == 'boolean' %}
+                    <div style="display:flex; gap:1.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:normal;">
+                            <input type="radio" name="{{ q.get('key', '') }}" value="ja"
+                                   {% if q.get('required') %}required{% endif %}
+                                   style="width:18px; height:18px; accent-color:#4a90d9;">
+                            Ja
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:normal;">
+                            <input type="radio" name="{{ q.get('key', '') }}" value="nein"
+                                   style="width:18px; height:18px; accent-color:#4a90d9;">
+                            Nein
+                        </label>
+                    </div>
+
+                    {# Fallback: Textfeld #}
+                    {% else %}
+                    <input type="text" name="{{ q.get('key', '') }}"
+                           style="width:100%; padding:0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:1rem;"
+                           placeholder="{{ q.get('placeholder', '') }}"
+                           {% if q.get('required') %}required{% endif %}>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:2rem; padding-top:1rem; border-top:1px solid #e2e8f0;">
+                    <a href="{{ url_for('portal.portal_questionnaires') }}" class="portal-btn portal-btn-secondary">Abbrechen</a>
+                    <button type="submit" class="portal-btn portal-btn-primary">Absenden</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

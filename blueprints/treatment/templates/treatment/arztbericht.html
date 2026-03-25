@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Arztbericht — {{ report.patient.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.serie_detail', serie_id=serie.id) }}">Serie #{{ serie.id }}</a>
+<span class="breadcrumb-separator">/</span>
+<span>Arztbericht</span>
+{% endblock %}
+
+{% block page_title %}
+Arztbericht: {{ report.patient.name }}
+{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('treatment.arztbericht_pdf', serie_id=serie.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    PDF herunterladen
+</a>
+<a href="{{ url_for('treatment.serie_detail', serie_id=serie.id) }}" class="btn btn-outline">
+    Zurueck zur Serie
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+<style>
+    .report-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: var(--card-bg, #fff);
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .report-header {
+        text-align: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color, #e5e7eb);
+    }
+    .report-header h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .report-section {
+        margin-bottom: 1.5rem;
+    }
+    .report-section h3 {
+        font-size: 1.1rem;
+        color: var(--primary, #2563eb);
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+    .report-field {
+        display: flex;
+        margin-bottom: 0.4rem;
+        line-height: 1.5;
+    }
+    .report-field-label {
+        font-weight: 600;
+        min-width: 160px;
+        color: var(--text-secondary, #6b7280);
+    }
+    .report-field-value {
+        flex: 1;
+    }
+    .soap-block {
+        background: var(--bg-secondary, #f9fafb);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .soap-block .soap-label {
+        font-weight: 700;
+        color: var(--primary, #2563eb);
+        margin-right: 0.5rem;
+    }
+    .soap-block p {
+        margin: 0.3rem 0;
+    }
+    .goal-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+    .goal-item:last-child {
+        border-bottom: none;
+    }
+    .goal-status {
+        font-size: 0.85rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: var(--bg-secondary, #f3f4f6);
+    }
+    .goal-status.achieved { background: #d1fae5; color: #065f46; }
+    .goal-status.in_progress { background: #dbeafe; color: #1e40af; }
+    .goal-status.open { background: #f3f4f6; color: #6b7280; }
+    .appointment-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .appointment-table th,
+    .appointment-table td {
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color, #e5e7eb);
+    }
+    .appointment-table th {
+        font-weight: 600;
+        color: var(--text-secondary, #6b7280);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+    }
+    .report-footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color, #e5e7eb);
+        font-size: 0.85rem;
+        color: var(--text-tertiary, #9ca3af);
+        text-align: right;
+    }
+    @media print {
+        .page-actions, .sidebar, .breadcrumbs, .report-footer .no-print { display: none; }
+        .report-container { box-shadow: none; padding: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-container">
+
+    <!-- Kopfbereich -->
+    <div class="report-header">
+        <h2>Arztbericht</h2>
+        <p>Behandlungsserie #{{ serie.id }}</p>
+    </div>
+
+    <!-- Patientendaten -->
+    <div class="report-section">
+        <h3>Patientendaten</h3>
+        <div class="report-field">
+            <span class="report-field-label">Patient:</span>
+            <span class="report-field-value">{{ report.patient.name }}</span>
+        </div>
+        <div class="report-field">
+            <span class="report-field-label">Geburtsdatum:</span>
+            <span class="report-field-value">{{ report.patient.date_of_birth or '-' }}</span>
+        </div>
+        <div class="report-field">
+            <span class="report-field-label">Patienten-Nr.:</span>
+            <span class="report-field-value">{{ report.patient.patient_number or '-' }}</span>
+        </div>
+    </div>
+
+    <!-- Zuweisender Arzt -->
+    {% if report.doctor %}
+    <div class="report-section">
+        <h3>Zuweisender Arzt</h3>
+        <div class="report-field">
+            <span class="report-field-label">Name:</span>
+            <span class="report-field-value">{{ report.doctor.name }}</span>
+        </div>
+        {% if report.doctor.specialty %}
+        <div class="report-field">
+            <span class="report-field-label">Fachgebiet:</span>
+            <span class="report-field-value">{{ report.doctor.specialty }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Diagnose -->
+    <div class="report-section">
+        <h3>Diagnose</h3>
+        <div class="report-field">
+            <span class="report-field-label">ICD-Code:</span>
+            <span class="report-field-value">{{ report.series.diagnosis_code or '-' }}</span>
+        </div>
+        <div class="report-field">
+            <span class="report-field-label">Diagnosetext:</span>
+            <span class="report-field-value">{{ report.series.diagnosis_text or '-' }}</span>
+        </div>
+    </div>
+
+    <!-- Behandlungsverlauf -->
+    <div class="report-section">
+        <h3>Behandlungsverlauf</h3>
+        <div class="report-field">
+            <span class="report-field-label">Versicherungstyp:</span>
+            <span class="report-field-value">{{ report.series.insurance_type or '-' }}</span>
+        </div>
+        {% if report.series.prescription_date %}
+        <div class="report-field">
+            <span class="report-field-label">Verordnungsdatum:</span>
+            <span class="report-field-value">{{ report.series.prescription_date }}</span>
+        </div>
+        {% endif %}
+        <div class="report-field">
+            <span class="report-field-label">Termine:</span>
+            <span class="report-field-value">{{ report.series.completed_appointments }} / {{ report.series.total_appointments }} durchgefuehrt</span>
+        </div>
+        <div class="report-field">
+            <span class="report-field-label">Status:</span>
+            <span class="report-field-value">
+                {% if report.series.status == 'active' %}Aktiv
+                {% elif report.series.status == 'completed' %}Abgeschlossen
+                {% elif report.series.status == 'cancelled' %}Abgebrochen
+                {% else %}{{ report.series.status }}{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Aktueller Befund (SOAP) -->
+    {% if report.last_soap %}
+    <div class="report-section">
+        <h3>Aktueller Befund ({{ report.last_soap.date }})</h3>
+        <div class="soap-block">
+            {% if report.last_soap.subjective %}
+            <p><span class="soap-label">S (Subjektiv):</span> {{ report.last_soap.subjective }}</p>
+            {% endif %}
+            {% if report.last_soap.objective %}
+            <p><span class="soap-label">O (Objektiv):</span> {{ report.last_soap.objective }}</p>
+            {% endif %}
+            {% if report.last_soap.assessment %}
+            <p><span class="soap-label">A (Beurteilung):</span> {{ report.last_soap.assessment }}</p>
+            {% endif %}
+            {% if report.last_soap.plan %}
+            <p><span class="soap-label">P (Plan):</span> {{ report.last_soap.plan }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Therapieziele -->
+    {% if report.goals %}
+    <div class="report-section">
+        <h3>Therapieziele</h3>
+        {% for goal in report.goals %}
+        <div class="goal-item">
+            <div>
+                <span>{{ goal.description }}</span>
+                <span style="color: var(--text-tertiary); font-size: 0.85rem; margin-left: 0.5rem;">
+                    ({{ goal.achievement_percent }}%)
+                </span>
+            </div>
+            <span class="goal-status {{ goal.status }}">
+                {% if goal.status == 'achieved' %}Erreicht
+                {% elif goal.status == 'in_progress' %}In Bearbeitung
+                {% else %}Offen{% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Messungen -->
+    {% if report.measurements %}
+    <div class="report-section">
+        <h3>Messungen</h3>
+        <table class="appointment-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Typ</th>
+                    <th>Wert</th>
+                    <th>Einheit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in report.measurements[:10] %}
+                <tr>
+                    <td>{{ m.date }}</td>
+                    <td>{{ m.name }}</td>
+                    <td>{{ m.values }}</td>
+                    <td>{{ m.unit }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Terminuebersicht -->
+    {% if report.appointment_summary %}
+    <div class="report-section">
+        <h3>Terminuebersicht</h3>
+        <table class="appointment-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Status</th>
+                    <th>Dauer</th>
+                    <th>Therapeut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in report.appointment_summary %}
+                <tr>
+                    <td>{{ a.date }}</td>
+                    <td>
+                        {% if a.status == 'completed' %}Abgeschlossen
+                        {% elif a.status == 'cancelled' %}Abgesagt
+                        {% elif a.status == 'no_show' %}Nicht erschienen
+                        {% elif a.status == 'scheduled' %}Geplant
+                        {% elif a.status == 'appeared' %}Erschienen
+                        {% else %}{{ a.status }}{% endif %}
+                    </td>
+                    <td>{{ a.duration or '-' }} Min.</td>
+                    <td>{{ a.therapist or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Fusszeile -->
+    <div class="report-footer">
+        Erstellt am {{ report.generated_at }}
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Behandlungsplan-Vorlage bearbeiten' if template else 'Neue Behandlungsplan-Vorlage' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.index') }}">Einstellungen</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('settings.plan_templates') }}">Behandlungsplan-Vorlagen</a>
+<span class="breadcrumb-separator">/</span>
+<span>{{ 'Bearbeiten' if template else 'Neu' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Behandlungsplan-Vorlage bearbeiten' if template else 'Neue Behandlungsplan-Vorlage' }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <form method="POST" action="{{ url_for('settings.plan_template_edit', template_id=template.id) if template else url_for('settings.plan_template_new') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card-body" style="padding: 1.5rem;">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="name" class="form-label required">Name</label>
+                    <input type="text" id="name" name="name" class="form-input" required
+                           value="{{ template.name if template else '' }}"
+                           placeholder="z.B. Standardplan KVG, Reha-Plan UVG">
+                </div>
+
+                <div class="form-group">
+                    <label for="insurance_type" class="form-label">Versicherungstyp</label>
+                    <select id="insurance_type" name="insurance_type" class="form-select">
+                        <option value="" {{ 'selected' if not template or not template.insurance_type }}>Alle Typen</option>
+                        <option value="KVG" {{ 'selected' if template and template.insurance_type == 'KVG' }}>KVG</option>
+                        <option value="UVG" {{ 'selected' if template and template.insurance_type == 'UVG' }}>UVG</option>
+                        <option value="IV" {{ 'selected' if template and template.insurance_type == 'IV' }}>IV</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">Beschreibung</label>
+                <textarea id="description" name="description" class="form-textarea" rows="2"
+                          placeholder="Optionale Beschreibung der Vorlage">{{ template.description if template else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="goals_json" class="form-label">Therapieziele (JSON)</label>
+                <textarea id="goals_json" name="goals_json" class="form-textarea" rows="6"
+                          placeholder='[
+  "Schmerzreduktion",
+  "Verbesserung der Beweglichkeit",
+  "Muskelaufbau",
+  "Alltagsfunktion wiederherstellen"
+]'>{{ template.goals_json if template else '' }}</textarea>
+                <small class="form-hint">JSON-Array mit vordefinierten Therapiezielen.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="measures_json" class="form-label">Massnahmen (JSON)</label>
+                <textarea id="measures_json" name="measures_json" class="form-textarea" rows="6"
+                          placeholder='[
+  "Manuelle Therapie",
+  "Aktive Bewegungsuebungen",
+  "Elektrotherapie",
+  "Heimuebungsprogramm"
+]'>{{ template.measures_json if template else '' }}</textarea>
+                <small class="form-hint">JSON-Array mit vordefinierten Massnahmen.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="frequency_json" class="form-label">Frequenz (JSON)</label>
+                <textarea id="frequency_json" name="frequency_json" class="form-textarea" rows="4"
+                          placeholder='{
+  "sessions_per_week": 2,
+  "total_sessions": 9,
+  "duration_minutes": 30
+}'>{{ template.frequency_json if template else '' }}</textarea>
+                <small class="form-hint">JSON-Objekt mit Frequenz-Vorschlaegen (z.B. Sitzungen pro Woche, Gesamtanzahl).</small>
+            </div>
+        </div>
+
+        <div class="card-footer" style="padding: 1rem 1.5rem; display:flex; gap:0.5rem; justify-content:flex-end;">
+            <a href="{{ url_for('settings.plan_templates') }}" class="btn btn-secondary">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

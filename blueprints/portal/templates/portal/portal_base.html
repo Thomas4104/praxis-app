@@ -27,6 +27,10 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                     <span>Dokumente</span>
                 </a>
+                <a href="{{ url_for('portal.portal_questionnaires') }}" class="portal-nav-link {% if request.endpoint in ['portal.portal_questionnaires', 'portal.portal_questionnaire_fill'] %}active{% endif %}">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    <span>Frageboegen</span>
+                </a>
                 <a href="{{ url_for('portal.messages') }}" class="portal-nav-link {% if request.endpoint in ['portal.messages', 'portal.new_message'] %}active{% endif %}">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                     <span>Nachrichten</span>
@@ -56,6 +60,10 @@
         <a href="{{ url_for('portal.documents') }}" class="portal-mobile-link {% if request.endpoint == 'portal.documents' %}active{% endif %}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
             <span>Dokumente</span>
+        </a>
+        <a href="{{ url_for('portal.portal_questionnaires') }}" class="portal-mobile-link {% if request.endpoint in ['portal.portal_questionnaires', 'portal.portal_questionnaire_fill'] %}active{% endif %}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            <span>Frageboegen</span>
         </a>
         <a href="{{ url_for('portal.messages') }}" class="portal-mobile-link {% if request.endpoint in ['portal.messages', 'portal.new_message'] %}active{% endif %}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path></svg>

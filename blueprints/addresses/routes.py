@@ -318,3 +318,57 @@ def toggle_contact(contact_id):
     db.session.commit()
     flash(f'Kontakt wurde {"aktiviert" if contact.is_active else "deaktiviert"}.', 'success')
     return redirect(url_for('addresses.index', tab='contacts'))
+
+
+# ============================================================================
+# GLN/ZSR Online-Arztsuche
+# ============================================================================
+
+@addresses_bp.route('/api/lookup-gln')
+@login_required
+def api_lookup_gln():
+    """Arzt-Lookup ueber GLN-Nummer"""
+    gln = request.args.get('gln', '').strip()
+    if not gln:
+        return jsonify({'error': 'GLN-Nummer erforderlich'}), 400
+
+    from services.swiss_registry_service import lookup_by_gln
+    result, error = lookup_by_gln(gln)
+
+    if error:
+        return jsonify({'error': error}), 404
+    return jsonify(result)
+
+
+@addresses_bp.route('/api/lookup-zsr')
+@login_required
+def api_lookup_zsr():
+    """Arzt-Lookup ueber ZSR-Nummer"""
+    zsr = request.args.get('zsr', '').strip()
+    if not zsr:
+        return jsonify({'error': 'ZSR-Nummer erforderlich'}), 400
+
+    from services.swiss_registry_service import lookup_by_zsr
+    result, error = lookup_by_zsr(zsr)
+
+    if error:
+        return jsonify({'error': error}), 404
+    return jsonify(result)
+
+
+@addresses_bp.route('/api/search-practitioners')
+@login_required
+def api_search_practitioners():
+    """Freie Suche nach Aerzten/Therapeuten"""
+    name = request.args.get('q', '').strip()
+    canton = request.args.get('canton', '').strip()
+
+    if not name and not canton:
+        return jsonify({'error': 'Mindestens Name oder Kanton angeben'}), 400
+
+    from services.swiss_registry_service import search_practitioners
+    results, error = search_practitioners(name=name, canton=canton)
+
+    if error:
+        return jsonify({'error': error, 'results': []}), 200
+    return jsonify({'results': results})

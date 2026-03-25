@@ -10,7 +10,8 @@ from services.reporting_service import (
     calculate_therapist_scorecard, export_to_csv,
     get_revenue_chart_data, get_revenue_by_therapist,
     get_revenue_by_insurance_type, get_utilization_by_therapist,
-    get_new_patients_chart_data
+    get_new_patients_chart_data,
+    get_financial_kpis, get_appointment_kpis, get_chart_data_monthly
 )
 from blueprints.reporting import reporting_bp
 from utils.auth import check_org
@@ -214,6 +215,58 @@ def api_rename_report(report_id):
     report.name = name
     db.session.commit()
     return jsonify({'success': True})
+
+
+# ============================================================
+# Erweiterte KPI-Endpunkte (Finanz-KPIs, Termin-KPIs, Chart-Daten)
+# ============================================================
+
+@reporting_bp.route('/api/financial-kpis')
+@login_required
+@require_permission('reporting.view')
+def api_financial_kpis():
+    """Finanz- und Termin-KPI-Daten laden"""
+    from datetime import date, timedelta
+
+    org_id = current_user.organization_id
+    period = request.args.get('period', 'month')  # week, month, quarter, year
+
+    today = date.today()
+    if period == 'week':
+        start = today - timedelta(days=7)
+    elif period == 'quarter':
+        quarter_start_month = ((today.month - 1) // 3) * 3 + 1
+        start = date(today.year, quarter_start_month, 1)
+    elif period == 'year':
+        start = date(today.year, 1, 1)
+    else:  # month
+        start = date(today.year, today.month, 1)
+
+    financial = get_financial_kpis(org_id, start, today)
+    appointments = get_appointment_kpis(org_id, start, today)
+
+    return jsonify({
+        'financial': financial,
+        'appointments': appointments,
+        'period': period,
+        'period_start': start.isoformat(),
+        'period_end': today.isoformat(),
+    })
+
+
+@reporting_bp.route('/api/monthly-chart-data')
+@login_required
+@require_permission('reporting.view')
+def api_monthly_chart_data():
+    """Monatliche Chart-Daten (aktuelles Jahr + Vorjahr)"""
+    from datetime import date
+
+    org_id = current_user.organization_id
+    year = request.args.get('year', date.today().year, type=int)
+    category = request.args.get('category', 'revenue')
+
+    data = get_chart_data_monthly(org_id, year, category)
+    return jsonify(data)
 
 
 # ============================================================

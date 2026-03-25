@@ -130,6 +130,100 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
                         &#10003; Automatisch gespeichert
                     </span>
                 </div>
+
+                <!-- Tarmed-Positionen -->
+                <div class="card mt-3" id="tariff-section" style="display:none;">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Tarmed-Positionen</h6>
+                        <button class="btn btn-sm btn-primary" onclick="openTariffModal()">+ Position</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0" id="tariff-table">
+                            <thead>
+                                <tr>
+                                    <th>Tarifziffer</th>
+                                    <th>Beschreibung</th>
+                                    <th>Menge</th>
+                                    <th>TP</th>
+                                    <th>TP-Wert</th>
+                                    <th>Betrag</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tariff-tbody"></tbody>
+                            <tfoot>
+                                <tr class="fw-bold">
+                                    <td colspan="5" class="text-end">Total:</td>
+                                    <td id="tariff-total">CHF 0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Modal: Tarmed-Position hinzufuegen -->
+                <div class="modal-overlay" id="tariffModal" style="display:none;">
+                    <div class="modal-dialog">
+                        <div class="modal-header">
+                            <h5>Tarmed-Position hinzufuegen</h5>
+                            <button class="modal-close" onclick="closeTariffModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group mb-2">
+                                <label>Tarifziffer suchen</label>
+                                <input type="text" id="tariffSearch" class="form-input" placeholder="Code oder Beschreibung eingeben..." oninput="searchTariffCodes(this.value)">
+                                <div id="tariffSuggestions" class="tariff-suggestions" style="display:none;"></div>
+                            </div>
+                            <div class="form-row" style="display:flex; gap:10px;">
+                                <div class="form-group" style="flex:1;">
+                                    <label>Tarifart</label>
+                                    <select id="tariffType" class="form-input">
+                                        <option value="Tarif 590">Tarif 590</option>
+                                        <option value="Tarif 312">Tarif 312</option>
+                                        <option value="TarReha">TarReha</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>Code</label>
+                                    <input type="text" id="tariffCode" class="form-input" placeholder="z.B. 7301">
+                                </div>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label>Beschreibung</label>
+                                <input type="text" id="tariffDescription" class="form-input" placeholder="Leistungsbeschreibung">
+                            </div>
+                            <div class="form-row" style="display:flex; gap:10px;">
+                                <div class="form-group" style="flex:1;">
+                                    <label>Menge</label>
+                                    <input type="number" id="tariffQuantity" class="form-input" value="1" min="0.25" step="0.25">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>Taxpunkte</label>
+                                    <input type="number" id="tariffTaxPoints" class="form-input" value="0" step="0.01">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>TP-Wert (CHF)</label>
+                                    <input type="number" id="tariffTpValue" class="form-input" value="1.00" step="0.01">
+                                </div>
+                            </div>
+                            <div class="form-row" style="display:flex; gap:10px;">
+                                <div class="form-group" style="flex:1;">
+                                    <label>MwSt.-Satz (%)</label>
+                                    <input type="number" id="tariffVatRate" class="form-input" value="0" step="0.1">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>Betrag (berechnet)</label>
+                                    <input type="text" id="tariffAmountPreview" class="form-input" readonly value="CHF 0.00" style="background:#f5f5f5;">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline" onclick="closeTariffModal()">Abbrechen</button>
+                            <button class="btn btn-primary" onclick="saveTariffPosition()">Hinzufuegen</button>
+                        </div>
+                    </div>
+                </div>
                 {% else %}
                 <div class="empty-state">
                     <p>Keine Termine in dieser Serie vorhanden.</p>
@@ -344,6 +438,9 @@ function ladeTermin(terminId, element) {
 
             // Auto-Save-Indikator zuruecksetzen
             document.getElementById('autoSaveIndicator').style.display = 'none';
+
+            // Tarmed-Positionen laden
+            loadTariffPositions(terminId);
         });
 }
 
@@ -405,6 +502,178 @@ function serieStatus(neuerStatus) {
         if (result.success) {
             window.location.reload();
         }
+    });
+}
+
+// ============================================================================
+// Tarmed-Positionen
+// ============================================================================
+
+function loadTariffPositions(terminId) {
+    // Tarmed-Bereich anzeigen
+    const section = document.getElementById('tariff-section');
+    if (!section) return;
+    section.style.display = 'block';
+
+    fetch('/treatment/api/termin/' + terminId + '/tariff-positions')
+        .then(r => r.json())
+        .then(positions => {
+            const tbody = document.getElementById('tariff-tbody');
+            tbody.innerHTML = '';
+            positions.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td>' + p.tariff_type + ' ' + p.tariff_code + '</td>' +
+                    '<td>' + (p.description || '') + '</td>' +
+                    '<td>' + p.quantity + '</td>' +
+                    '<td>' + p.tax_points.toFixed(2) + '</td>' +
+                    '<td>' + p.tax_point_value.toFixed(2) + '</td>' +
+                    '<td>CHF ' + p.amount.toFixed(2) + '</td>' +
+                    '<td><button class="btn btn-sm btn-danger" onclick="deleteTariffPosition(' + p.id + ')" title="Loeschen">&times;</button></td>';
+                tbody.appendChild(tr);
+            });
+            updateTariffTotal(positions);
+        });
+}
+
+function updateTariffTotal(positions) {
+    let total = 0;
+    if (positions) {
+        positions.forEach(p => { total += p.amount; });
+    }
+    document.getElementById('tariff-total').textContent = 'CHF ' + total.toFixed(2);
+}
+
+function openTariffModal() {
+    document.getElementById('tariffModal').style.display = 'flex';
+    // Felder zuruecksetzen
+    document.getElementById('tariffSearch').value = '';
+    document.getElementById('tariffCode').value = '';
+    document.getElementById('tariffDescription').value = '';
+    document.getElementById('tariffQuantity').value = '1';
+    document.getElementById('tariffTaxPoints').value = '0';
+    document.getElementById('tariffTpValue').value = '1.00';
+    document.getElementById('tariffVatRate').value = '0';
+    document.getElementById('tariffAmountPreview').value = 'CHF 0.00';
+    document.getElementById('tariffSuggestions').style.display = 'none';
+
+    // Betrag-Vorschau aktualisieren bei Eingabe
+    ['tariffQuantity', 'tariffTaxPoints', 'tariffTpValue'].forEach(id => {
+        document.getElementById(id).oninput = updateTariffPreview;
+    });
+}
+
+function closeTariffModal() {
+    document.getElementById('tariffModal').style.display = 'none';
+}
+
+function updateTariffPreview() {
+    const qty = parseFloat(document.getElementById('tariffQuantity').value) || 0;
+    const tp = parseFloat(document.getElementById('tariffTaxPoints').value) || 0;
+    const tpv = parseFloat(document.getElementById('tariffTpValue').value) || 0;
+    const betrag = (qty * tp * tpv).toFixed(2);
+    document.getElementById('tariffAmountPreview').value = 'CHF ' + betrag;
+}
+
+let tariffSearchTimer = null;
+function searchTariffCodes(query) {
+    clearTimeout(tariffSearchTimer);
+    const sugBox = document.getElementById('tariffSuggestions');
+    if (query.length < 1) {
+        sugBox.style.display = 'none';
+        return;
+    }
+    tariffSearchTimer = setTimeout(() => {
+        fetch('/treatment/api/tariff-codes?q=' + encodeURIComponent(query))
+            .then(r => r.json())
+            .then(codes => {
+                if (codes.length === 0) {
+                    sugBox.style.display = 'none';
+                    return;
+                }
+                sugBox.innerHTML = '';
+                codes.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'tariff-suggestion-item';
+                    div.style.cssText = 'padding:6px 10px; cursor:pointer; border-bottom:1px solid #eee;';
+                    div.textContent = c.code + ' - ' + c.description + ' (' + c.type + ', ' + c.default_tp + ' TP)';
+                    div.onclick = function() {
+                        document.getElementById('tariffType').value = c.type;
+                        document.getElementById('tariffCode').value = c.code;
+                        document.getElementById('tariffDescription').value = c.description;
+                        document.getElementById('tariffTaxPoints').value = c.default_tp;
+                        sugBox.style.display = 'none';
+                        document.getElementById('tariffSearch').value = c.code + ' - ' + c.description;
+                        updateTariffPreview();
+                    };
+                    div.onmouseover = function() { this.style.background = '#f0f0f0'; };
+                    div.onmouseout = function() { this.style.background = ''; };
+                    sugBox.appendChild(div);
+                });
+                sugBox.style.display = 'block';
+            });
+    }, 300);
+}
+
+function saveTariffPosition() {
+    if (!aktuellerTerminId) return;
+
+    const code = document.getElementById('tariffCode').value.trim();
+    const tp = parseFloat(document.getElementById('tariffTaxPoints').value);
+    const tpv = parseFloat(document.getElementById('tariffTpValue').value);
+
+    if (!code) {
+        alert('Bitte eine Tarifziffer eingeben.');
+        return;
+    }
+    if (!tp || !tpv) {
+        alert('Bitte Taxpunkte und TP-Wert eingeben.');
+        return;
+    }
+
+    const data = {
+        tariff_type: document.getElementById('tariffType').value,
+        tariff_code: code,
+        description: document.getElementById('tariffDescription').value,
+        quantity: parseFloat(document.getElementById('tariffQuantity').value) || 1,
+        tax_points: tp,
+        tax_point_value: tpv,
+        vat_rate: parseFloat(document.getElementById('tariffVatRate').value) || 0
+    };
+
+    fetchWithCSRF('/treatment/api/termin/' + aktuellerTerminId + '/tariff-positions', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.id) {
+            closeTariffModal();
+            loadTariffPositions(aktuellerTerminId);
+        } else if (result.error) {
+            alert('Fehler: ' + result.error);
+        }
+    })
+    .catch(err => {
+        alert('Fehler beim Speichern: ' + err.message);
+    });
+}
+
+function deleteTariffPosition(positionId) {
+    if (!confirm('Position wirklich loeschen?')) return;
+
+    fetchWithCSRF('/treatment/api/tariff-position/' + positionId, {
+        method: 'DELETE'
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.message) {
+            loadTariffPositions(aktuellerTerminId);
+        }
+    })
+    .catch(err => {
+        alert('Fehler beim Loeschen: ' + err.message);
     });
 }
 

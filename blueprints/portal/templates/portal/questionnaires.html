@@ -1,0 +1,43 @@
+{% extends "portal/portal_base.html" %}
+{% block title %}Frageboegen{% endblock %}
+
+{% block content %}
+<div class="portal-page">
+    <h1>Frageboegen</h1>
+    <p class="portal-text-muted" style="margin-bottom: 1.5rem;">
+        Hier finden Sie Frageboegen, die Sie direkt online ausfuellen koennen.
+    </p>
+
+    {% if questionnaires %}
+    <div class="portal-cards">
+        {% for q in questionnaires %}
+        <div class="portal-card">
+            <div class="portal-card-header">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"></path>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                <h2>{{ q.name }}</h2>
+            </div>
+            <div class="portal-card-body">
+                {% if q.description %}
+                <p>{{ q.description }}</p>
+                {% endif %}
+                <div style="margin-top: 1rem;">
+                    <a href="{{ url_for('portal.portal_questionnaire_fill', questionnaire_id=q.id) }}" class="portal-btn portal-btn-primary">
+                        Ausfuellen
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="portal-card">
+        <div class="portal-card-body">
+            <p class="portal-text-muted">Derzeit sind keine Frageboegen verfuegbar.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

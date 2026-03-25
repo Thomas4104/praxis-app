@@ -273,6 +273,8 @@ def api_get_appointments():
             'soap_plan': a.soap_plan or '',
             'series_id': a.series_id,
             'is_domicile': a.is_domicile,
+            'is_group': a.is_group,
+            'color_category': a.color_category,
             'cancellation_reason': a.cancellation_reason or ''
         })
 
@@ -340,6 +342,20 @@ def api_create_appointment():
         notes=data.get('notes', ''),
         is_domicile=data.get('is_domicile', False)
     )
+    # Farbkategorie setzen falls angegeben
+    if data.get('color_category'):
+        appointment.color_category = data['color_category']
+
+    # Automatische Seriennummer vergeben wenn Serie vorhanden
+    series_id = data.get('series_id')
+    if series_id:
+        # Naechste Seriennummer bestimmen (Termin 0 zaehlt nicht)
+        max_series_nr = db.session.query(db.func.max(Appointment.series_number)).filter(
+            Appointment.series_id == series_id,
+            Appointment.is_termin_0 == False
+        ).scalar() or 0
+        appointment.series_number = max_series_nr + 1
+
     db.session.add(appointment)
 
     # Raum-Buchung erstellen wenn Raum angegeben
@@ -408,6 +424,8 @@ def api_update_appointment(appointment_id):
         appointment.series_id = data['series_id']
     if 'location_id' in data:
         appointment.location_id = data['location_id']
+    if 'color_category' in data:
+        appointment.color_category = data['color_category']
 
     db.session.commit()
     return jsonify({'success': True, 'message': 'Termin wurde aktualisiert.'})
@@ -498,20 +516,42 @@ def api_delete_appointment(appointment_id):
 @calendar_bp.route('/api/appointments/<int:appointment_id>/cancel', methods=['POST'])
 @login_required
 def api_cancel_appointment(appointment_id):
-    """Termin absagen"""
+    """Termin absagen mit optionalem 'Trotzdem abrechnen'"""
     appointment = Appointment.query.get_or_404(appointment_id)
-    # IDOR-Schutz
     emp = Employee.query.get_or_404(appointment.employee_id)
     check_org(emp)
     data = request.get_json() or {}
 
     appointment.status = 'cancelled'
     appointment.cancellation_reason = data.get('reason', '')
-    if data.get('charge_fee'):
-        appointment.cancellation_fee = float(data.get('fee_amount', 0))
+
+    # Trotzdem abrechnen (Spaetabsage)
+    if data.get('charge_despite_cancel'):
+        appointment.is_termin_0 = True
+        appointment.charge_despite_cancel = True
+        if data.get('fee_amount'):
+            appointment.cancellation_fee = float(data['fee_amount'])
+    else:
+        appointment.is_termin_0 = False
+        appointment.charge_despite_cancel = False
+        if data.get('charge_fee'):
+            appointment.cancellation_fee = float(data.get('fee_amount', 0))
 
     db.session.commit()
-    return jsonify({'success': True, 'message': 'Termin wurde abgesagt.'})
+
+    from services.audit_service import log_action
+    log_action('cancel', 'appointment', appointment_id, changes={
+        'status': {'old': 'scheduled', 'new': 'cancelled'},
+        'charge_despite_cancel': {'new': appointment.charge_despite_cancel},
+        'reason': {'new': appointment.cancellation_reason},
+    })
+
+    return jsonify({
+        'success': True,
+        'message': 'Termin wurde abgesagt.',
+        'is_termin_0': appointment.is_termin_0,
+        'charge_despite_cancel': appointment.charge_despite_cancel,
+    })
 
 
 @calendar_bp.route('/api/available-slots')
@@ -835,3 +875,122 @@ def api_add_waiting_list():
     db.session.commit()
 
     return jsonify({'success': True, 'id': entry.id, 'message': 'Patient auf Warteliste gesetzt.'}), 201
+
+
+# ============================================================
+# Gruppentherapie: Teilnehmer-Verwaltung
+# ============================================================
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/participants', methods=['GET'])
+@login_required
+def api_get_participants(appointment_id):
+    """Teilnehmer einer Gruppentherapie laden"""
+    from models import GroupAppointmentParticipant
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    participants = GroupAppointmentParticipant.query.filter_by(
+        appointment_id=appointment_id
+    ).all()
+
+    return jsonify([{
+        'id': p.id,
+        'patient_id': p.patient_id,
+        'patient_name': f'{p.patient.last_name}, {p.patient.first_name}' if p.patient else '',
+        'series_id': p.series_id,
+        'status': p.status,
+        'notes': p.notes or '',
+    } for p in participants])
+
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/participants', methods=['POST'])
+@login_required
+def api_add_participant(appointment_id):
+    """Teilnehmer zu Gruppentherapie hinzufuegen"""
+    from models import GroupAppointmentParticipant
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    if not appointment.is_group:
+        return jsonify({'error': 'Kein Gruppentherapie-Termin'}), 400
+
+    data = request.get_json() or {}
+    patient_id = data.get('patient_id')
+    if not patient_id:
+        return jsonify({'error': 'patient_id erforderlich'}), 400
+
+    # Pruefen ob bereits Teilnehmer
+    existing = GroupAppointmentParticipant.query.filter_by(
+        appointment_id=appointment_id,
+        patient_id=patient_id,
+    ).first()
+    if existing:
+        return jsonify({'error': 'Patient ist bereits Teilnehmer'}), 400
+
+    # Max-Teilnehmer pruefen
+    if appointment.max_participants:
+        current_count = GroupAppointmentParticipant.query.filter_by(
+            appointment_id=appointment_id
+        ).count()
+        if current_count >= appointment.max_participants:
+            return jsonify({'error': f'Maximale Teilnehmerzahl ({appointment.max_participants}) erreicht'}), 400
+
+    participant = GroupAppointmentParticipant(
+        appointment_id=appointment_id,
+        patient_id=patient_id,
+        series_id=data.get('series_id'),
+        status='scheduled',
+    )
+    db.session.add(participant)
+    db.session.commit()
+
+    return jsonify({'id': participant.id, 'message': 'Teilnehmer hinzugefuegt'}), 201
+
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/participants/<int:participant_id>', methods=['DELETE'])
+@login_required
+def api_remove_participant(appointment_id, participant_id):
+    """Teilnehmer aus Gruppentherapie entfernen"""
+    from models import GroupAppointmentParticipant
+    participant = GroupAppointmentParticipant.query.get_or_404(participant_id)
+
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    db.session.delete(participant)
+    db.session.commit()
+    return jsonify({'message': 'Teilnehmer entfernt'})
+
+
+@calendar_bp.route('/api/appointment-config')
+@login_required
+def api_appointment_config():
+    """Terminkarten-Konfiguration laden (Farben, Darstellung)"""
+    import json
+
+    org_id = current_user.organization_id
+    config_str = get_setting(org_id, 'appointment_display_config', '{}')
+
+    try:
+        config = json.loads(config_str)
+    except (json.JSONDecodeError, TypeError):
+        config = {}
+
+    # Standard-Farbkategorien falls keine konfiguriert
+    if 'color_categories' not in config:
+        config['color_categories'] = [
+            {'name': 'Einzeltermin', 'color': '#6c757d'},
+            {'name': 'Erstbefund', 'color': '#0d6efd'},
+            {'name': 'Domizilbehandlung', 'color': '#198754'},
+            {'name': 'Gruppentherapie', 'color': '#6f42c1'},
+            {'name': 'Besprechung', 'color': '#fd7e14'},
+        ]
+
+    # Domizil- und Gruppen-Farbe
+    config['domicile_color'] = '#198754'
+    config['group_color'] = '#6f42c1'
+
+    return jsonify(config)

@@ -104,6 +104,97 @@ def calculate_invoice_from_series(series_id, org_id):
     }, None
 
 
+def calculate_invoice_from_tariff_positions(series_id, org_id):
+    """Berechnet Rechnungspositionen aus Tarmed-Positionen der Termine.
+
+    Wenn Termine eigene Tarmed-Positionen haben, werden diese statt der
+    Standard-Berechnung verwendet. Termine mit charge_despite_cancel=True
+    werden ebenfalls beruecksichtigt.
+    """
+    from models import AppointmentTariffPosition
+
+    series = TreatmentSeries.query.get(series_id)
+    if not series or series.patient.organization_id != org_id:
+        return None, 'Serie nicht gefunden'
+
+    # Alle abrechnbaren Termine (completed + appeared + charge_despite_cancel)
+    appointments = Appointment.query.filter(
+        Appointment.series_id == series_id,
+        db.or_(
+            Appointment.status.in_(['completed', 'appeared']),
+            Appointment.charge_despite_cancel == True
+        )
+    ).order_by(Appointment.start_time).all()
+
+    if not appointments:
+        return None, 'Keine abrechnbaren Termine gefunden'
+
+    items = []
+    position_nr = 0
+
+    for appt in appointments:
+        # Pruefen ob Tarmed-Positionen erfasst wurden
+        tariff_positions = AppointmentTariffPosition.query.filter_by(
+            appointment_id=appt.id
+        ).order_by(AppointmentTariffPosition.position).all()
+
+        if tariff_positions:
+            # Verwende die manuell erfassten Tarmed-Positionen
+            for tp in tariff_positions:
+                position_nr += 1
+                items.append({
+                    'position': position_nr,
+                    'tariff_type': tp.tariff_type,
+                    'tariff_code': tp.tariff_code,
+                    'description': tp.description or f'{tp.tariff_type} {tp.tariff_code}',
+                    'quantity': float(tp.quantity),
+                    'tax_points': float(tp.tax_points),
+                    'tax_point_value': float(tp.tax_point_value),
+                    'amount': float(tp.amount),
+                    'vat_rate': float(tp.vat_rate or 0),
+                    'vat_amount': float(tp.vat_amount or 0),
+                    'appointment_id': appt.id,
+                    'appointment_date': appt.start_time.strftime('%d.%m.%Y') if appt.start_time else '',
+                    'is_termin_0': appt.is_termin_0,
+                })
+        else:
+            # Fallback: Standard-Berechnung (wie bisher)
+            position_nr += 1
+            tariff_type = series.insurance_type or 'Tarif 590'
+            duration = appt.duration_minutes or 30
+            tp_val = get_tax_point_value(org_id, tariff_type)
+            tax_points = _get_default_tax_points(tariff_type, duration)
+            amount = round(tax_points * float(tp_val), 2)
+
+            items.append({
+                'position': position_nr,
+                'tariff_type': tariff_type,
+                'tariff_code': _get_tariff_code(tariff_type, duration),
+                'description': f'Physiotherapie {duration} Min.',
+                'quantity': 1,
+                'tax_points': tax_points,
+                'tax_point_value': float(tp_val),
+                'amount': amount,
+                'vat_rate': 0,
+                'vat_amount': 0,
+                'appointment_id': appt.id,
+                'appointment_date': appt.start_time.strftime('%d.%m.%Y') if appt.start_time else '',
+                'is_termin_0': appt.is_termin_0,
+            })
+
+    total = sum(item['amount'] + item['vat_amount'] for item in items)
+
+    return {
+        'items': items,
+        'total': round(total, 2),
+        'appointment_count': len(appointments),
+        'has_tariff_positions': any(
+            AppointmentTariffPosition.query.filter_by(appointment_id=a.id).first()
+            for a in appointments
+        ),
+    }, None
+
+
 def _get_tariff_code(tariff_type, duration_minutes):
     """Ermittelt die Tarifziffer basierend auf Tariftyp und Dauer"""
     codes = {
@@ -175,8 +266,24 @@ def generate_invoice_number(org_id):
 
 
 def create_invoice_from_series(series_id, org_id, user_id=None):
-    """Erstellt eine komplette Rechnung aus einer Behandlungsserie"""
-    result, error = calculate_invoice_from_series(series_id, org_id)
+    """Erstellt eine komplette Rechnung aus einer Behandlungsserie.
+
+    Versucht zuerst die Berechnung ueber Tarmed-Positionen. Nur wenn das
+    fehlschlaegt, wird die Standard-Berechnung verwendet.
+    """
+    # Zuerst versuchen: Tarmed-Positionen pro Termin
+    tariff_result, tariff_error = calculate_invoice_from_tariff_positions(series_id, org_id)
+    if tariff_result:
+        # Tarmed-Positionen vorhanden, verwende diese als Basis
+        result, error = calculate_invoice_from_series(series_id, org_id)
+        if error:
+            return None, error
+        # Items aus Tarmed-Berechnung uebernehmen
+        result['items'] = tariff_result['items']
+        result['amount_total'] = tariff_result['total']
+    else:
+        # Fallback: Standard-Berechnung
+        result, error = calculate_invoice_from_series(series_id, org_id)
     if error:
         return None, error
 

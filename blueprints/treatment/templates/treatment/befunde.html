@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Befunde — {{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+<span>Befunde</span>
+{% endblock %}
+
+{% block page_title %}
+Befunde: {{ patient.first_name }} {{ patient.last_name }}
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="oeffneNeuerBefundModal()">Neuer Befund</button>
+<a href="{{ url_for('treatment.treatment_plan', patient_id=patient.id) }}" class="btn btn-outline">
+    Behandlungsplan
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Vorhandene Befunde</h2>
+    </div>
+    <div id="befundeListe">
+        <div class="empty-state">
+            <p>Befunde werden geladen...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Neuer Befund -->
+<div class="modal-overlay" id="befundModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3 id="befundModalTitel">Neuer Befund</h3>
+            <button class="modal-close" onclick="schliesseModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Vorlagen-Auswahl -->
+            <div class="form-group">
+                <label class="form-label">Vorlage</label>
+                <select id="vorlagenAuswahl" class="form-select" onchange="ladeVorlageFelder()">
+                    <option value="">Ohne Vorlage (Freitext)</option>
+                </select>
+            </div>
+
+            <!-- Typ -->
+            <div class="form-group">
+                <label class="form-label">Befund-Typ</label>
+                <select id="befundTyp" class="form-select">
+                    <option value="erstbefund">Erstbefund</option>
+                    <option value="verlaufsbefund">Verlaufsbefund</option>
+                </select>
+            </div>
+
+            <!-- Dynamisches Formular -->
+            <div id="dynamischeFelder">
+                <div class="form-group">
+                    <label class="form-label">Befund (Freitext)</label>
+                    <textarea id="freitextFeld" class="form-textarea" rows="8" placeholder="Befund hier eingeben..."></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="schliesseModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="befundSpeichern()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Befund anzeigen -->
+<div class="modal-overlay" id="befundDetailModal">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3 id="detailModalTitel">Befund</h3>
+            <button class="modal-close" onclick="document.getElementById('befundDetailModal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="modal-body" id="befundDetailInhalt">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('befundDetailModal').classList.remove('active')">Schliessen</button>
+            <button type="button" class="btn btn-danger" id="befundLoeschenBtn" onclick="befundLoeschen()">Loeschen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const PATIENT_ID = {{ patient.id }};
+let vorlagen = [];
+let aktuellerBefundId = null;
+
+// Befunde laden
+function ladeBefunde() {
+    fetch(`/treatment/api/befunde/${PATIENT_ID}`)
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('befundeListe');
+            if (!data.length) {
+                container.innerHTML = '<div class="empty-state"><p>Noch keine Befunde vorhanden.</p></div>';
+                return;
+            }
+            let html = '<div class="table-responsive"><table class="data-table"><thead><tr>';
+            html += '<th>Typ</th><th>Vorlage</th><th>Erstellt von</th><th>Erstellt am</th><th>Aktionen</th>';
+            html += '</tr></thead><tbody>';
+            data.forEach(b => {
+                const typLabel = b.finding_type === 'erstbefund' ? 'Erstbefund' : 'Verlaufsbefund';
+                html += `<tr>`;
+                html += `<td><span class="badge">${typLabel}</span></td>`;
+                html += `<td>${b.template_name}</td>`;
+                html += `<td>${b.created_by}</td>`;
+                html += `<td>${b.created_at}</td>`;
+                html += `<td class="actions-cell">`;
+                html += `<button class="btn btn-sm btn-ghost" onclick="zeigeBefund(${b.id})" title="Anzeigen">`;
+                html += `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+                html += `</button></td></tr>`;
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        });
+}
+
+// Vorlagen laden
+function ladeVorlagen() {
+    fetch('/treatment/api/befund-vorlagen')
+        .then(r => r.json())
+        .then(data => {
+            vorlagen = data;
+            const sel = document.getElementById('vorlagenAuswahl');
+            sel.innerHTML = '<option value="">Ohne Vorlage (Freitext)</option>';
+            data.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.id;
+                opt.textContent = `${v.name} (${v.location_name})`;
+                if (v.is_default) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            // Standard-Vorlage direkt laden
+            if (sel.value) ladeVorlageFelder();
+        });
+}
+
+// Vorlage-Felder dynamisch generieren
+function ladeVorlageFelder() {
+    const sel = document.getElementById('vorlagenAuswahl');
+    const container = document.getElementById('dynamischeFelder');
+    const vorlagenId = sel.value;
+
+    if (!vorlagenId) {
+        container.innerHTML = `
+            <div class="form-group">
+                <label class="form-label">Befund (Freitext)</label>
+                <textarea id="freitextFeld" class="form-textarea" rows="8" placeholder="Befund hier eingeben..."></textarea>
+            </div>`;
+        return;
+    }
+
+    const vorlage = vorlagen.find(v => v.id == vorlagenId);
+    if (!vorlage || !vorlage.fields || !vorlage.fields.length) {
+        container.innerHTML = '<p>Keine Felder definiert.</p>';
+        return;
+    }
+
+    let html = '';
+    vorlage.fields.forEach((feld, idx) => {
+        const feldId = `feld_${idx}`;
+        html += `<div class="form-group">`;
+        html += `<label class="form-label">${feld.label || feld.name}</label>`;
+
+        if (feld.type === 'text') {
+            html += `<textarea id="${feldId}" class="form-textarea" rows="3" data-feld-name="${feld.name}" placeholder="${feld.placeholder || ''}"></textarea>`;
+        } else if (feld.type === 'number') {
+            html += `<input type="number" id="${feldId}" class="form-input" data-feld-name="${feld.name}" placeholder="${feld.placeholder || ''}">`;
+        } else if (feld.type === 'boolean') {
+            html += `<label class="checkbox-label"><input type="checkbox" id="${feldId}" data-feld-name="${feld.name}"> ${feld.description || 'Ja'}</label>`;
+        } else {
+            html += `<input type="text" id="${feldId}" class="form-input" data-feld-name="${feld.name}" placeholder="${feld.placeholder || ''}">`;
+        }
+
+        html += `</div>`;
+    });
+    container.innerHTML = html;
+}
+
+// Modal oeffnen
+function oeffneNeuerBefundModal() {
+    aktuellerBefundId = null;
+    document.getElementById('befundModalTitel').textContent = 'Neuer Befund';
+    document.getElementById('befundTyp').value = 'erstbefund';
+    ladeVorlageFelder();
+    document.getElementById('befundModal').classList.add('active');
+}
+
+function schliesseModal() {
+    document.getElementById('befundModal').classList.remove('active');
+}
+
+// Befund speichern
+function befundSpeichern() {
+    const vorlagenId = document.getElementById('vorlagenAuswahl').value;
+    const befundTyp = document.getElementById('befundTyp').value;
+    let befundDaten = {};
+
+    if (!vorlagenId) {
+        // Freitext
+        const freitext = document.getElementById('freitextFeld');
+        befundDaten = { freitext: freitext ? freitext.value : '' };
+    } else {
+        // Dynamische Felder auslesen
+        const felder = document.querySelectorAll('#dynamischeFelder [data-feld-name]');
+        felder.forEach(f => {
+            const name = f.dataset.feldName;
+            if (f.type === 'checkbox') {
+                befundDaten[name] = f.checked;
+            } else {
+                befundDaten[name] = f.value;
+            }
+        });
+    }
+
+    const payload = {
+        patient_id: PATIENT_ID,
+        template_id: vorlagenId ? parseInt(vorlagenId) : null,
+        finding_type: befundTyp,
+        data: befundDaten,
+    };
+
+    const url = aktuellerBefundId
+        ? `/treatment/api/befund/${aktuellerBefundId}`
+        : '/treatment/api/befund';
+    const method = aktuellerBefundId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        schliesseModal();
+        ladeBefunde();
+    })
+    .catch(err => alert('Fehler beim Speichern: ' + err));
+}
+
+// Befund anzeigen
+function zeigeBefund(befundId) {
+    fetch(`/treatment/api/befunde/${PATIENT_ID}`)
+        .then(r => r.json())
+        .then(data => {
+            const befund = data.find(b => b.id === befundId);
+            if (!befund) return;
+            aktuellerBefundId = befundId;
+
+            const typLabel = befund.finding_type === 'erstbefund' ? 'Erstbefund' : 'Verlaufsbefund';
+            document.getElementById('detailModalTitel').textContent = `${typLabel} (${befund.template_name})`;
+
+            let html = `<p><strong>Erstellt von:</strong> ${befund.created_by}<br>`;
+            html += `<strong>Erstellt am:</strong> ${befund.created_at}</p><hr>`;
+
+            const daten = befund.data || {};
+            if (daten.freitext) {
+                html += `<div class="form-group"><label class="form-label">Freitext</label><p>${daten.freitext.replace(/\n/g, '<br>')}</p></div>`;
+            } else {
+                Object.keys(daten).forEach(key => {
+                    const wert = daten[key];
+                    const anzeige = (typeof wert === 'boolean') ? (wert ? 'Ja' : 'Nein') : wert;
+                    html += `<div class="form-group"><label class="form-label"><strong>${key}</strong></label><p>${String(anzeige).replace(/\n/g, '<br>')}</p></div>`;
+                });
+            }
+
+            document.getElementById('befundDetailInhalt').innerHTML = html;
+            document.getElementById('befundDetailModal').classList.add('active');
+        });
+}
+
+// Befund loeschen
+function befundLoeschen() {
+    if (!aktuellerBefundId) return;
+    if (!confirm('Befund wirklich loeschen?')) return;
+
+    fetch(`/treatment/api/befund/${aktuellerBefundId}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        }
+    })
+    .then(r => r.json())
+    .then(() => {
+        document.getElementById('befundDetailModal').classList.remove('active');
+        ladeBefunde();
+    });
+}
+
+// Initialisierung
+document.addEventListener('DOMContentLoaded', () => {
+    ladeBefunde();
+    ladeVorlagen();
+});
+</script>
+{% endblock %}

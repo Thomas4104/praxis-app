@@ -548,6 +548,12 @@ class TreatmentSeries(db.Model):
     healing_phase = db.Column(db.String(20))
     notes = db.Column(db.Text)
     cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
+
+    # IV-Abrechnung (Invalidenversicherung)
+    iv_valid_until = db.Column(db.Date, nullable=True)  # "IV bis"-Datum
+    iv_decision_number = db.Column(db.String(50), nullable=True)  # Verfuegungsnummer
+    iv_decision_date = db.Column(db.Date, nullable=True)  # Verfuegungsdatum
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
@@ -556,6 +562,71 @@ class TreatmentSeries(db.Model):
     location = db.relationship('Location', foreign_keys=[location_id])
     appointments = db.relationship('Appointment', backref='series', lazy='dynamic', cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='series', lazy='dynamic')
+
+
+class FindingTemplate(db.Model):
+    """Vorlage fuer klinische Befunde (Erstbefund, Verlaufsbefund).
+    Konfigurierbar pro Standort und Behandlungsart."""
+    __tablename__ = 'finding_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)  # z.B. 'Standard', 'Atemtherapiebefund'
+    template_type = db.Column(db.String(30), default='erstbefund')  # erstbefund, verlaufsbefund
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)  # Optional pro Standort
+    fields_json = db.Column(db.Text, nullable=False)  # JSON-Schema der Felder
+    is_default = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Beziehungen
+    location = db.relationship('Location', backref='finding_templates')
+
+
+class ClinicalFinding(db.Model):
+    """Ausgefuellter klinischer Befund eines Patienten"""
+    __tablename__ = 'clinical_findings'
+    __table_args__ = (
+        db.Index('ix_finding_patient', 'patient_id'),
+        db.Index('ix_finding_series', 'series_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('finding_templates.id'), nullable=True)
+    finding_type = db.Column(db.String(30), default='erstbefund')  # erstbefund, verlaufsbefund
+    data_json = db.Column(db.Text, nullable=False)  # Ausgefuellte Felder als JSON
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Beziehungen
+    patient = db.relationship('Patient', backref=db.backref('findings', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', backref=db.backref('findings', lazy='dynamic'))
+    template = db.relationship('FindingTemplate')
+    created_by = db.relationship('User')
+
+
+class TreatmentPlanTemplate(db.Model):
+    """Vorlage fuer Behandlungsplaene mit Therapiezielen, Massnahmen und Frequenz"""
+    __tablename__ = 'treatment_plan_templates'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)  # z.B. 'Standardplan KVG', 'Reha-Plan UVG'
+    description = db.Column(db.Text, nullable=True)
+    goals_json = db.Column(db.Text, nullable=True)  # Vordefinierte Therapieziele als JSON-Array
+    measures_json = db.Column(db.Text, nullable=True)  # Vordefinierte Massnahmen als JSON-Array
+    frequency_json = db.Column(db.Text, nullable=True)  # Frequenz-Vorschlaege als JSON
+    insurance_type = db.Column(db.String(20), nullable=True)  # KVG, UVG, IV - optional filtern
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Appointment(db.Model):
@@ -591,6 +662,12 @@ class Appointment(db.Model):
     travel_time_minutes = db.Column(db.Integer)
     soap_updated_at = db.Column(db.DateTime, nullable=True)
     soap_updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    series_number = db.Column(db.Integer)  # Position in Serie (1, 2, 3... fuer 1/9, 2/9)
+    is_termin_0 = db.Column(db.Boolean, default=False)  # Absage als "Termin 0"
+    charge_despite_cancel = db.Column(db.Boolean, default=False)  # "Trotzdem abrechnen"
+    is_group = db.Column(db.Boolean, default=False)  # Gruppentherapie-Termin
+    color_category = db.Column(db.String(30), nullable=True)  # Farbkategorie fuer Einzeltermine
+    max_participants = db.Column(db.Integer, nullable=True)  # Max. Teilnehmer bei Gruppentherapie
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -598,6 +675,34 @@ class Appointment(db.Model):
     resource = db.relationship('Resource', foreign_keys=[resource_id])
     resource_bookings = db.relationship('ResourceBooking', backref='appointment', lazy='dynamic')
     soap_updated_by = db.relationship('User', foreign_keys=[soap_updated_by_id])
+    tariff_positions = db.relationship('AppointmentTariffPosition', backref='appointment', lazy='dynamic', cascade='all, delete-orphan')
+    group_participants = db.relationship('GroupAppointmentParticipant', backref='appointment', cascade='all, delete-orphan')
+
+
+class AppointmentTariffPosition(db.Model):
+    """Tarmed-Leistungspositionen pro Termin (Tarif 590, Tarif 312, TarReha)"""
+    __tablename__ = 'appointment_tariff_positions'
+    __table_args__ = (
+        db.Index('ix_atp_appointment', 'appointment_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    tariff_type = db.Column(db.String(20), nullable=False)  # 'Tarif 590', 'Tarif 312', 'TarReha'
+    tariff_code = db.Column(db.String(20), nullable=False)  # z.B. '7301', '5901'
+    description = db.Column(db.String(500))
+    quantity = db.Column(db.Numeric(10, 2), default=1)
+    tax_points = db.Column(db.Numeric(10, 2), nullable=False)
+    tax_point_value = db.Column(db.Numeric(10, 4), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)  # quantity * tax_points * tax_point_value
+    vat_rate = db.Column(db.Numeric(5, 2), default=0)
+    vat_amount = db.Column(db.Numeric(10, 2), default=0)
+    position = db.Column(db.Integer, default=0)  # Reihenfolge
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', backref='created_tariff_positions')
 
 
 # ============================================================
@@ -1632,3 +1737,115 @@ class OnlineBookingRequest(db.Model):
     template = db.relationship('TreatmentSeriesTemplate', backref='booking_requests')
     preferred_employee = db.relationship('Employee', backref='booking_requests')
     appointment = db.relationship('Appointment', backref='booking_request')
+
+
+# ============================================================
+# TP-Rechnungskopien (seit 01.01.2022 Pflicht)
+# ============================================================
+
+class InvoiceCopyConfig(db.Model):
+    """Konfiguration fuer automatischen Versand von TP-Rechnungskopien (seit 01.01.2022 Pflicht)"""
+    __tablename__ = 'invoice_copy_configs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    send_channel = db.Column(db.String(20), default='email')  # email, print, both
+    send_timing = db.Column(db.String(30), default='on_send')  # on_send, next_day, weekly
+    email_template_id = db.Column(db.Integer, db.ForeignKey('email_templates.id'), nullable=True)
+    sender_email = db.Column(db.String(200))
+    create_task_on_failure = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class InvoiceCopy(db.Model):
+    """Tracking von versendeten Rechnungskopien an Patienten"""
+    __tablename__ = 'invoice_copies'
+    __table_args__ = (
+        db.Index('ix_invoice_copy_invoice', 'invoice_id'),
+        db.Index('ix_invoice_copy_status', 'status'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=False)
+    recipient_type = db.Column(db.String(20), default='patient')  # patient, insurance
+    recipient_email = db.Column(db.String(200))
+    sent_at = db.Column(db.DateTime)
+    sent_via = db.Column(db.String(20))  # email, print
+    status = db.Column(db.String(20), default='pending')  # pending, sent, failed
+    error_message = db.Column(db.Text)
+    pdf_path = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    invoice = db.relationship('Invoice', backref=db.backref('copies', lazy='dynamic'))
+
+
+# ============================================================
+# Patientenfrageboegen
+# ============================================================
+
+class Questionnaire(db.Model):
+    """Digitale Patientenfrageboegen (ausfuellbar ueber Portal oder in der Praxis)"""
+    __tablename__ = 'questionnaires'
+
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)  # z.B. 'Schmerzfragebogen', 'Anamnese'
+    description = db.Column(db.Text, nullable=True)
+    questions_json = db.Column(db.Text, nullable=False)  # JSON-Array der Fragen
+    scoring_json = db.Column(db.Text, nullable=True)  # Optionale Auswertungslogik
+    is_portal_visible = db.Column(db.Boolean, default=True)  # Im Portal sichtbar
+    is_active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class QuestionnaireResponse(db.Model):
+    """Ausgefuellter Fragebogen eines Patienten"""
+    __tablename__ = 'questionnaire_responses'
+    __table_args__ = (
+        db.Index('ix_qr_patient', 'patient_id'),
+        db.Index('ix_qr_questionnaire', 'questionnaire_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    questionnaire_id = db.Column(db.Integer, db.ForeignKey('questionnaires.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
+    answers_json = db.Column(db.Text, nullable=False)  # JSON mit Antworten
+    score = db.Column(db.Numeric(10, 2), nullable=True)  # Berechneter Score
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed_via = db.Column(db.String(20), default='praxis')  # portal, praxis
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    questionnaire = db.relationship('Questionnaire', backref=db.backref('responses', lazy='dynamic'))
+    patient = db.relationship('Patient', backref=db.backref('questionnaire_responses', lazy='dynamic'))
+
+
+# ============================================================
+# Gruppentherapie
+# ============================================================
+
+class GroupAppointmentParticipant(db.Model):
+    """Teilnehmer einer Gruppentherapie"""
+    __tablename__ = 'group_appointment_participants'
+    __table_args__ = (
+        db.Index('ix_gap_appointment', 'appointment_id'),
+        db.Index('ix_gap_patient', 'patient_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
+    status = db.Column(db.String(20), default='scheduled')  # scheduled, attended, no_show, cancelled
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    patient = db.relationship('Patient')
+    series = db.relationship('TreatmentSeries')

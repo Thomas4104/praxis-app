@@ -7,7 +7,8 @@ from flask import render_template, request, redirect, url_for, flash, session, j
 from flask_login import login_required, current_user
 from models import db, Patient, PatientDocument, Appointment, TreatmentSeries, \
     TreatmentSeriesTemplate, Employee, Location, Invoice, Task, \
-    PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence, Email
+    PortalAccount, PortalMessage, OnlineBookingRequest, WorkSchedule, Absence, Email, \
+    Questionnaire, QuestionnaireResponse
 from blueprints.portal import portal_bp
 from app import limiter
 from utils.auth import check_org
@@ -742,3 +743,58 @@ def send_practice_message(patient_id):
 
     flash(f'Nachricht an {patient.first_name} {patient.last_name} gesendet.', 'success')
     return redirect(url_for('portal.admin'))
+
+
+# ============================================================
+# Patientenfrageboegen
+# ============================================================
+
+@portal_bp.route('/questionnaires')
+@portal_login_required
+def portal_questionnaires():
+    """Verfuegbare Frageboegen im Portal"""
+    account = get_portal_user()
+    questionnaires = Questionnaire.query.filter_by(
+        organization_id=account.patient.organization_id,
+        is_portal_visible=True,
+        is_active=True,
+    ).order_by(Questionnaire.sort_order).all()
+
+    return render_template('portal/questionnaires.html',
+                         questionnaires=questionnaires, account=account)
+
+
+@portal_bp.route('/questionnaire/<int:questionnaire_id>', methods=['GET', 'POST'])
+@portal_login_required
+def portal_questionnaire_fill(questionnaire_id):
+    """Fragebogen ausfuellen"""
+    import json as json_mod
+    account = get_portal_user()
+
+    questionnaire = Questionnaire.query.get_or_404(questionnaire_id)
+    if questionnaire.organization_id != account.patient.organization_id:
+        abort(403)
+
+    if request.method == 'POST':
+        answers = {}
+        questions = json_mod.loads(questionnaire.questions_json) if questionnaire.questions_json else []
+        for q in questions:
+            key = q.get('key', '')
+            answers[key] = request.form.get(key, '')
+
+        response = QuestionnaireResponse(
+            questionnaire_id=questionnaire.id,
+            patient_id=account.patient.id,
+            answers_json=json_mod.dumps(answers, ensure_ascii=False),
+            completed_at=datetime.utcnow(),
+            completed_via='portal',
+        )
+        db.session.add(response)
+        db.session.commit()
+
+        flash('Fragebogen erfolgreich abgesendet. Vielen Dank!', 'success')
+        return redirect(url_for('portal.portal_questionnaires'))
+
+    questions = json_mod.loads(questionnaire.questions_json) if questionnaire.questions_json else []
+    return render_template('portal/questionnaire_fill.html',
+                         questionnaire=questionnaire, questions=questions, account=account)

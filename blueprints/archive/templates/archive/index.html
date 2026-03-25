@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Archiv{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<span>Archiv</span>
+{% endblock %}
+
+{% block page_title %}Archiv{% endblock %}
+
+{% block content %}
+<div class="archive-module">
+
+    <!-- Tab-Navigation -->
+    <div class="tabs" style="margin-bottom: 20px; border-bottom: 2px solid var(--border-color, #e0e0e0);">
+        <button class="tab-btn {% if active_tab == 'series' %}active{% endif %}" data-tab="series" onclick="switchTab('series')">
+            Serien <span class="badge">{{ counts.series }}</span>
+        </button>
+        <button class="tab-btn {% if active_tab == 'patients' %}active{% endif %}" data-tab="patients" onclick="switchTab('patients')">
+            Patienten <span class="badge">{{ counts.patients }}</span>
+        </button>
+        <button class="tab-btn {% if active_tab == 'invoices' %}active{% endif %}" data-tab="invoices" onclick="switchTab('invoices')">
+            Rechnungen <span class="badge">{{ counts.invoices }}</span>
+        </button>
+        <button class="tab-btn {% if active_tab == 'tasks' %}active{% endif %}" data-tab="tasks" onclick="switchTab('tasks')">
+            Aufgaben <span class="badge">{{ counts.tasks }}</span>
+        </button>
+    </div>
+
+    <!-- Tab: Serien -->
+    <div class="tab-content" id="tab-series" style="{% if active_tab != 'series' %}display:none{% endif %}">
+        <div id="series-table-container">
+            <p class="text-muted">Daten werden geladen...</p>
+        </div>
+        <div id="series-pagination" class="pagination-container"></div>
+    </div>
+
+    <!-- Tab: Patienten -->
+    <div class="tab-content" id="tab-patients" style="{% if active_tab != 'patients' %}display:none{% endif %}">
+        <div style="margin-bottom: 12px;">
+            <input type="text" id="patient-search" class="form-control" placeholder="Name oder Patientennummer suchen..." style="max-width: 350px;">
+        </div>
+        <div id="patients-table-container">
+            <p class="text-muted">Daten werden geladen...</p>
+        </div>
+        <div id="patients-pagination" class="pagination-container"></div>
+    </div>
+
+    <!-- Tab: Rechnungen -->
+    <div class="tab-content" id="tab-invoices" style="{% if active_tab != 'invoices' %}display:none{% endif %}">
+        <div id="invoices-table-container">
+            <p class="text-muted">Daten werden geladen...</p>
+        </div>
+        <div id="invoices-pagination" class="pagination-container"></div>
+    </div>
+
+    <!-- Tab: Aufgaben -->
+    <div class="tab-content" id="tab-tasks" style="{% if active_tab != 'tasks' %}display:none{% endif %}">
+        <div id="tasks-table-container">
+            <p class="text-muted">Daten werden geladen...</p>
+        </div>
+        <div id="tasks-pagination" class="pagination-container"></div>
+    </div>
+
+</div>
+
+<style>
+.tabs {
+    display: flex;
+    gap: 0;
+}
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary, #666);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+.tab-btn:hover {
+    color: var(--text-primary, #333);
+}
+.tab-btn.active {
+    color: var(--primary-color, #4f46e5);
+    border-bottom-color: var(--primary-color, #4f46e5);
+    font-weight: 600;
+}
+.tab-btn .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--bg-secondary, #f0f0f0);
+    color: var(--text-secondary, #666);
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+}
+.tab-btn.active .badge {
+    background: var(--primary-color, #4f46e5);
+    color: #fff;
+}
+.archive-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.archive-table th,
+.archive-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+    font-size: 13px;
+}
+.archive-table th {
+    font-weight: 600;
+    color: var(--text-secondary, #666);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.archive-table tr:hover {
+    background: var(--bg-hover, #f8f8f8);
+}
+.btn-restore {
+    padding: 4px 12px;
+    border: 1px solid var(--primary-color, #4f46e5);
+    background: transparent;
+    color: var(--primary-color, #4f46e5);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.btn-restore:hover {
+    background: var(--primary-color, #4f46e5);
+    color: #fff;
+}
+.pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 12px 0;
+}
+.pagination-container button {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.pagination-container button:hover:not(:disabled) {
+    background: var(--bg-hover, #f0f0f0);
+}
+.pagination-container button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+.pagination-container .page-info {
+    font-size: 13px;
+    color: var(--text-secondary, #666);
+}
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.status-badge.paid { background: #dcfce7; color: #166534; }
+.status-badge.cancelled { background: #fee2e2; color: #991b1b; }
+.status-badge.completed { background: #dbeafe; color: #1e40af; }
+.priority-badge { font-size: 11px; font-weight: 600; }
+.priority-badge.critical { color: #dc2626; }
+.priority-badge.high { color: #ea580c; }
+.priority-badge.normal { color: #666; }
+.priority-badge.low { color: #9ca3af; }
+.text-muted { color: var(--text-secondary, #999); font-size: 14px; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary, #999); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    // Aktueller Tab und Seitennummern
+    var currentTab = '{{ active_tab }}';
+    var pages = { series: 1, patients: 1, invoices: 1, tasks: 1 };
+    var searchTimeout = null;
+
+    // Tab wechseln
+    window.switchTab = function(tab) {
+        // Alle Tabs ausblenden
+        document.querySelectorAll('.tab-content').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        document.querySelectorAll('.tab-btn').forEach(function(el) {
+            el.classList.remove('active');
+        });
+
+        // Gewaehlten Tab anzeigen
+        document.getElementById('tab-' + tab).style.display = 'block';
+        document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
+        currentTab = tab;
+
+        // Daten laden
+        loadData(tab, pages[tab]);
+
+        // URL aktualisieren ohne Reload
+        var url = new URL(window.location);
+        url.searchParams.set('tab', tab);
+        history.replaceState(null, '', url);
+    };
+
+    // Daten per AJAX laden
+    function loadData(tab, page) {
+        pages[tab] = page;
+        var url = '/archive/api/' + tab + '?page=' + page + '&per_page=25';
+
+        // Suchparameter fuer Patienten
+        if (tab === 'patients') {
+            var searchInput = document.getElementById('patient-search');
+            if (searchInput && searchInput.value.trim()) {
+                url += '&q=' + encodeURIComponent(searchInput.value.trim());
+            }
+        }
+
+        var container = document.getElementById(tab + '-table-container');
+        container.innerHTML = '<p class="text-muted">Daten werden geladen...</p>';
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                renderTable(tab, data);
+                renderPagination(tab, data);
+            })
+            .catch(function(err) {
+                container.innerHTML = '<p class="text-muted">Fehler beim Laden der Daten.</p>';
+                console.error('Archiv-Fehler:', err);
+            });
+    }
+
+    // Tabelle rendern je nach Tab
+    function renderTable(tab, data) {
+        var container = document.getElementById(tab + '-table-container');
+        if (!data.items || data.items.length === 0) {
+            container.innerHTML = '<div class="empty-state">Keine archivierten Eintraege vorhanden.</div>';
+            return;
+        }
+
+        var html = '<table class="archive-table"><thead><tr>';
+
+        if (tab === 'series') {
+            html += '<th>Patient</th><th>Diagnose</th><th>Versicherung</th><th>Abgeschlossen</th><th>Erstellt</th><th></th>';
+        } else if (tab === 'patients') {
+            html += '<th>Name</th><th>Pat.-Nr.</th><th>Geburtsdatum</th><th></th>';
+        } else if (tab === 'invoices') {
+            html += '<th>Rechnungs-Nr.</th><th>Patient</th><th>Betrag</th><th>Status</th><th>Datum</th><th></th>';
+        } else if (tab === 'tasks') {
+            html += '<th>Titel</th><th>Prioritaet</th><th>Erledigt am</th><th></th>';
+        }
+
+        html += '</tr></thead><tbody>';
+
+        data.items.forEach(function(item) {
+            html += '<tr>';
+
+            if (tab === 'series') {
+                html += '<td>' + escapeHtml(item.patient_name) + '</td>';
+                html += '<td>' + escapeHtml(item.diagnosis) + '</td>';
+                html += '<td>' + escapeHtml(item.insurance_type) + '</td>';
+                html += '<td>' + escapeHtml(item.completed_at) + '</td>';
+                html += '<td>' + escapeHtml(item.created_at) + '</td>';
+                html += '<td><button class="btn-restore" onclick="restoreItem(\'series\', ' + item.id + ', this)">Wiederherstellen</button></td>';
+            } else if (tab === 'patients') {
+                html += '<td>' + escapeHtml(item.name) + '</td>';
+                html += '<td>' + escapeHtml(item.patient_number) + '</td>';
+                html += '<td>' + escapeHtml(item.date_of_birth) + '</td>';
+                html += '<td><button class="btn-restore" onclick="restoreItem(\'patient\', ' + item.id + ', this)">Wiederherstellen</button></td>';
+            } else if (tab === 'invoices') {
+                html += '<td>' + escapeHtml(item.invoice_number) + '</td>';
+                html += '<td>' + escapeHtml(item.patient_name) + '</td>';
+                html += '<td>CHF ' + parseFloat(item.amount_total).toFixed(2) + '</td>';
+                html += '<td><span class="status-badge ' + item.status + '">' + statusLabel(item.status) + '</span></td>';
+                html += '<td>' + escapeHtml(item.created_at) + '</td>';
+                html += '<td></td>'; // Rechnungen werden nicht wiederhergestellt
+            } else if (tab === 'tasks') {
+                html += '<td>' + escapeHtml(item.title) + '</td>';
+                html += '<td><span class="priority-badge ' + item.priority + '">' + priorityLabel(item.priority) + '</span></td>';
+                html += '<td>' + escapeHtml(item.completed_at) + '</td>';
+                html += '<td><button class="btn-restore" onclick="restoreItem(\'task\', ' + item.id + ', this)">Wiederherstellen</button></td>';
+            }
+
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // Pagination rendern
+    function renderPagination(tab, data) {
+        var container = document.getElementById(tab + '-pagination');
+        var totalPages = Math.ceil(data.total / (data.per_page || 25));
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        var page = data.page;
+        var html = '';
+        html += '<button ' + (page <= 1 ? 'disabled' : '') + ' onclick="goToPage(\'' + tab + '\', ' + (page - 1) + ')">Zurück</button>';
+        html += '<span class="page-info">Seite ' + page + ' von ' + totalPages + ' (' + data.total + ' Eintraege)</span>';
+        html += '<button ' + (page >= totalPages ? 'disabled' : '') + ' onclick="goToPage(\'' + tab + '\', ' + (page + 1) + ')">Weiter</button>';
+        container.innerHTML = html;
+    }
+
+    window.goToPage = function(tab, page) {
+        loadData(tab, page);
+    };
+
+    // Wiederherstellen
+    window.restoreItem = function(type, id, btn) {
+        if (!confirm('Eintrag wirklich wiederherstellen?')) return;
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        fetchWithCSRF('/archive/api/restore/' + type + '/' + id, {
+            method: 'POST',
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                alert(data.error);
+                btn.disabled = false;
+                btn.textContent = 'Wiederherstellen';
+                return;
+            }
+            // Zeile entfernen und Daten neu laden
+            var row = btn.closest('tr');
+            if (row) row.remove();
+            // Badge-Zaehler aktualisieren
+            updateBadgeCount(currentTab, -1);
+        })
+        .catch(function() {
+            alert('Fehler beim Wiederherstellen.');
+            btn.disabled = false;
+            btn.textContent = 'Wiederherstellen';
+        });
+    };
+
+    // Badge-Zaehler aktualisieren
+    function updateBadgeCount(tab, delta) {
+        var badge = document.querySelector('[data-tab="' + tab + '"] .badge');
+        if (badge) {
+            var count = parseInt(badge.textContent) + delta;
+            if (count < 0) count = 0;
+            badge.textContent = count;
+        }
+    }
+
+    // Hilfsfunktionen
+    function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function statusLabel(status) {
+        var labels = { paid: 'Bezahlt', cancelled: 'Storniert', completed: 'Abgeschlossen' };
+        return labels[status] || status;
+    }
+
+    function priorityLabel(priority) {
+        var labels = { critical: 'Kritisch', high: 'Hoch', normal: 'Normal', low: 'Tief' };
+        return labels[priority] || priority;
+    }
+
+    // Patientensuche mit Debounce
+    var searchInput = document.getElementById('patient-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                pages.patients = 1;
+                loadData('patients', 1);
+            }, 400);
+        });
+    }
+
+    // Initiales Laden des aktiven Tabs
+    loadData(currentTab, 1);
+})();
+</script>
+{% endblock %}

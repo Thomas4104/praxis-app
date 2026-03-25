@@ -52,13 +52,25 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">GLN-Nummer</label>
-                    <input type="text" name="gln_number" class="form-input"
-                           value="{{ doctor.gln_number if doctor else '' }}">
+                    <div class="input-group">
+                        <input type="text" name="gln_number" id="gln_number" class="form-input"
+                               value="{{ doctor.gln_number if doctor else '' }}" placeholder="7601...">
+                        <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupGLN()" title="Online suchen">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            Suchen
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">ZSR-Nummer</label>
-                    <input type="text" name="zsr_number" class="form-input"
-                           value="{{ doctor.zsr_number if doctor else '' }}">
+                    <div class="input-group">
+                        <input type="text" name="zsr_number" id="zsr_number" class="form-input"
+                               value="{{ doctor.zsr_number if doctor else '' }}" placeholder="A123456">
+                        <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupZSR()" title="Online suchen">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            Suchen
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="form-row">
@@ -108,5 +120,72 @@
 {% block extra_css %}
 <style>
 .form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
+.input-group { display: flex; gap: 0; }
+.input-group .form-input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.btn-lookup {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    white-space: nowrap; padding: 6px 12px;
+    border: 1px solid var(--border-color, #ccc); border-left: none;
+    background: var(--bg-secondary, #f5f5f5); cursor: pointer;
+    font-size: 0.85rem; color: var(--text-secondary, #555);
+    transition: background 0.15s;
+}
+.btn-lookup:hover { background: var(--bg-hover, #e8e8e8); }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* GLN/ZSR Online-Arztsuche */
+function lookupGLN() {
+    const gln = document.getElementById('gln_number').value.trim();
+    if (!gln) { alert('Bitte GLN-Nummer eingeben'); return; }
+
+    fetch(`/addresses/api/lookup-gln?gln=${encodeURIComponent(gln)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { alert(data.error); return; }
+            fillDoctorForm(data);
+        })
+        .catch(e => alert('Fehler bei der Suche: ' + e));
+}
+
+function lookupZSR() {
+    const zsr = document.getElementById('zsr_number').value.trim();
+    if (!zsr) { alert('Bitte ZSR-Nummer eingeben'); return; }
+
+    fetch(`/addresses/api/lookup-zsr?zsr=${encodeURIComponent(zsr)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) { alert(data.error); return; }
+            fillDoctorForm(data);
+        })
+        .catch(e => alert('Fehler bei der Suche: ' + e));
+}
+
+function fillDoctorForm(data) {
+    /* Felder automatisch ausfuellen */
+    const mapping = {
+        'salutation': 'salutation',
+        'first_name': 'first_name',
+        'last_name': 'last_name',
+        'specialty': 'specialty',
+        'gln_number': 'gln_number',
+        'zsr_number': 'zsr_number',
+        'address': 'address',
+        'zip_code': 'zip_code',
+        'city': 'city',
+        'phone': 'phone',
+        'email': 'email',
+    };
+    for (const [apiField, formField] of Object.entries(mapping)) {
+        const el = document.getElementById(formField) || document.querySelector(`[name="${formField}"]`);
+        if (el && data[apiField]) {
+            el.value = data[apiField];
+        }
+    }
+    alert('Daten uebernommen. Bitte pruefen und speichern.');
+}
+</script>
 {% endblock %}

@@ -9,8 +9,9 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from models import db, Organization, Location, User, Employee, WorkSchedule, Patient, \
     InsuranceProvider, Doctor, Resource, TreatmentSeriesTemplate, TreatmentSeries, \
-    Appointment, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
+    Appointment, AppointmentTariffPosition, AISettings, Product, MaintenanceRecord, BankAccount, Holiday, TaxPointValue, \
     Certificate, AbsenceQuota, Absence, PatientDocument, Contact, WaitingList, \
+    FindingTemplate, ClinicalFinding, TreatmentPlanTemplate, \
     TherapyGoal, Milestone, Measurement, HealingPhase, \
     SystemSetting, EmailTemplate, PrintTemplate, Permission, \
     CostApproval, CostApprovalItem, Task, TaskComment, \
@@ -19,7 +20,9 @@ from models import db, Organization, Location, User, Employee, WorkSchedule, Pat
     EmployeeContract, EmployeeSalary, EmployeeChild, PayrollRun, Payslip, \
     TimeEntry, OvertimeAccount, Expense, SavedReport, \
     SubscriptionTemplate, Subscription, FitnessVisit, \
-    PortalAccount, PortalMessage, OnlineBookingRequest
+    PortalAccount, PortalMessage, OnlineBookingRequest, \
+    InvoiceCopyConfig, InvoiceCopy, \
+    Questionnaire, QuestionnaireResponse, GroupAppointmentParticipant
 from config import config
 
 
@@ -68,6 +71,7 @@ def create_app(config_name=None):
     from blueprints.reporting import reporting_bp
     from blueprints.fitness import fitness_bp
     from blueprints.portal import portal_bp
+    from blueprints.archive import archive_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -89,6 +93,7 @@ def create_app(config_name=None):
     app.register_blueprint(reporting_bp, url_prefix='/reporting')
     app.register_blueprint(fitness_bp, url_prefix='/fitness')
     app.register_blueprint(portal_bp, url_prefix='/portal')
+    app.register_blueprint(archive_bp, url_prefix='/archive')
 
     # RBAC Template-Helper
     from utils.permissions import has_permission
