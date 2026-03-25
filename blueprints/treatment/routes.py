@@ -10,6 +10,7 @@ from blueprints.treatment import treatment_bp
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import joinedload
 from utils.auth import check_org, get_org_id
+from utils.permissions import require_permission
 
 
 # ============================================================
@@ -18,6 +19,7 @@ from utils.auth import check_org, get_org_id
 
 @treatment_bp.route('/')
 @login_required
+@require_permission('treatment.view')
 def index():
     """Serien-Uebersicht mit Filtern"""
     return render_template('treatment/serien.html')
@@ -25,6 +27,7 @@ def index():
 
 @treatment_bp.route('/api/serien')
 @login_required
+@require_permission('treatment.view')
 def api_serien():
     """API: Serien auflisten mit Filtern"""
     org_id = get_org_id()
@@ -126,6 +129,7 @@ def api_serien():
 
 @treatment_bp.route('/serie/<int:serie_id>')
 @login_required
+@require_permission('treatment.view')
 def serie_detail(serie_id):
     """Serie-Detail mit Drei-Spalten-Layout"""
     org_id = get_org_id()
@@ -192,6 +196,7 @@ def api_termin_detail(termin_id):
 
 @treatment_bp.route('/api/termin/<int:termin_id>/soap', methods=['POST'])
 @login_required
+@require_permission('treatment.edit_soap')
 def api_soap_speichern(termin_id):
     """API: SOAP-Notes speichern"""
     t = Appointment.query.get_or_404(termin_id)
@@ -215,6 +220,7 @@ def api_soap_speichern(termin_id):
 
 @treatment_bp.route('/api/serie/<int:serie_id>/status', methods=['POST'])
 @login_required
+@require_permission('treatment.close_series')
 def api_serie_status(serie_id):
     """API: Serie-Status aendern (abschliessen/abbrechen)"""
     serie = TreatmentSeries.query.get_or_404(serie_id)
@@ -239,6 +245,7 @@ def api_serie_status(serie_id):
 
 @treatment_bp.route('/plan/<int:patient_id>')
 @login_required
+@require_permission('treatment.view')
 def treatment_plan(patient_id):
     """Behandlungsplan fuer einen Patienten"""
     patient = Patient.query.get_or_404(patient_id)

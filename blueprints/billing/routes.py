@@ -15,6 +15,7 @@ from services.billing_service import (
 from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
 from utils.auth import check_org, get_org_id
+from utils.permissions import require_permission
 from services.audit_service import log_action
 
 
@@ -24,6 +25,7 @@ from services.audit_service import log_action
 
 @billing_bp.route('/')
 @login_required
+@require_permission('billing.view')
 def index():
     """Abrechnungsuebersicht mit Tabs und Filtern"""
     search = request.args.get('search', '').strip()
@@ -170,6 +172,7 @@ def index():
 
 @billing_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_permission('billing.create_invoice')
 def create():
     """Neue Rechnung erstellen"""
     org_id = current_user.organization_id
@@ -271,6 +274,7 @@ def create():
 
 @billing_bp.route('/<int:id>')
 @login_required
+@require_permission('billing.view')
 def detail(id):
     """Rechnungsdetail-Ansicht"""
     invoice = Invoice.query.get_or_404(id)
@@ -309,6 +313,7 @@ def check_invoice(id):
 
 @billing_bp.route('/<int:id>/send', methods=['POST'])
 @login_required
+@require_permission('billing.send_invoice')
 def send_invoice(id):
     """Rechnung senden (Geprueft -> Gesendet)"""
     invoice = Invoice.query.get_or_404(id)
@@ -333,6 +338,7 @@ def send_invoice(id):
 
 @billing_bp.route('/<int:id>/cancel', methods=['POST'])
 @login_required
+@require_permission('billing.cancel_invoice')
 def cancel_invoice(id):
     """Rechnung stornieren"""
     invoice = Invoice.query.get_or_404(id)
@@ -349,6 +355,7 @@ def cancel_invoice(id):
 
 @billing_bp.route('/<int:id>/payment', methods=['POST'])
 @login_required
+@require_permission('billing.record_payment')
 def add_payment(id):
     """Zahlung erfassen"""
     invoice = Invoice.query.get_or_404(id)
@@ -383,6 +390,7 @@ def add_payment(id):
 
 @billing_bp.route('/<int:id>/dunning', methods=['POST'])
 @login_required
+@require_permission('billing.start_dunning')
 def send_dunning(id):
     """Mahnung senden"""
     invoice = Invoice.query.get_or_404(id)
@@ -430,6 +438,7 @@ def send_tp_copy(id):
 
 @billing_bp.route('/mahnungen')
 @login_required
+@require_permission('billing.start_dunning')
 def mahnungen():
     """Mahnungsuebersicht: Alle ueberfaelligen Rechnungen"""
     org_id = current_user.organization_id
@@ -448,6 +457,7 @@ def mahnungen():
 
 @billing_bp.route('/mahnlauf', methods=['POST'])
 @login_required
+@require_permission('billing.start_dunning')
 def mahnlauf():
     """Batch-Mahnlauf fuer alle faelligen Rechnungen"""
     org_id = current_user.organization_id
@@ -467,6 +477,7 @@ def mahnlauf():
 
 @billing_bp.route('/zahlungen')
 @login_required
+@require_permission('billing.view')
 def zahlungen():
     """Zahlungsuebersicht"""
     org_id = current_user.organization_id

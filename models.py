@@ -97,6 +97,9 @@ class User(UserMixin, db.Model):
     last_login = db.Column(db.DateTime)
     failed_login_attempts = db.Column(db.Integer, default=0)
     locked_until = db.Column(db.DateTime, nullable=True)
+    totp_secret = db.Column(db.String(32), nullable=True)  # Base32-encoded TOTP Secret
+    totp_enabled = db.Column(db.Boolean, default=False)
+    totp_backup_codes = db.Column(db.Text, nullable=True)  # JSON-Array mit Backup-Codes
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -108,6 +111,35 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def generate_totp_secret(self):
+        import pyotp
+        self.totp_secret = pyotp.random_base32()
+        return self.totp_secret
+
+    def verify_totp(self, token):
+        if not self.totp_secret:
+            return False
+        import pyotp
+        totp = pyotp.TOTP(self.totp_secret)
+        return totp.verify(token, valid_window=1)
+
+    def generate_backup_codes(self):
+        import secrets, json
+        codes = [secrets.token_hex(4) for _ in range(8)]
+        self.totp_backup_codes = json.dumps(codes)
+        return codes
+
+    def use_backup_code(self, code):
+        import json
+        if not self.totp_backup_codes:
+            return False
+        codes = json.loads(self.totp_backup_codes)
+        if code in codes:
+            codes.remove(code)
+            self.totp_backup_codes = json.dumps(codes)
+            return True
+        return False
 
 
 class Employee(db.Model):

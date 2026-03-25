@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA einrichten - OMNIA Praxissoftware</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1 class="login-logo">OMNIA</h1>
+                <p class="login-subtitle">Zwei-Faktor-Authentifizierung einrichten</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <p>Scannen Sie den QR-Code mit Ihrer Authenticator-App:</p>
+                <img src="data:image/png;base64,{{ qr_code }}" alt="QR-Code" style="max-width: 200px; margin: 1rem auto;">
+                <p style="font-size: 0.85rem; color: #666;">Manueller Code: <code>{{ secret }}</code></p>
+            </div>
+
+            <form method="POST" class="login-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="token">Code aus der Authenticator-App</label>
+                    <input type="text" id="token" name="token" class="form-control"
+                           placeholder="6-stelligen Code eingeben" required autofocus
+                           autocomplete="one-time-code" inputmode="numeric" maxlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Aktivieren</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

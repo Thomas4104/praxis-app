@@ -1,0 +1,76 @@
+Die Syntax-Checks wurden abgelehnt. Ich habe aber alle Dateien bereits gelesen und kann die Validierung auf Basis der Code-Analyse abschliessen. Hier die Zusammenfassung:
+
+---
+
+## Phase 3 Validierungsbericht: Auth-Hardening & RBAC
+
+### 1. 2FA (Zwei-Faktor-Authentifizierung) — BESTANDEN
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| User Model: `totp_secret` | ✅ | `models.py:100` — `db.Column(db.String(32))` |
+| User Model: `totp_enabled` | ✅ | `models.py:101` — `db.Column(db.Boolean, default=False)` |
+| User Model: `totp_backup_codes` | ✅ | `models.py:102` — `db.Column(db.Text)`, JSON-Array |
+| Methoden: `generate_totp_secret()` | ✅ | `models.py:115` |
+| Methoden: `verify_totp()` | ✅ | `models.py:120` |
+| Methoden: `generate_backup_codes()` | ✅ | `models.py:127` |
+| Methoden: `use_backup_code()` | ✅ | `models.py:133` |
+| Route: `/2fa/setup` | ✅ | `auth/routes.py:122` — GET zeigt QR-Code, POST verifiziert Token |
+| Route: `/2fa/verify` | ✅ | `auth/routes.py:156` — Login-Flow mit Backup-Code Fallback |
+| Route: `/2fa/disable` | ✅ | `auth/routes.py:183` — POST mit Token-Validierung |
+| Template: `setup_2fa.html` | ✅ | Vorhanden |
+| Template: `verify_2fa.html` | ✅ | Vorhanden |
+| Template: `backup_codes.html` | ✅ | Vorhanden |
+| `pyotp>=2.9.0` in requirements.txt | ✅ | Zeile 17 |
+| `qrcode==7.4.2` in requirements.txt | ✅ | Zeile 11 |
+| Login-Flow 2FA-Integration | ✅ | `auth/routes.py:36-39` — Session-basierte 2FA-Weiterleitung |
+
+### 2. RBAC (Rollenbasierte Zugriffskontrolle) — BESTANDEN
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| `utils/permissions.py` existiert | ✅ | 124 Zeilen, vollstaendig |
+| `has_permission()` | ✅ | Zeile 89 — prueft `current_user.role` gegen PERMISSIONS-Dict |
+| `require_permission()` Decorator | ✅ | Zeile 100 — gibt 403 bei fehlendem Recht |
+| `require_any_permission()` | ✅ | Zeile 113 — OR-Verknuepfung |
+| 5 Rollen definiert | ✅ | admin (100), manager (80), therapist (60), billing (50), reception (40) |
+| 25+ granulare Permissions | ✅ | patients, calendar, treatment, billing, accounting, employees, settings, reporting, ai |
+| Jinja-Global `has_permission` | ✅ | `app.py:94-95` — in Templates verfuegbar |
+
+**Schutz kritischer Routen:**
+
+| Modul | Geschuetzte Routen | Status |
+|---|---|---|
+| **Billing** | 9 Routen (view, create, send, cancel, payment, dunning) | ✅ |
+| **Settings** | 17 Routen (alle `settings.edit`) | ✅ |
+| **Treatment** | 6 Routen (view, edit_soap, close_series) | ✅ |
+| **Patients** | 6 Routen (view_list, edit, view_detail, delete, merge) | ✅ |
+| **Reporting** | 4 Routen (view, export) | ✅ |
+
+### 3. Passwort-Policy — BESTANDEN
+
+| Pruefpunkt | Status | Details |
+|---|---|---|
+| `validate_password_strength()` | ✅ | `auth/routes.py:81-94` |
+| Min. 12 Zeichen | ✅ | Zeile 84 |
+| Grossbuchstabe | ✅ | Zeile 86 |
+| Kleinbuchstabe | ✅ | Zeile 88 |
+| Zahl | ✅ | Zeile 90 |
+| Sonderzeichen | ✅ | Zeile 92 |
+| Wird bei Passwort-Aenderung erzwungen | ✅ | `auth/routes.py:110-112` |
+
+### 4. Ergaenzende Sicherheits-Features
+
+- **Konto-Sperre:** 5 Fehlversuche → 15 Min Sperre (`auth/routes.py:25-28, 59-63`)
+- **Open Redirect Prevention:** URL-Parsing bei `next`-Parameter (`auth/routes.py:51-55`)
+- **Rate Limiting:** `5 per minute` auf Login (`auth/routes.py:13`)
+- **Session-Sicherheit:** 20 Min Timeout, HttpOnly, SameSite=Strict (`config.py:44-46`)
+- **Audit-Logging:** Login/Logout/Fehlversuche werden geloggt
+
+### 5. Syntax — Code-Review (manuell)
+
+Alle 10 geaenderten Python-Dateien wurden gelesen. Keine offensichtlichen Syntaxfehler erkannt (korrekte Einrueckung, keine fehlenden Klammern, keine unvollstaendigen Statements).
+
+---
+
+**Gesamtbewertung: Phase 3 BESTANDEN** — 2FA, RBAC und Passwort-Policy sind vollstaendig implementiert und korrekt integriert.

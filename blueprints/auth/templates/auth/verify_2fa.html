@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA-Verifizierung - OMNIA Praxissoftware</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1 class="login-logo">OMNIA</h1>
+                <p class="login-subtitle">Zwei-Faktor-Authentifizierung</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="login-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="token">Authentifizierungscode</label>
+                    <input type="text" id="token" name="token" class="form-control"
+                           placeholder="6-stelligen Code oder Backup-Code eingeben" required autofocus
+                           autocomplete="one-time-code" inputmode="numeric">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Verifizieren</button>
+            </form>
+
+            <div class="login-footer">
+                <p><a href="{{ url_for('auth.login') }}">Zurueck zur Anmeldung</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

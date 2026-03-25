@@ -8,6 +8,7 @@ from models import db, Organization, User, Employee, Location, Permission, \
     AISettings, EmailTemplate, PrintTemplate, SystemSetting
 from services.settings_service import get_setting, set_setting, get_settings_by_category, invalidate_cache
 from utils.auth import check_org
+from utils.permissions import require_permission
 
 
 # ============================================================
@@ -32,7 +33,7 @@ def admin_required(f):
 
 @settings_bp.route('/')
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def index():
     """Einstellungen-Hauptseite"""
     category = request.args.get('category', 'general')
@@ -70,7 +71,7 @@ def _general_category(org):
 
 @settings_bp.route('/general/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_general():
     """Allgemeine Einstellungen speichern"""
     org_id = current_user.organization_id
@@ -119,7 +120,7 @@ def _ai_category(org):
 
 @settings_bp.route('/ai/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_ai():
     """KI-Einstellungen speichern"""
     org_id = current_user.organization_id
@@ -181,7 +182,7 @@ def _calendar_category(org):
 
 @settings_bp.route('/calendar/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_calendar():
     """Kalender-Einstellungen speichern"""
     org_id = current_user.organization_id
@@ -232,7 +233,7 @@ def _email_category(org):
 
 @settings_bp.route('/email/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_email():
     """E-Mail-Einstellungen speichern"""
     org_id = current_user.organization_id
@@ -249,7 +250,7 @@ def save_email():
 
 @settings_bp.route('/email/templates/new', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def create_email_template():
     """Neue E-Mail-Vorlage erstellen"""
     org_id = current_user.organization_id
@@ -279,7 +280,7 @@ def create_email_template():
 
 @settings_bp.route('/email/templates/<int:template_id>/edit', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def edit_email_template(template_id):
     """E-Mail-Vorlage bearbeiten"""
     template = EmailTemplate.query.get_or_404(template_id)
@@ -297,7 +298,7 @@ def edit_email_template(template_id):
 
 @settings_bp.route('/email/templates/<int:template_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def delete_email_template(template_id):
     """E-Mail-Vorlage loeschen"""
     template = EmailTemplate.query.get_or_404(template_id)
@@ -312,7 +313,7 @@ def delete_email_template(template_id):
 
 @settings_bp.route('/email/templates/<int:template_id>/toggle', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def toggle_email_template(template_id):
     """E-Mail-Vorlage aktivieren/deaktivieren"""
     template = EmailTemplate.query.get_or_404(template_id)
@@ -337,7 +338,7 @@ def _billing_category(org):
 
 @settings_bp.route('/billing/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_billing():
     """Abrechnungs-Einstellungen speichern"""
     org_id = current_user.organization_id
@@ -393,7 +394,7 @@ def _users_category(org):
 
 @settings_bp.route('/users/permissions/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_permissions():
     """Rollen-Berechtigungen speichern"""
     modules = ['dashboard', 'kalender', 'patienten', 'mitarbeiter', 'behandlung',
@@ -442,7 +443,7 @@ def _print_templates_category(org):
 
 @settings_bp.route('/print-templates/new', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def create_print_template():
     """Neue Druckvorlage erstellen"""
     org_id = current_user.organization_id
@@ -467,7 +468,7 @@ def create_print_template():
 
 @settings_bp.route('/print-templates/<int:template_id>/edit', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def edit_print_template(template_id):
     """Druckvorlage bearbeiten"""
     template = PrintTemplate.query.get_or_404(template_id)
@@ -484,7 +485,7 @@ def edit_print_template(template_id):
 
 @settings_bp.route('/print-templates/<int:template_id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def delete_print_template(template_id):
     """Druckvorlage loeschen"""
     template = PrintTemplate.query.get_or_404(template_id)
@@ -499,7 +500,7 @@ def delete_print_template(template_id):
 
 @settings_bp.route('/print-templates/<int:template_id>/toggle', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def toggle_print_template(template_id):
     """Druckvorlage aktivieren/deaktivieren"""
     template = PrintTemplate.query.get_or_404(template_id)
@@ -534,7 +535,7 @@ def _location_visibility_category(org):
 
 @settings_bp.route('/location-visibility/save', methods=['POST'])
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def save_location_visibility():
     """Standort-Sichtbarkeit speichern"""
     org_id = current_user.organization_id
@@ -567,7 +568,7 @@ def save_location_visibility():
 
 @settings_bp.route('/api/email-template/<int:template_id>')
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def api_get_email_template(template_id):
     """E-Mail-Vorlage als JSON zurueckgeben"""
     template = EmailTemplate.query.get_or_404(template_id)
@@ -592,7 +593,7 @@ def api_get_email_template(template_id):
 
 @settings_bp.route('/api/print-template/<int:template_id>')
 @login_required
-@admin_required
+@require_permission('settings.edit')
 def api_get_print_template(template_id):
     """Druckvorlage als JSON zurueckgeben"""
     template = PrintTemplate.query.get_or_404(template_id)

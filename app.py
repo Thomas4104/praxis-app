@@ -90,6 +90,10 @@ def create_app(config_name=None):
     app.register_blueprint(fitness_bp, url_prefix='/fitness')
     app.register_blueprint(portal_bp, url_prefix='/portal')
 
+    # RBAC Template-Helper
+    from utils.permissions import has_permission
+    app.jinja_env.globals['has_permission'] = has_permission
+
     # Kontext-Prozessoren
     @app.context_processor
     def inject_globals():

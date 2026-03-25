@@ -13,6 +13,7 @@ from models import db, Patient, InsuranceProvider, Doctor, Employee, \
     Location, Email, Organization
 from sqlalchemy import func
 from utils.auth import check_org
+from utils.permissions import require_permission, has_permission
 from services.audit_service import log_action
 
 
@@ -22,6 +23,7 @@ from services.audit_service import log_action
 
 @patients_bp.route('/')
 @login_required
+@require_permission('patients.view_list')
 def index():
     """Patientenuebersicht mit Suche, Filter, Sortierung und Pagination"""
     search = request.args.get('search', '').strip()
@@ -144,6 +146,7 @@ def index():
 
 @patients_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_permission('patients.edit')
 def create():
     """Neuen Patienten erstellen"""
     if request.method == 'POST':
@@ -166,6 +169,7 @@ def create():
 
 @patients_bp.route('/<int:patient_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_permission('patients.edit')
 def edit(patient_id):
     """Patient bearbeiten"""
     patient = Patient.query.get_or_404(patient_id)
@@ -322,6 +326,7 @@ def _save_patient(patient):
 
 @patients_bp.route('/<int:patient_id>')
 @login_required
+@require_permission('patients.view_detail')
 def detail(patient_id):
     """Patientendetail mit Tabs"""
     patient = Patient.query.get_or_404(patient_id)
@@ -413,6 +418,7 @@ def detail(patient_id):
 
 @patients_bp.route('/<int:patient_id>/toggle', methods=['POST'])
 @login_required
+@require_permission('patients.delete')
 def toggle_active(patient_id):
     """Patient aktivieren/deaktivieren (Soft-Delete)"""
     patient = Patient.query.get_or_404(patient_id)
@@ -535,11 +541,9 @@ def delete_document(doc_id):
 
 @patients_bp.route('/merge', methods=['GET', 'POST'])
 @login_required
+@require_permission('patients.merge')
 def merge():
     """Zwei Patienten zusammenfuehren (nur Admin)"""
-    if current_user.role != 'admin':
-        flash('Nur Administratoren können Patienten zusammenführen.', 'error')
-        return redirect(url_for('patients.index'))
 
     if request.method == 'POST':
         source_id = request.form.get('source_id', type=int)

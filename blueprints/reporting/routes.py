@@ -14,6 +14,7 @@ from services.reporting_service import (
 )
 from blueprints.reporting import reporting_bp
 from utils.auth import check_org
+from utils.permissions import require_permission
 
 
 # ============================================================
@@ -22,6 +23,7 @@ from utils.auth import check_org
 
 @reporting_bp.route('/')
 @login_required
+@require_permission('reporting.view')
 def index():
     """Hauptseite Auswertungen"""
     return render_template('reporting/reports.html')
@@ -29,6 +31,7 @@ def index():
 
 @reporting_bp.route('/kpis')
 @login_required
+@require_permission('reporting.view')
 def kpis():
     """KPI-Dashboard"""
     return render_template('reporting/kpis.html')
@@ -36,6 +39,7 @@ def kpis():
 
 @reporting_bp.route('/scorecard')
 @login_required
+@require_permission('reporting.view')
 def scorecard():
     """Therapeuten-Scorecard"""
     employees = Employee.query.filter_by(
@@ -103,6 +107,7 @@ def api_run_report():
 
 @reporting_bp.route('/api/export', methods=['POST'])
 @login_required
+@require_permission('reporting.export')
 def api_export_csv():
     """Exportiert Auswertung als CSV"""
     data = request.get_json()

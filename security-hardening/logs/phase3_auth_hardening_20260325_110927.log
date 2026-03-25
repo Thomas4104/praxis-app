@@ -1,0 +1,30 @@
+Alle Aenderungen sind implementiert. Hier die Zusammenfassung:
+
+### Durchgefuehrte Aenderungen
+
+**1. User Model** (`models.py`):
+- 3 neue Felder: `totp_secret`, `totp_enabled`, `totp_backup_codes`
+- 4 neue Methoden: `generate_totp_secret()`, `verify_totp()`, `generate_backup_codes()`, `use_backup_code()`
+
+**2. requirements.txt**: `pyotp>=2.9.0` hinzugefuegt
+
+**3. Auth-Routen** (`blueprints/auth/routes.py`):
+- `session` Import hinzugefuegt
+- Login-Route: 2FA-Redirect nach erfolgreicher Passwort-Pruefung
+- `validate_password_strength()` — prueft Gross-/Kleinbuchstaben, Zahlen, Sonderzeichen
+- `change_password` nutzt jetzt die erweiterte Validierung
+- Neue Routen: `/2fa/setup`, `/2fa/verify`, `/2fa/disable`
+
+**4. Templates**: 3 neue Templates im Login-Stil erstellt:
+- `setup_2fa.html` — QR-Code + manueller Code + Token-Eingabe
+- `verify_2fa.html` — 2FA-Code-Eingabe beim Login
+- `backup_codes.html` — Anzeige der 8 Einmal-Backup-Codes
+
+**5. Config** (`config.py`):
+- `SESSION_COOKIE_SAMESITE`: `Lax` → `Strict`
+- `PERMANENT_SESSION_LIFETIME`: 30 → 20 Minuten
+
+### Naechste Schritte
+- `pip install pyotp` auf dem Server ausfuehren
+- DB-Migration erstellen: `flask db migrate -m "2FA-Felder fuer User"` + `flask db upgrade`
+- Rate-Limiting fuer `/2fa/verify` empfohlen (Brute-Force-Schutz)
