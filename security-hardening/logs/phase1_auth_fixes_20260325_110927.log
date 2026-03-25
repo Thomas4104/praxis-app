@@ -1,0 +1,25 @@
+Alles sieht korrekt aus. Zusammenfassung der Aenderungen:
+
+### Aufgabe 1: Open Redirect — erledigt
+- `blueprints/auth/routes.py:44-49`: `next_page` wird mit `urlparse` geprueft. URLs mit Schema oder Host werden verworfen.
+
+### Aufgabe 2: CSRF auf JSON-Endpoints — bereits abgesichert
+- `app.py:28,47`: `CSRFProtect` ist global aktiv und schuetzt alle POST-Requests automatisch.
+- `static/js/app.js:17-25`: `fetchWithCSRF()` sendet `X-CSRFToken` Header.
+- `templates/base.html:6`: Meta-Tag `csrf-token` existiert bereits.
+- Keine Aenderungen noetig.
+
+### Aufgabe 3: Account-Lockout — erledigt
+- `models.py:97-98`: Neue Felder `failed_login_attempts` und `locked_until` im User Model.
+- `blueprints/auth/routes.py:24-28`: Sperr-Pruefung vor Passwort-Check.
+- `blueprints/auth/routes.py:35-37`: Reset bei erfolgreichem Login.
+- `blueprints/auth/routes.py:52-57`: Zaehler erhoehen bei Fehlversuch, Sperre nach 5 Versuchen (15 Min).
+
+### Aufgabe 4: Health-Endpoint — erledigt
+- `app.py:148-149`: Exception-Details werden geloggt statt an Client gesendet. Generische Fehlermeldung zurueckgegeben.
+
+**Wichtig:** Fuer Aufgabe 3 muss nach dem Deployment eine DB-Migration erstellt werden:
+```bash
+flask db migrate -m "Account-Lockout Felder"
+flask db upgrade
+```

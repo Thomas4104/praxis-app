@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta, date, time
-from flask import Flask, session, render_template
+from flask import Flask, session, render_template, current_app
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -123,6 +123,18 @@ def create_app(config_name=None):
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
         if not app.debug:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
@@ -134,7 +146,8 @@ def create_app(config_name=None):
             db.session.execute(db.text('SELECT 1'))
             return {'status': 'healthy', 'database': 'connected'}, 200
         except Exception as e:
-            return {'status': 'unhealthy', 'error': str(e)}, 503
+            current_app.logger.error(f'Health check failed: {e}')
+            return {'status': 'unhealthy', 'error': 'Datenbankverbindung fehlgeschlagen'}, 503
 
     # Error Pages
     @app.errorhandler(404)

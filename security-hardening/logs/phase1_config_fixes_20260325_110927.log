@@ -1,0 +1,43 @@
+Es scheint, dass der Python-Befehl eine Freigabe benoetigt. Bitte genehmige den Befehl zur YAML-Validierung, oder du kannst ihn manuell ausfuehren:
+
+```bash
+python3 -c "import yaml; yaml.safe_load(open('docker-compose.yml')); print('OK')"
+```
+
+Hier die Zusammenfassung aller durchgefuehrten Aenderungen:
+
+### Aufgabe 1: Security Headers (app.py:119-138)
+- `Content-Security-Policy` hinzugefuegt (default-src, script-src, style-src, img-src, font-src, frame-ancestors, base-uri, form-action)
+- `Permissions-Policy` hinzugefuegt (geolocation, microphone, camera deaktiviert)
+- `X-Permitted-Cross-Domain-Policies: none` hinzugefuegt
+
+### Aufgabe 2: Docker-Compose (docker-compose.yml)
+- DB/Redis Ports komplett entfernt (nur noch ueber internes Netzwerk erreichbar)
+- Hardcoded `POSTGRES_PASSWORD=omnia_secret` durch `${POSTGRES_PASSWORD:-changeme}` ersetzt
+- `DATABASE_URI` nutzt jetzt die Env-Variable fuer das Passwort
+- Netzwerk-Segmentierung: `frontend` + `backend` (internal) Netzwerke
+- Health-Checks fuer alle drei Services (curl, pg_isready, redis-cli ping)
+- Resource-Limits: 2 CPUs, 2G Memory fuer den Web-Service
+- `depends_on` mit `condition: service_healthy`
+
+### Aufgabe 3: Nginx TLS/HTTPS (nginx.conf)
+- HTTP-zu-HTTPS-Redirect auf Port 80
+- SSL-Konfiguration mit Let's Encrypt-Pfaden
+- TLSv1.2 + TLSv1.3 mit modernen Cipher-Suites
+- `server_tokens off`
+- OCSP Stapling aktiviert
+- Rate-Limiting Zone `login` (10r/m) auf `/auth/login`
+- Certbot ACME-Challenge Location
+- Kommentar zu SSL-Zertifikat-Voraussetzungen
+
+### Aufgabe 4: Dockerfile
+- Base-Image gepinnt auf `python:3.12-slim-bookworm`
+- Non-root User `appuser` erstellt und aktiviert (`USER appuser`)
+- `curl` hinzugefuegt (fuer Health-Check)
+- Berechtigungen korrekt auf `appuser:appuser` gesetzt
+
+### Aufgabe 5: .env.example
+- `POSTGRES_PASSWORD` hinzugefuegt mit Generierungs-Hinweis
+- `FLASK_ENV` Default auf `production` geaendert
+- `DATABASE_URI` ohne Default-Wert (muss explizit gesetzt werden)
+- Alle Kommentare mit Hinweisen zur Generierung sicherer Werte

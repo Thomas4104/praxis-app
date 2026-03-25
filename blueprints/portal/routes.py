@@ -11,6 +11,7 @@ from models import db, Patient, PatientDocument, Appointment, TreatmentSeries, \
 from blueprints.portal import portal_bp
 from app import limiter
 from utils.auth import check_org
+from services.settings_service import get_setting
 
 
 # ============================================================
@@ -18,12 +19,17 @@ from utils.auth import check_org
 # ============================================================
 
 def get_portal_user():
-    """Gibt den aktuell eingeloggten Portal-Benutzer zurueck"""
+    """Gibt den aktuell eingeloggten Portal-Benutzer zurueck.
+    Prueft ob Account aktiv ist und Patient einer gueltigen Organisation gehoert."""
     portal_account_id = session.get('portal_account_id')
     if portal_account_id:
         account = PortalAccount.query.get(portal_account_id)
-        if account and account.is_active:
-            return account
+        if account and account.is_active and account.patient:
+            # Pruefen ob Patient aktiv und Organisation gueltig
+            if account.patient.is_active and account.patient.organization_id:
+                return account
+        # Ungueltig: Session bereinigen
+        session.pop('portal_account_id', None)
     return None
 
 
@@ -61,7 +67,8 @@ def login():
                 flash('Ihr Konto wurde noch nicht aktiviert. Bitte kontaktieren Sie Ihre Praxis.', 'warning')
                 return render_template('portal/portal_login.html')
 
-            # Login erfolgreich
+            # Login erfolgreich — Session regenerieren gegen Session-Fixation
+            session.clear()
             session['portal_account_id'] = account.id
             account.last_login = datetime.utcnow()
             db.session.commit()
@@ -95,8 +102,8 @@ def register():
         errors = []
         if not email:
             errors.append('Bitte geben Sie Ihre E-Mail-Adresse ein.')
-        if not password or len(password) < 8:
-            errors.append('Das Passwort muss mindestens 8 Zeichen lang sein.')
+        if not password or len(password) < 12:
+            errors.append('Das Passwort muss mindestens 12 Zeichen lang sein.')
         if password != password_confirm:
             errors.append('Die Passwörter stimmen nicht überein.')
         if not first_name or not last_name:
@@ -120,9 +127,19 @@ def register():
         ).first()
 
         if not patient:
+            # Organisation dynamisch bestimmen
+            default_org_id = get_setting(None, 'portal_default_organization_id', None)
+            if not default_org_id:
+                from models import Organization
+                org = Organization.query.first()
+                default_org_id = org.id if org else None
+            if not default_org_id:
+                flash('Registrierung derzeit nicht möglich. Bitte kontaktieren Sie Ihre Praxis.', 'error')
+                return render_template('portal/portal_register.html')
+
             # Neuen Patienten anlegen (wird von Praxis geprueft)
             patient = Patient(
-                organization_id=1,  # Standard-Organisation
+                organization_id=int(default_org_id),
                 first_name=first_name,
                 last_name=last_name,
                 date_of_birth=dob,
@@ -320,6 +337,14 @@ def book_appointment():
                                    account=account, patient=patient,
                                    templates=templates, employees=employees)
 
+        # Datum darf nicht mehr als 3 Monate in der Zukunft liegen
+        max_date = date.today() + timedelta(days=90)
+        if req_date > max_date:
+            flash('Buchungen sind maximal 3 Monate im Voraus möglich.', 'error')
+            return render_template('portal/portal_book.html',
+                                   account=account, patient=patient,
+                                   templates=templates, employees=employees)
+
         # Buchungsanfrage erstellen
         booking = OnlineBookingRequest(
             patient_id=patient.id,
@@ -472,9 +497,10 @@ def documents():
         patient_id=patient.id, portal_visible=True
     ).order_by(PatientDocument.created_at.desc()).all()
 
-    # Rechnungen mit PDF
+    # Rechnungen mit PDF — nur versendete/ueberfaellige sichtbar (keine Entwuerfe/stornierte)
     invoices = Invoice.query.filter_by(patient_id=patient.id) \
         .filter(Invoice.pdf_path.isnot(None)) \
+        .filter(Invoice.status.in_(['sent', 'overdue'])) \
         .order_by(Invoice.created_at.desc()).all()
 
     return render_template('portal/portal_documents.html',
@@ -590,8 +616,8 @@ def profile():
 
             if not account.check_password(current_pw):
                 flash('Das aktuelle Passwort ist ungültig.', 'error')
-            elif len(new_pw) < 8:
-                flash('Das neue Passwort muss mindestens 8 Zeichen lang sein.', 'error')
+            elif len(new_pw) < 12:
+                flash('Das neue Passwort muss mindestens 12 Zeichen lang sein.', 'error')
             elif new_pw != confirm_pw:
                 flash('Die neuen Passwörter stimmen nicht überein.', 'error')
             else:

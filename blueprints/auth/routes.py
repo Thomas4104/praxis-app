@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
@@ -20,10 +21,20 @@ def login():
 
         user = User.query.filter_by(username=username).first()
 
+        # Konto-Sperre pruefen
+        if user and user.locked_until and user.locked_until > datetime.utcnow():
+            remaining = (user.locked_until - datetime.utcnow()).seconds // 60
+            flash(f'Konto gesperrt. Versuchen Sie es in {remaining + 1} Minuten erneut.', 'error')
+            return render_template('auth/login.html')
+
         if user and user.check_password(password):
             if not user.is_active:
                 flash('Dieses Konto ist deaktiviert.', 'error')
                 return render_template('auth/login.html')
+
+            # Fehlgeschlagene Versuche zuruecksetzen
+            user.failed_login_attempts = 0
+            user.locked_until = None
 
             login_user(user, remember=True)
             user.last_login = datetime.utcnow()
@@ -31,8 +42,19 @@ def login():
             db.session.commit()
 
             next_page = request.args.get('next')
+            if next_page:
+                parsed = urlparse(next_page)
+                # Nur relative URLs erlauben (kein Schema, kein Host)
+                if parsed.scheme or parsed.netloc:
+                    next_page = None
             return redirect(next_page or url_for('dashboard.index'))
         else:
+            # Fehlgeschlagene Versuche zaehlen
+            if user:
+                user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                if user.failed_login_attempts >= 5:
+                    user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                    user.failed_login_attempts = 0
             log_action('login_failed', 'user', 0)
             db.session.commit()
             flash('Ungültige Anmeldedaten.', 'error')

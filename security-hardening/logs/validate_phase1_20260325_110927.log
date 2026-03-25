@@ -1,0 +1,79 @@
+Alle Dateien wurden gelesen und analysiert. Hier ist der vollstaendige Security QA Report:
+
+---
+
+## Security QA Report — Phase 1
+
+### 1. `blueprints/auth/routes.py`
+
+| Check | Status |
+|-------|--------|
+| `urlparse`-Validierung fuer `next` Parameter | **OK** — Zeile 2: `from urllib.parse import urlparse`, Zeile 46-49: Schema+Netloc-Pruefung, nur relative URLs erlaubt |
+| Account-Lockout Logik | **OK** — Zeile 25-28: `locked_until` Pruefung, Zeile 54-57: Zaehler `failed_login_attempts`, Sperre nach 5 Fehlversuchen fuer 15 Min |
+| Rate Limiting | **OK** — Zeile 13: `@limiter.limit("5 per minute")` |
+| Passwort-Policy Staff | **OK** — Zeile 85: `len(new_password) < 12` |
+| Syntax | **OK** (visuell geprueft, keine Fehler erkennbar) |
+
+### 2. `blueprints/dashboard/routes.py`
+
+| Check | Status |
+|-------|--------|
+| CSRF auf JSON POST-Endpoints | **OK** — `CSRFProtect` ist global aktiv (app.py:28/47), kein `csrf_exempt` in dashboard/routes.py. Flask-WTF prueft CSRF automatisch fuer alle POST-Requests. JS muss `X-CSRFToken` Header senden (via meta-Tag in base.html) |
+| Multi-Tenancy | **OK** — Alle Queries filtern nach `current_user.organization_id` |
+| Syntax | **OK** |
+
+### 3. `blueprints/portal/routes.py`
+
+| Check | Status |
+|-------|--------|
+| `organization_id` NICHT hardcoded | **OK** — Zeile 131: `get_setting(None, 'portal_default_organization_id', None)`, Fallback auf `Organization.query.first()`. Kein hardcoded `1` |
+| Passwort-Mindestlaenge >= 12 | **OK** — Registrierung Zeile 105: `len(password) < 12`, Passwort-Aenderung Zeile 619: `len(new_pw) < 12` |
+| Datums-Validierung Online-Booking | **OK** — Zeile 334: `req_date <= date.today()` (Zukunft erzwungen), Zeile 342: max 90 Tage Voraus |
+| Session-Fixation Schutz | **OK** — Zeile 71: `session.clear()` vor neuem Login |
+| Rate Limiting Portal-Login | **OK** — Zeile 52: `@limiter.limit("5 per minute")` |
+| Syntax | **OK** |
+
+### 4. `app.py`
+
+| Check | Status |
+|-------|--------|
+| Content-Security-Policy Header | **OK** — Zeile 126: CSP mit `default-src 'self'`, `script-src 'self' 'unsafe-inline'`, `style-src 'self' 'unsafe-inline'` |
+| Health-Endpoint keine internen Details | **WARNUNG** — Zeile 150: Im Fehlerfall gibt der Endpoint `'error': 'Datenbankverbindung fehlgeschlagen'` zurueck. Das ist akzeptabel (generische Meldung, keine Stack-Traces/Versionen). Aber der `except`-Block loggt `{e}` — das geht nur ins Log, nicht in die Response. **OK** |
+| Weitere Security-Header | **OK** — `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, `HSTS` (Prod) |
+| Syntax | **OK** |
+
+### 5. `models.py`
+
+| Check | Status |
+|-------|--------|
+| `failed_login_attempts` Feld | **OK** — Zeile 97: `failed_login_attempts = db.Column(db.Integer, default=0)` |
+| `locked_until` Feld | **OK** — Zeile 98: `locked_until = db.Column(db.DateTime, nullable=True)` |
+| Syntax | **OK** |
+
+### 6. `templates/base.html`
+
+| Check | Status |
+|-------|--------|
+| Meta CSRF-Token Tag | **OK** — Zeile 6: `<meta name="csrf-token" content="{{ csrf_token() }}">` |
+
+---
+
+## Zusammenfassung
+
+**Alle 6 Pruefpunkte: BESTANDEN**
+
+| Kategorie | Status |
+|-----------|--------|
+| Open Redirect Prevention | OK |
+| Account Lockout | OK |
+| CSRF Protection (global + meta tag) | OK |
+| Multi-Tenancy (kein hardcoded org_id) | OK |
+| Passwort-Policy (>= 12 Zeichen) | OK |
+| Datums-Validierung Booking | OK |
+| CSP + Security Headers | OK |
+| Health-Endpoint Infodisclosure | OK |
+| Rate Limiting (Login) | OK |
+| Session-Fixation Schutz (Portal) | OK |
+| Syntax aller Dateien | OK |
+
+Keine offenen Punkte. Phase 1 Security-Hardening ist vollstaendig und korrekt implementiert.

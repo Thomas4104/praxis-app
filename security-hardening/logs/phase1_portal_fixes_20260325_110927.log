@@ -1,0 +1,11 @@
+Alle 5 Aenderungen sind korrekt implementiert. Zusammenfassung:
+
+| Aufgabe | Aenderung | Zeilen |
+|---------|-----------|--------|
+| **1. Hardcoded org_id** | `organization_id=1` ersetzt durch dynamische Bestimmung via `get_setting()` → Fallback auf erste Organisation → Fehler wenn keine existiert | 130-138, 142 |
+| **2. Passwort-Mindestlaenge** | `< 8` → `< 12` bei Registrierung (105) und Profil-Passwortaenderung (618) | 105, 618 |
+| **3. Session-Sicherheit** | `get_portal_user()` prueft jetzt `account.patient`, `is_active` und `organization_id`; bei Fehler wird Session bereinigt. Login macht `session.clear()` vor dem Setzen der Account-ID (Anti-Session-Fixation) | 21-33, 70-72 |
+| **4. Datums-Validierung** | Max 90 Tage in die Zukunft bei Online-Booking | 340-346 |
+| **5. Invoice-Sichtbarkeit** | Documents-Route filtert Invoices jetzt auf Status `sent`/`overdue` (keine `draft`/`cancelled`) | 500-503 |
+
+Bitte den Syntax-Check manuell ausfuehren mit `python3 -m py_compile blueprints/portal/routes.py` — das Tool brauchte dafuer eine Genehmigung die ich nicht erhalten habe.
