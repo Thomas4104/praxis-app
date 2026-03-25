@@ -149,6 +149,7 @@
     border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
     transition: background-color 0.15s;
+    border-left: 3px solid transparent;
 }
 
 .termin-item:hover {
@@ -159,6 +160,69 @@
     background-color: #e8f0fe;
     border-left: 3px solid #4a90d9;
 }
+
+.termin-item.termin-item-cancelled {
+    background-color: #fff5f5;
+    border-left: 3px solid #e74c3c;
+}
+
+.termin-item.termin-item-cancelled.active {
+    background-color: #ffe8e8;
+    border-left: 3px solid #e74c3c;
+}
+
+/* --- Termin-Nummer (Kreis links) --- */
+.termin-item-nummer {
+    flex-shrink: 0;
+}
+
+.termin-nr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #4a90d9;
+    color: #fff;
+    font-size: 0.78em;
+    font-weight: 700;
+}
+
+.termin-nr-0 {
+    background: #e74c3c;
+}
+
+/* --- Termin-Label (Termin X/Y) --- */
+.termin-item-label {
+    font-weight: 600;
+    font-size: 0.82em;
+    color: #333;
+}
+
+.termin-item-cancelled .termin-item-label {
+    color: #e74c3c;
+}
+
+/* --- Badges rechts --- */
+.termin-item-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.termin-status-badge {
+    display: inline-block;
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+}
+
+.termin-status-badge.status-completed { color: #27ae60; }
+.termin-status-badge.status-cancelled { color: #e74c3c; }
+.termin-status-badge.status-noshow { color: #f39c12; }
+.termin-status-badge.status-scheduled { color: #4a90d9; }
 
 .termin-item-status { flex-shrink: 0; }
 
@@ -178,12 +242,12 @@
 
 .termin-item-datum {
     font-weight: 600;
-    font-size: 0.85em;
+    font-size: 0.82em;
     color: #333;
 }
 
 .termin-item-zeit {
-    font-size: 0.78em;
+    font-size: 0.75em;
     color: #888;
 }
 
@@ -191,6 +255,24 @@
     flex-shrink: 0;
     color: #4a90d9;
     opacity: 0.6;
+}
+
+/* --- Absage-Info-Box (mittlere Spalte) --- */
+.termin-cancel-info {
+    margin-bottom: 16px;
+}
+
+.cancel-info-box {
+    background: #fff5f5;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.88em;
+    color: #991b1b;
+}
+
+.cancel-charge-info {
+    margin-top: 6px;
 }
 
 /* --- SOAP-Notes (mittlere Spalte) --- */

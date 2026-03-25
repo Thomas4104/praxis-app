@@ -52,6 +52,14 @@
             <span class="therapist-name">{{ emp.user.first_name }} {{ emp.user.last_name }}</span>
         </label>
         {% endfor %}
+        {% if rooms %}
+        <span class="filter-separator">|</span>
+        <label class="therapist-filter-item resource-toggle">
+            <input type="checkbox" id="showResourceColumns" checked>
+            <span class="therapist-color-dot" style="background: #6c757d"></span>
+            <span class="therapist-name">Raeume anzeigen</span>
+        </label>
+        {% endif %}
     </div>
 
     <!-- Feiertags-Banner -->
@@ -281,6 +289,14 @@
                 id: {{ emp.id }},
                 name: '{{ emp.user.first_name }} {{ emp.user.last_name }}',
                 color: '{{ emp.color_code or "#4a90d9" }}'
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ],
+        resources: [
+            {% for room in rooms %}
+            {
+                id: {{ room.id }},
+                name: '{{ room.name }}'
             }{% if not loop.last %},{% endif %}
             {% endfor %}
         ]

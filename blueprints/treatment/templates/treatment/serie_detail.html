@@ -7,6 +7,8 @@
 <span class="breadcrumb-separator">/</span>
 <a href="{{ url_for('treatment.index') }}">Behandlung</a>
 <span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('patients.detail', patient_id=serie.patient_id) }}">{{ serie.patient.last_name }}</a>
+<span class="breadcrumb-separator">/</span>
 <span>Serie #{{ serie.id }}</span>
 {% endblock %}
 
@@ -26,7 +28,7 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
 
 {% block content %}
 <div class="serie-detail-layout">
-    <!-- Linke Spalte: Terminliste -->
+    <!-- Linke Spalte: Terminliste mit Nummerierung -->
     <div class="serie-col serie-col-left">
         <div class="panel">
             <div class="panel-header">
@@ -34,33 +36,45 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
                 <span class="badge badge-info" id="termineCount">{{ termine|length }}</span>
             </div>
             <div class="termin-liste" id="terminListe">
+                {% set serie_total = serie.template.num_appointments if serie.template else termine|length %}
+                {% set ns = namespace(termin_nr=0) %}
                 {% for t in termine %}
-                <div class="termin-item {% if loop.first %}active{% endif %}"
+                {% set is_termin_0 = t.is_termin_0 or (t.status == 'cancelled' and not t.charge_despite_cancel) %}
+                {% if not is_termin_0 %}
+                    {% set ns.termin_nr = ns.termin_nr + 1 %}
+                {% endif %}
+                <div class="termin-item {% if loop.first %}active{% endif %} {% if is_termin_0 %}termin-item-cancelled{% endif %}"
                      data-termin-id="{{ t.id }}"
                      onclick="ladeTermin({{ t.id }}, this)">
-                    <div class="termin-item-status">
-                        {% if t.status == 'completed' %}
-                            <span class="status-icon status-completed" title="Abgeschlossen">&#10003;</span>
-                        {% elif t.status == 'cancelled' %}
-                            <span class="status-icon status-cancelled" title="Abgesagt">&#10007;</span>
-                        {% elif t.status == 'no_show' %}
-                            <span class="status-icon status-noshow" title="Nicht erschienen">&#9888;</span>
+                    <div class="termin-item-nummer">
+                        {% if is_termin_0 %}
+                        <span class="termin-nr termin-nr-0">0</span>
                         {% else %}
-                            <span class="status-icon status-scheduled" title="Geplant">&#9679;</span>
+                        <span class="termin-nr">{{ t.series_number or ns.termin_nr }}</span>
                         {% endif %}
                     </div>
                     <div class="termin-item-info">
+                        <div class="termin-item-label">
+                            {% if is_termin_0 %}
+                            Termin 0
+                            {% else %}
+                            Termin {{ t.series_number or ns.termin_nr }}/{{ serie_total }}
+                            {% endif %}
+                        </div>
                         <div class="termin-item-datum">{{ t.start_time.strftime('%d.%m.%Y') }}</div>
                         <div class="termin-item-zeit">{{ t.start_time.strftime('%H:%M') }} – {{ t.end_time.strftime('%H:%M') }}</div>
                     </div>
-                    {% if t.soap_subjective or t.soap_objective or t.soap_assessment or t.soap_plan %}
-                    <div class="termin-item-soap" title="SOAP-Notes vorhanden">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                        </svg>
+                    <div class="termin-item-badges">
+                        {% if t.soap_subjective or t.soap_objective or t.soap_assessment or t.soap_plan %}
+                        <span class="badge badge-success" title="Dokumentiert" style="font-size:0.65em; padding:2px 5px;">D</span>
+                        {% endif %}
+                        {% if t.charge_despite_cancel %}
+                        <span class="badge badge-warning" title="Trotzdem abgerechnet" style="font-size:0.65em; padding:2px 5px;">$</span>
+                        {% endif %}
+                        <span class="termin-status-badge {% if t.status == 'completed' %}status-completed{% elif t.status == 'cancelled' %}status-cancelled{% elif t.status == 'no_show' %}status-noshow{% else %}status-scheduled{% endif %}">
+                            {% if t.status == 'completed' %}&#10003;{% elif t.status == 'cancelled' %}&#10007;{% elif t.status == 'no_show' %}&#9888;{% else %}&#9679;{% endif %}
+                        </span>
                     </div>
-                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -93,6 +107,16 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
                         <div class="info-item">
                             <label>Raum</label>
                             <span id="detailRaum">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Absage-Info (nur bei Termin 0 sichtbar) -->
+                <div class="termin-cancel-info" id="terminCancelInfo" style="display:none;">
+                    <div class="cancel-info-box">
+                        <strong>Absage-Grund:</strong> <span id="cancelReason">—</span>
+                        <div class="cancel-charge-info" id="cancelChargeInfo" style="display:none;">
+                            <span class="badge badge-warning">Trotzdem abgerechnet</span>
                         </div>
                     </div>
                 </div>
@@ -360,7 +384,7 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
                             <line x1="8" y1="2" x2="8" y2="6"></line>
                             <line x1="3" y1="10" x2="21" y2="10"></line>
                         </svg>
-                        Termin hinzufügen
+                        Termin hinzufuegen
                     </a>
                     <a href="{{ url_for('patients.detail', patient_id=serie.patient_id) }}" class="action-link">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -379,6 +403,7 @@ Serie: {{ serie.patient.first_name }} {{ serie.patient.last_name }} — {{ serie
 {% block extra_js %}
 <script>
 const SERIE_ID = {{ serie.id }};
+const SERIE_TOTAL = {{ serie.template.num_appointments if serie.template else termine|length }};
 let aktuellerTerminId = null;
 let autoSaveTimer = null;
 
@@ -413,16 +438,35 @@ function ladeTermin(terminId, element) {
     fetch('/treatment/api/termin/' + terminId)
         .then(r => r.json())
         .then(data => {
+            // Titel aktualisieren
+            if (data.is_termin_0) {
+                document.getElementById('terminDetailTitle').textContent = 'Termin 0 (Absage)';
+            } else if (data.series_number) {
+                document.getElementById('terminDetailTitle').textContent = 'Termin ' + data.series_number + '/' + SERIE_TOTAL;
+            } else {
+                document.getElementById('terminDetailTitle').textContent = 'Termin-Details';
+            }
+
             document.getElementById('detailDatum').textContent = data.datum;
             document.getElementById('detailUhrzeit').textContent = data.uhrzeit + ' – ' + data.end_zeit;
             document.getElementById('detailTherapeut').textContent = data.therapeut;
             document.getElementById('detailRaum').textContent = data.raum;
 
+            // Absage-Info anzeigen/verstecken
+            const cancelInfo = document.getElementById('terminCancelInfo');
+            if (data.status === 'cancelled' || data.is_termin_0) {
+                cancelInfo.style.display = 'block';
+                document.getElementById('cancelReason').textContent = data.cancellation_reason || 'Kein Grund angegeben';
+                document.getElementById('cancelChargeInfo').style.display = data.charge_despite_cancel ? 'block' : 'none';
+            } else {
+                cancelInfo.style.display = 'none';
+            }
+
             // Status anzeigen
             const statusInfo = document.getElementById('terminStatusInfo');
             const statusMap = {
                 'scheduled': '<span class="badge badge-info">Geplant</span>',
-                'confirmed': '<span class="badge badge-info">Bestätigt</span>',
+                'confirmed': '<span class="badge badge-info">Bestaetigt</span>',
                 'completed': '<span class="badge badge-success">Abgeschlossen</span>',
                 'cancelled': '<span class="badge badge-warning">Abgesagt</span>',
                 'no_show': '<span class="badge badge-danger">Nicht erschienen</span>'
@@ -469,16 +513,19 @@ function speichereSoap(isAutoSave) {
                 setTimeout(() => { indicator.style.display = 'none'; }, 3000);
             }
 
-            // SOAP-Icon in Terminliste aktualisieren
+            // SOAP-Badge in Terminliste aktualisieren
             const terminItem = document.querySelector('.termin-item[data-termin-id="' + aktuellerTerminId + '"]');
-            if (terminItem && !terminItem.querySelector('.termin-item-soap')) {
+            if (terminItem) {
+                const badgesDiv = terminItem.querySelector('.termin-item-badges');
                 const hasSoap = data.soap_subjective || data.soap_objective || data.soap_assessment || data.soap_plan;
-                if (hasSoap) {
-                    const icon = document.createElement('div');
-                    icon.className = 'termin-item-soap';
-                    icon.title = 'SOAP-Notes vorhanden';
-                    icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
-                    terminItem.appendChild(icon);
+                const existingBadge = badgesDiv.querySelector('.badge-success');
+                if (hasSoap && !existingBadge) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-success';
+                    badge.title = 'Dokumentiert';
+                    badge.style.cssText = 'font-size:0.65em; padding:2px 5px;';
+                    badge.textContent = 'D';
+                    badgesDiv.insertBefore(badge, badgesDiv.firstChild);
                 }
             }
         }
@@ -487,8 +534,8 @@ function speichereSoap(isAutoSave) {
 
 function serieStatus(neuerStatus) {
     const msg = neuerStatus === 'completed'
-        ? 'Möchten Sie diese Serie wirklich abschliessen?'
-        : 'Möchten Sie diese Serie wirklich abbrechen?';
+        ? 'Moechten Sie diese Serie wirklich abschliessen?'
+        : 'Moechten Sie diese Serie wirklich abbrechen?';
 
     if (!confirm(msg)) return;
 
@@ -510,7 +557,6 @@ function serieStatus(neuerStatus) {
 // ============================================================================
 
 function loadTariffPositions(terminId) {
-    // Tarmed-Bereich anzeigen
     const section = document.getElementById('tariff-section');
     if (!section) return;
     section.style.display = 'block';
@@ -546,7 +592,6 @@ function updateTariffTotal(positions) {
 
 function openTariffModal() {
     document.getElementById('tariffModal').style.display = 'flex';
-    // Felder zuruecksetzen
     document.getElementById('tariffSearch').value = '';
     document.getElementById('tariffCode').value = '';
     document.getElementById('tariffDescription').value = '';
@@ -557,7 +602,6 @@ function openTariffModal() {
     document.getElementById('tariffAmountPreview').value = 'CHF 0.00';
     document.getElementById('tariffSuggestions').style.display = 'none';
 
-    // Betrag-Vorschau aktualisieren bei Eingabe
     ['tariffQuantity', 'tariffTaxPoints', 'tariffTpValue'].forEach(id => {
         document.getElementById(id).oninput = updateTariffPreview;
     });
@@ -686,7 +730,6 @@ function setzeHeilungsphase(phase) {
     .then(r => r.json())
     .then(result => {
         if (result.success) {
-            // Phase-Dots aktualisieren
             document.querySelectorAll('.phase-dot').forEach(dot => {
                 dot.classList.remove('phase-active');
                 if (dot.dataset.phase === phase) {

@@ -113,3 +113,56 @@
         </div>
     </form>
 </div>
+
+<!-- TP-Rechnungskopie Konfiguration -->
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2>Automatische TP-Rechnungskopie</h2>
+    </div>
+    <div style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+            Seit 01.01.2022 sind Schweizer Praxen verpflichtet, bei Tiers-Payant-Abrechnungen eine Rechnungskopie an den Patienten zu senden.
+        </p>
+        <form method="POST" action="{{ url_for('settings.tp_copy_save') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="is_active" class="form-checkbox"
+                           {% if tp_copy_config and tp_copy_config.is_active %}checked{% endif %}>
+                    <span>Automatisch aktiviert</span>
+                </label>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Versandkanal</label>
+                <select name="send_channel" class="form-select">
+                    <option value="email" {% if not tp_copy_config or tp_copy_config.send_channel == 'email' %}selected{% endif %}>E-Mail</option>
+                    <option value="print" {% if tp_copy_config and tp_copy_config.send_channel == 'print' %}selected{% endif %}>Druck</option>
+                    <option value="both" {% if tp_copy_config and tp_copy_config.send_channel == 'both' %}selected{% endif %}>E-Mail und Druck</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Versandzeitpunkt</label>
+                <select name="send_timing" class="form-select">
+                    <option value="on_send" {% if not tp_copy_config or tp_copy_config.send_timing == 'on_send' %}selected{% endif %}>Beim Rechnungsversand</option>
+                    <option value="next_day" {% if tp_copy_config and tp_copy_config.send_timing == 'next_day' %}selected{% endif %}>Am Folgetag</option>
+                    <option value="weekly" {% if tp_copy_config and tp_copy_config.send_timing == 'weekly' %}selected{% endif %}>Woechentlich</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="create_task_on_failure" class="form-checkbox"
+                           {% if not tp_copy_config or tp_copy_config.create_task_on_failure %}checked{% endif %}>
+                    <span>Aufgabe erstellen bei Fehler</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>

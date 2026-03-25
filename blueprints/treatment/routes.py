@@ -155,8 +155,15 @@ def api_serie_termine(serie_id):
     check_org(serie.patient)
     termine = Appointment.query.filter_by(series_id=serie_id).order_by(Appointment.start_time).all()
 
+    # Gesamtanzahl aus Template
+    serie_total = serie.template.num_appointments if serie.template else len(termine)
+
     ergebnis = []
+    termin_nr = 0
     for t in termine:
+        is_t0 = t.is_termin_0 or False
+        if not is_t0:
+            termin_nr += 1
         ergebnis.append({
             'id': t.id,
             'datum': t.start_time.strftime('%d.%m.%Y'),
@@ -166,10 +173,15 @@ def api_serie_termine(serie_id):
             'therapeut': f'{t.employee.user.first_name} {t.employee.user.last_name}' if t.employee and t.employee.user else '-',
             'raum': t.resource.name if t.resource else '-',
             'hat_soap': bool(t.soap_subjective or t.soap_objective or t.soap_assessment or t.soap_plan),
-            'hat_notizen': bool(t.notes)
+            'hat_notizen': bool(t.notes),
+            'series_number': t.series_number or (termin_nr if not is_t0 else 0),
+            'is_termin_0': is_t0,
+            'charge_despite_cancel': t.charge_despite_cancel or False,
+            'cancellation_reason': t.cancellation_reason or '',
+            'is_documented': bool(t.soap_subjective or t.soap_objective or t.soap_assessment or t.soap_plan),
         })
 
-    return jsonify(ergebnis)
+    return jsonify({'termine': ergebnis, 'serie_total': serie_total})
 
 
 @treatment_bp.route('/api/termin/<int:termin_id>')
@@ -194,8 +206,9 @@ def api_termin_detail(termin_id):
         'soap_plan': t.soap_plan or '',
         'notes': t.notes or '',
         'series_number': t.series_number,
-        'is_termin_0': t.is_termin_0,
-        'charge_despite_cancel': t.charge_despite_cancel,
+        'is_termin_0': t.is_termin_0 or False,
+        'charge_despite_cancel': t.charge_despite_cancel or False,
+        'cancellation_reason': t.cancellation_reason or '',
         'tariff_positions_count': t.tariff_positions.count() if hasattr(t, 'tariff_positions') else 0,
     })
 

@@ -3,7 +3,7 @@ import json
 from datetime import datetime, date, time, timedelta
 from flask import render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from models import db, Appointment, Employee, Patient, Location, Resource, \
     WorkSchedule, Absence, Holiday, TreatmentSeries, TreatmentSeriesTemplate, \
     WaitingList, ResourceBooking
@@ -228,12 +228,13 @@ def api_get_appointments():
         except ValueError:
             pass
 
-    # Eager Loading: Patient, Employee->User und Resource in einer Query laden
+    # Eager Loading: Patient, Employee->User, Resource und Serie->Template in einer Query
     # Verhindert N+1 Queries (vorher ~150 Queries pro Tagesansicht)
     query = query.options(
         joinedload(Appointment.patient),
         joinedload(Appointment.employee).joinedload(Employee.user),
-        joinedload(Appointment.resource)
+        joinedload(Appointment.resource),
+        joinedload(Appointment.series).joinedload(TreatmentSeries.template)
     )
 
     appointments = query.order_by(Appointment.start_time).all()
@@ -242,7 +243,7 @@ def api_get_appointments():
     for a in appointments:
         patient_name = ''
         if a.patient:
-            patient_name = f'{a.patient.first_name} {a.patient.last_name}'
+            patient_name = f'{a.patient.last_name} {a.patient.first_name}'
 
         employee_name = ''
         employee_color = '#4a90d9'
@@ -250,6 +251,22 @@ def api_get_appointments():
             if a.employee.user:
                 employee_name = f'{a.employee.user.first_name} {a.employee.user.last_name}'
             employee_color = a.employee.color_code or '#4a90d9'
+
+        # Serieninfo effizient aus eager-loaded Daten
+        series_total = None
+        series_counter = None
+        if a.series_id and a.series and a.series.template:
+            series_total = a.series.template.num_appointments
+        if a.series_number and series_total:
+            series_counter = f'{a.series_number}/{series_total}'
+        elif a.series_number:
+            series_counter = f'{a.series_number}'
+
+        # Dokumentation vorhanden?
+        is_documented = bool(
+            a.soap_subjective or a.soap_objective or
+            a.soap_assessment or a.soap_plan
+        )
 
         result.append({
             'id': a.id,
@@ -260,6 +277,7 @@ def api_get_appointments():
             'employee_color': employee_color,
             'location_id': a.location_id,
             'resource_id': a.resource_id,
+            'resource_name': a.resource.name if a.resource else '',
             'start_time': a.start_time.isoformat(),
             'end_time': a.end_time.isoformat(),
             'duration_minutes': a.duration_minutes,
@@ -272,10 +290,17 @@ def api_get_appointments():
             'soap_assessment': a.soap_assessment or '',
             'soap_plan': a.soap_plan or '',
             'series_id': a.series_id,
-            'is_domicile': a.is_domicile,
-            'is_group': a.is_group,
+            'series_number': a.series_number,
+            'series_total': series_total,
+            'series_counter': series_counter,
+            'is_documented': is_documented,
+            'is_billed': False,  # TODO: Rechnungsstatus pruefen
+            'is_domicile': a.is_domicile or False,
+            'is_termin_0': a.is_termin_0 or False,
+            'is_group': a.is_group or False,
             'color_category': a.color_category,
-            'cancellation_reason': a.cancellation_reason or ''
+            'cancellation_reason': a.cancellation_reason or '',
+            'therapist_name': employee_name,
         })
 
     return jsonify(result)
@@ -470,6 +495,21 @@ def api_move_appointment(appointment_id):
     appointment.start_time = new_start
     appointment.end_time = new_end
     appointment.employee_id = new_employee_id
+
+    # Ressource aktualisieren falls mitgegeben
+    if 'new_resource_id' in data:
+        new_resource_id = data.get('new_resource_id')
+        appointment.resource_id = new_resource_id
+        # Bestehende Raum-Buchung aktualisieren
+        ResourceBooking.query.filter_by(appointment_id=appointment_id).delete()
+        if new_resource_id:
+            booking = ResourceBooking(
+                resource_id=new_resource_id,
+                appointment_id=appointment_id,
+                start_time=new_start,
+                end_time=new_end
+            )
+            db.session.add(booking)
 
     db.session.commit()
     return jsonify({'success': True, 'message': 'Termin wurde verschoben.'})
@@ -788,17 +828,20 @@ def api_month_data():
     if location_id:
         query = query.filter(Appointment.location_id == location_id)
 
-    # Eager Loading: Employee fuer color_code Zugriff
-    query = query.options(joinedload(Appointment.employee))
+    # Eager Loading: Employee und Patient fuer Detailansicht
+    query = query.options(
+        joinedload(Appointment.employee).joinedload(Employee.user),
+        joinedload(Appointment.patient)
+    )
 
     appointments = query.all()
 
-    # Nach Tag gruppieren
+    # Nach Tag gruppieren mit Termin-Details
     days_data = {}
     for a in appointments:
         day_key = a.start_time.strftime('%Y-%m-%d')
         if day_key not in days_data:
-            days_data[day_key] = {'count': 0, 'employees': {}}
+            days_data[day_key] = {'count': 0, 'employees': {}, 'appointments': []}
         days_data[day_key]['count'] += 1
         emp_id = str(a.employee_id)
         if emp_id not in days_data[day_key]['employees']:
@@ -808,6 +851,28 @@ def api_month_data():
                 'count': 0
             }
         days_data[day_key]['employees'][emp_id]['count'] += 1
+
+        # Termin-Details fuer Monatsansicht
+        patient_name = ''
+        if a.patient:
+            patient_name = f'{a.patient.first_name} {a.patient.last_name}'
+        employee_name = ''
+        if a.employee and a.employee.user:
+            employee_name = f'{a.employee.user.first_name} {a.employee.user.last_name}'
+
+        days_data[day_key]['appointments'].append({
+            'id': a.id,
+            'start_time': a.start_time.isoformat(),
+            'patient_name': patient_name,
+            'employee_name': employee_name,
+            'employee_color': a.employee.color_code if a.employee else '#4a90d9',
+            'status': a.status,
+            'appointment_type': a.appointment_type
+        })
+
+    # Termine innerhalb jedes Tages nach Startzeit sortieren
+    for day_key in days_data:
+        days_data[day_key]['appointments'].sort(key=lambda x: x['start_time'])
 
     # Feiertage
     holidays = Holiday.query.filter(
@@ -994,3 +1059,27 @@ def api_appointment_config():
     config['group_color'] = '#6f42c1'
 
     return jsonify(config)
+
+
+@calendar_bp.route('/api/resources')
+@login_required
+def api_get_resources():
+    """Ressourcen (Raeume) fuer einen Standort laden"""
+    location_id = request.args.get('location_id', type=int)
+    org_id = current_user.organization_id
+
+    query = Resource.query.filter_by(
+        organization_id=org_id,
+        resource_type='room',
+        is_active=True
+    )
+    if location_id:
+        query = query.filter_by(location_id=location_id)
+
+    resources = query.order_by(Resource.name).all()
+    return jsonify([{
+        'id': r.id,
+        'name': r.name,
+        'location_id': r.location_id,
+        'resource_type': r.resource_type,
+    } for r in resources])

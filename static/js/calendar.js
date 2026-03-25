@@ -8,8 +8,10 @@
     const CFG = window.CALENDAR_CONFIG || {};
     const START_HOUR = CFG.dayStart ? parseInt(CFG.dayStart.split(':')[0]) : 6;
     const END_HOUR = CFG.dayEnd ? parseInt(CFG.dayEnd.split(':')[0]) + 1 : 20;
-    const SLOT_HEIGHT = 60; // px pro Stunde
-    const QUARTER_HEIGHT = SLOT_HEIGHT / 4; // 15px pro 15 Min
+    const GRID_INTERVAL = CFG.timeGrid || 15; // Minuten pro Slot (15-Min-Raster)
+    const SLOT_HEIGHT_PX = 20; // px pro 15-Min-Slot
+    const SLOT_HEIGHT = SLOT_HEIGHT_PX * (60 / GRID_INTERVAL); // px pro Stunde (kompatibel)
+    const QUARTER_HEIGHT = SLOT_HEIGHT_PX; // px pro 15 Min
     const BASE_URL = '/calendar';
 
     // Globaler State
@@ -22,6 +24,9 @@
     let dragState = null;
     let resizeState = null;
     let appointmentMap = {}; // id -> appointment object for event delegation
+
+    // Kalender-State global bereitstellen (fuer moveAppointment)
+    window._calendarState = { currentDate: CFG.currentDate || new Date().toISOString().split('T')[0] };
 
     // Terminkarten-Konfiguration (wird beim Laden abgerufen)
     window._appointmentConfig = null;
@@ -83,12 +88,20 @@
     function renderTimeColumn() {
         const col = document.getElementById('timeColumn');
         if (!col) return;
-        col.innerHTML = '<div style="height:42px; border-bottom:1px solid var(--gray-200);"></div>'; // Header-Platzhalter
+        col.innerHTML = '<div class="time-column-header-spacer"></div>'; // Header-Platzhalter
         for (let h = START_HOUR; h < END_HOUR; h++) {
-            const label = document.createElement('div');
-            label.className = 'time-slot-label full-hour';
-            label.textContent = String(h).padStart(2, '0') + ':00';
-            col.appendChild(label);
+            for (let m = 0; m < 60; m += GRID_INTERVAL) {
+                const label = document.createElement('div');
+                label.className = 'time-slot-label';
+                if (m === 0) {
+                    label.classList.add('full-hour');
+                    label.textContent = String(h).padStart(2, '0') + ':00';
+                } else {
+                    label.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+                }
+                label.style.height = SLOT_HEIGHT_PX + 'px';
+                col.appendChild(label);
+            }
         }
     }
 
@@ -98,52 +111,118 @@
         container.innerHTML = '';
 
         const visibleEmployees = getVisibleEmployees();
+        var columns = [];
+
+        // Therapeuten-Spalten
         visibleEmployees.forEach(function(emp) {
+            columns.push({
+                type: 'employee',
+                id: emp.id,
+                name: emp.name,
+                color: emp.color,
+                employeeId: emp.id,
+                resourceId: null
+            });
+        });
+
+        // Ressourcen-Spalten (Raeume) wenn Toggle aktiv
+        var showResources = document.getElementById('showResourceColumns');
+        if ((!showResources || showResources.checked) && CFG.resources && CFG.resources.length > 0) {
+            CFG.resources.forEach(function(res) {
+                columns.push({
+                    type: 'resource',
+                    id: 'res-' + res.id,
+                    name: res.name,
+                    color: '#6c757d',
+                    employeeId: null,
+                    resourceId: res.id
+                });
+            });
+        }
+
+        columns.forEach(function(colDef) {
             const col = document.createElement('div');
             col.className = 'therapist-column';
-            col.dataset.employeeId = emp.id;
+            if (colDef.type === 'employee') {
+                col.dataset.employeeId = colDef.employeeId;
+            } else {
+                col.dataset.resourceId = colDef.resourceId;
+                col.classList.add('resource-column');
+            }
 
             // Header
             const header = document.createElement('div');
             header.className = 'therapist-column-header';
-            header.style.background = emp.color;
-            header.textContent = emp.name;
+            header.style.background = colDef.color;
+            header.textContent = colDef.name;
+            if (colDef.type === 'resource') {
+                header.classList.add('resource-header');
+            }
             col.appendChild(header);
 
-            // Body mit Zeitslots
+            // Body mit 15-Min-Zeitslots
             const body = document.createElement('div');
             body.className = 'therapist-column-body';
-            body.dataset.employeeId = emp.id;
+            if (colDef.type === 'employee') {
+                body.dataset.employeeId = colDef.employeeId;
+            } else {
+                body.dataset.resourceId = colDef.resourceId;
+            }
 
             for (let h = START_HOUR; h < END_HOUR; h++) {
-                const row = document.createElement('div');
-                row.className = 'time-slot-row';
-                row.dataset.hour = h;
-                row.dataset.employeeId = emp.id;
+                for (let m = 0; m < 60; m += GRID_INTERVAL) {
+                    const slot = document.createElement('div');
+                    slot.className = 'time-slot';
+                    slot.dataset.time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+                    slot.dataset.hour = h;
+                    slot.dataset.minutes = m;
+                    slot.style.height = SLOT_HEIGHT_PX + 'px';
 
-                // Halbe-Stunde Linie
-                const halfLine = document.createElement('div');
-                halfLine.className = 'half-hour-line';
-                row.appendChild(halfLine);
+                    if (colDef.type === 'employee') {
+                        slot.dataset.employeeId = colDef.employeeId;
+                    } else {
+                        slot.dataset.resourceId = colDef.resourceId;
+                    }
 
-                // Klick auf leere Zelle
-                row.addEventListener('click', function(e) {
-                    if (e.target.closest('.appointment-block')) return;
-                    openQuickAdd(emp.id, h, 0);
-                });
+                    // Volle-Stunde und Halbe-Stunde Linien
+                    if (m === 0) {
+                        slot.classList.add('full-hour-slot');
+                    } else if (m === 30) {
+                        slot.classList.add('half-hour-slot');
+                    }
 
-                // Drop-Zone fuer Drag & Drop
-                row.addEventListener('dragover', handleDragOver);
-                row.addEventListener('drop', handleDrop);
+                    // Klick auf leeren Slot
+                    (function(empId, hr, min) {
+                        slot.addEventListener('click', function(e) {
+                            if (e.target.closest('.appointment-block')) return;
+                            openQuickAdd(empId || (visibleEmployees[0] ? visibleEmployees[0].id : null), hr, min);
+                        });
+                    })(colDef.employeeId, h, m);
 
-                body.appendChild(row);
+                    // Drop-Zone fuer Drag & Drop
+                    slot.addEventListener('dragover', handleDragOver);
+                    slot.addEventListener('drop', handleDrop);
+                    slot.addEventListener('dragleave', handleDragLeave);
+
+                    body.appendChild(slot);
+                }
             }
+
             // Event Delegation fuer Appointment-Blocks
             setupAppointmentDelegation(body);
 
             col.appendChild(body);
             container.appendChild(col);
         });
+
+        // Ressourcen-Toggle Event
+        if (showResources && !showResources._listenerAdded) {
+            showResources.addEventListener('change', function() {
+                renderTherapistColumns();
+                loadDayData(true);
+            });
+            showResources._listenerAdded = true;
+        }
     }
 
     // Zentrale Event-Delegation fuer Appointment-Blocks auf einem Container
@@ -180,7 +259,8 @@
     }
 
     function getVisibleEmployees() {
-        const checkboxes = document.querySelectorAll('#therapistFilters input[type="checkbox"]');
+        // Nur Therapeuten-Checkboxen (nicht den Ressourcen-Toggle)
+        const checkboxes = document.querySelectorAll('#therapistFilters input[type="checkbox"]:not(#showResourceColumns)');
         if (checkboxes.length === 0) return CFG.employees || [];
         const visibleIds = new Set();
         checkboxes.forEach(function(cb) {
@@ -219,8 +299,20 @@
 
         appointments.forEach(function(appt) {
             appointmentMap[appt.id] = appt;
-            var body = document.querySelector('.therapist-column-body[data-employee-id="' + appt.employee_id + '"]');
-            if (!body) return;
+
+            // Termin in Therapeuten-Spalte platzieren
+            var empBody = document.querySelector('.therapist-column-body[data-employee-id="' + appt.employee_id + '"]');
+
+            // Termin auch in Ressourcen-Spalte platzieren (falls Raum zugewiesen)
+            var resBody = null;
+            if (appt.resource_id) {
+                resBody = document.querySelector('.therapist-column-body[data-resource-id="' + appt.resource_id + '"]');
+            }
+
+            var targets = [];
+            if (empBody) targets.push(empBody);
+            if (resBody) targets.push(resBody);
+            if (targets.length === 0) return;
 
             var startDt = new Date(appt.start_time);
             var endDt = new Date(appt.end_time);
@@ -229,60 +321,86 @@
             var topPx = (startMinutes - START_HOUR * 60) * (SLOT_HEIGHT / 60);
             var heightPx = (endMinutes - startMinutes) * (SLOT_HEIGHT / 60);
 
-            if (heightPx < 15) heightPx = 15;
+            if (heightPx < QUARTER_HEIGHT) heightPx = QUARTER_HEIGHT;
 
-            var block = document.createElement('div');
-            block.className = 'appointment-block status-' + appt.status;
-            block.dataset.appointmentId = appt.id;
-            block.style.top = topPx + 'px';
-            block.style.height = heightPx + 'px';
+            targets.forEach(function(body) {
+                var block = document.createElement('div');
+                block.className = 'appointment-block status-' + appt.status;
+                block.dataset.appointmentId = appt.id;
+                block.style.top = topPx + 'px';
+                block.style.height = heightPx + 'px';
 
-            // Farblogik: Kategorie/Domizil/Gruppe ueberschreibt Employee-Farbe
-            var categoryColor = getAppointmentColor(appt);
-            var displayColor = categoryColor || appt.employee_color;
-            block.style.background = hexToRgba(displayColor, 0.15);
-            block.style.borderLeftColor = displayColor;
-            block.style.color = darkenColor(displayColor, 0.6);
-            if (categoryColor) block.dataset.colorCategory = appt.color_category || '';
-            block.draggable = true;
+                // Cenplex-Farblogik: Versicherungstyp als CSS-Klasse
+                if (appt.is_domicile) block.classList.add('domicile');
+                if (appt.is_group) block.classList.add('group');
+                if (appt.color_category) {
+                    var catClass = appt.color_category.toLowerCase().replace(/[^a-z]/g, '');
+                    if (catClass) block.classList.add(catClass);
+                }
 
-            // Icons
-            var icons = '';
-            if (appt.appointment_type === 'initial') icons += '🆕';
-            if (appt.is_domicile) icons += '🏠';
-            if (appt.is_group) icons += '👥';
-            if (appt.notes) icons += '📝';
+                // Farbe: Kategorie ueberschreibt Employee-Farbe
+                var categoryColor = getAppointmentColor(appt);
+                var displayColor = categoryColor || appt.employee_color;
+                block.style.background = hexToRgba(displayColor, 0.15);
+                block.style.borderLeftColor = displayColor;
+                block.style.color = darkenColor(displayColor, 0.6);
+                block.draggable = true;
 
-            block.innerHTML =
-                (icons ? '<span class="appt-icons">' + icons + '</span>' : '') +
-                '<div class="appt-patient">' + escapeHtml(appt.patient_name) + '</div>' +
-                '<div class="appt-time">' + formatTime(startDt) + ' – ' + formatTime(endDt) + '</div>' +
-                '<div class="appt-type">' + escapeHtml(appt.title || getTypeLabel(appt.appointment_type)) + '</div>' +
-                '<div class="resize-handle"></div>';
+                // Status-Icons (SVG statt Emoji)
+                var statusIcons = '';
+                if (appt.is_documented) {
+                    statusIcons += '<svg class="icon-sm icon-documented" viewBox="0 0 16 16" fill="currentColor" title="Dokumentiert"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>';
+                }
+                if (appt.is_billed) {
+                    statusIcons += '<svg class="icon-sm icon-billed" viewBox="0 0 16 16" fill="currentColor" title="Abgerechnet"><path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718H4zm3.391-3.836c-1.043-.263-1.6-.825-1.6-1.616 0-.944.704-1.641 1.8-1.828v3.495l-.2-.05zm1.591 1.872c1.287.323 1.852.859 1.852 1.769 0 1.097-.826 1.828-2.2 1.939V8.73l.348.086z"/></svg>';
+                }
+                if (appt.is_domicile) {
+                    statusIcons += '<svg class="icon-sm icon-domicile" viewBox="0 0 16 16" fill="currentColor" title="Domizil"><path d="M8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4.5a.5.5 0 0 0 .5-.5v-4h2v4a.5.5 0 0 0 .5.5H14a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293L8.354 1.146z"/></svg>';
+                }
+                if (appt.is_group) {
+                    statusIcons += '<svg class="icon-sm icon-group" viewBox="0 0 16 16" fill="currentColor" title="Gruppe"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path fill-rule="evenodd" d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/><path d="M4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>';
+                }
+                if (appt.appointment_type === 'initial') {
+                    statusIcons += '<svg class="icon-sm icon-initial" viewBox="0 0 16 16" fill="currentColor" title="Ersttermin"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>';
+                }
 
-            // Resize (bleibt per-element wegen spezifischem State)
-            var resizeHandle = block.querySelector('.resize-handle');
-            resizeHandle.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                resizeState = {
-                    appointmentId: appt.id,
-                    startY: e.clientY,
-                    originalHeight: heightPx,
-                    block: block,
-                    minHeight: QUARTER_HEIGHT
-                };
-                document.addEventListener('mousemove', handleResize);
-                document.addEventListener('mouseup', handleResizeEnd);
+                // Termin-Inhalt (Cenplex-Stil)
+                var timeStr = formatTime(startDt) + ' - ' + formatTime(endDt);
+                var seriesStr = appt.series_counter ? '<span class="appt-series" title="Serie">' + escapeHtml(appt.series_counter) + '</span>' : '';
+
+                block.innerHTML =
+                    '<div class="appt-time">' + timeStr + '</div>' +
+                    '<div class="appt-patient"><strong>' + escapeHtml(appt.patient_name) + '</strong></div>' +
+                    '<div class="appt-meta">' +
+                        seriesStr +
+                        (statusIcons ? '<span class="appt-icons">' + statusIcons + '</span>' : '') +
+                    '</div>' +
+                    '<div class="resize-handle"></div>';
+
+                // Resize (bleibt per-element wegen spezifischem State)
+                var resizeHandle = block.querySelector('.resize-handle');
+                resizeHandle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    resizeState = {
+                        appointmentId: appt.id,
+                        startY: e.clientY,
+                        originalHeight: heightPx,
+                        block: block,
+                        minHeight: QUARTER_HEIGHT
+                    };
+                    document.addEventListener('mousemove', handleResize);
+                    document.addEventListener('mouseup', handleResizeEnd);
+                });
+
+                body.appendChild(block);
             });
-
-            body.appendChild(block);
         });
     }
 
     function renderWorkingHours() {
-        document.querySelectorAll('.time-slot-row').forEach(function(row) {
-            row.classList.remove('non-working');
+        document.querySelectorAll('.time-slot').forEach(function(slot) {
+            slot.classList.remove('non-working');
         });
 
         var visibleEmployees = getVisibleEmployees();
@@ -302,16 +420,17 @@
 
             if (workingMinutes.size === 0) return; // Keine Arbeitszeiten definiert -> alles offen
 
-            var rows = document.querySelectorAll('.time-slot-row[data-employee-id="' + emp.id + '"]');
-            rows.forEach(function(row) {
-                var hour = parseInt(row.dataset.hour);
-                var hourStart = hour * 60;
+            var slots = document.querySelectorAll('.time-slot[data-employee-id="' + emp.id + '"]');
+            slots.forEach(function(slot) {
+                var hour = parseInt(slot.dataset.hour);
+                var minutes = parseInt(slot.dataset.minutes || 0);
+                var slotStart = hour * 60 + minutes;
                 var isWorking = false;
-                for (var m = hourStart; m < hourStart + 60; m++) {
+                for (var m = slotStart; m < slotStart + GRID_INTERVAL; m++) {
                     if (workingMinutes.has(m)) { isWorking = true; break; }
                 }
                 if (!isWorking) {
-                    row.classList.add('non-working');
+                    slot.classList.add('non-working');
                 }
             });
         });
@@ -452,61 +571,87 @@
     }
 
     // ==========================================================
-    // DRAG & DROP
+    // DRAG & DROP (Cenplex-Stil mit 15-Min-Raster)
     // ==========================================================
     function handleDragOver(e) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
-        // Drop-Indikator zeigen
-        var row = e.target.closest('.time-slot-row');
-        if (!row) return;
+        // Drop-Highlight auf aktuellem Slot
+        var slot = e.target.closest('.time-slot');
+        // Fallback fuer Wochenansicht (noch alte Struktur)
+        if (!slot) slot = e.target.closest('.time-slot-row');
+        if (!slot) return;
 
-        document.querySelectorAll('.drop-indicator').forEach(function(el) { el.remove(); });
+        document.querySelectorAll('.drop-highlight').forEach(function(el) { el.classList.remove('drop-highlight'); });
+        slot.classList.add('drop-highlight');
+    }
 
-        var rect = row.getBoundingClientRect();
-        var relY = e.clientY - rect.top;
-        var quarterIndex = Math.floor(relY / (SLOT_HEIGHT / 4));
-        var minutes = quarterIndex * 15;
-
-        var indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.top = (minutes / 60 * SLOT_HEIGHT) + 'px';
-        indicator.style.height = '30px';
-        row.appendChild(indicator);
+    function handleDragLeave(e) {
+        var slot = e.target.closest('.time-slot');
+        if (slot) slot.classList.remove('drop-highlight');
     }
 
     function handleDrop(e) {
         e.preventDefault();
+        document.querySelectorAll('.drop-highlight').forEach(function(el) { el.classList.remove('drop-highlight'); });
         document.querySelectorAll('.drop-indicator').forEach(function(el) { el.remove(); });
 
         if (!dragState) return;
 
+        // Neues Slot-basiertes System (Tagesansicht)
+        var slot = e.target.closest('.time-slot');
+        if (slot) {
+            var newTime = slot.dataset.time; // z.B. "08:30"
+            var newEmployeeId = slot.dataset.employeeId ? parseInt(slot.dataset.employeeId) : null;
+            var newResourceId = slot.dataset.resourceId ? parseInt(slot.dataset.resourceId) : null;
+
+            var currentDateStr = formatDate(currentDate);
+            var newStartTime = currentDateStr + 'T' + newTime + ':00';
+
+            var moveData = { new_start_time: newStartTime };
+            if (newEmployeeId) moveData.new_employee_id = newEmployeeId;
+            if (newResourceId) moveData.new_resource_id = newResourceId;
+
+            fetchJSON(BASE_URL + '/api/appointments/' + dragState.appointmentId + '/move', {
+                method: 'PUT',
+                body: JSON.stringify(moveData)
+            }).then(function(result) {
+                if (result.success) {
+                    showToast('Termin verschoben', 'success');
+                    loadDayData(true);
+                } else {
+                    showToast(result.error || 'Fehler beim Verschieben', 'error');
+                }
+            });
+            return;
+        }
+
+        // Fallback: Wochenansicht (alte time-slot-row Struktur)
         var row = e.target.closest('.time-slot-row');
         if (!row) return;
 
         var rect = row.getBoundingClientRect();
         var relY = e.clientY - rect.top;
         var quarterIndex = Math.floor(relY / (SLOT_HEIGHT / 4));
-        var minutes = quarterIndex * 15;
+        var minutes = quarterIndex * GRID_INTERVAL;
 
         var hour = parseInt(row.dataset.hour);
         var employeeId = parseInt(row.dataset.employeeId);
 
         var newDate = new Date(currentDate);
-        // Fuer Wochenansicht das Datum aus der Spalte holen
         var dayCol = row.closest('.week-day-column');
         if (dayCol && dayCol.dataset.date) {
             newDate = new Date(dayCol.dataset.date + 'T00:00:00');
         }
         newDate.setHours(hour, minutes, 0, 0);
 
-        var newStartTime = newDate.toISOString().slice(0, 19);
+        var newStartTimeStr = newDate.toISOString().slice(0, 19);
 
         fetchJSON(BASE_URL + '/api/appointments/' + dragState.appointmentId + '/move', {
             method: 'PUT',
             body: JSON.stringify({
-                new_start_time: newStartTime,
+                new_start_time: newStartTimeStr,
                 new_employee_id: employeeId
             })
         }).then(function(result) {
@@ -699,7 +844,9 @@
         var seriesRow = document.getElementById('detailSeriesRow');
         if (appt.series_id) {
             seriesRow.style.display = 'flex';
-            document.getElementById('detailSeries').textContent = 'Serie #' + appt.series_id;
+            var seriesText = 'Serie #' + appt.series_id;
+            if (appt.series_counter) seriesText += ' (Termin ' + appt.series_counter + ')';
+            document.getElementById('detailSeries').textContent = seriesText;
         } else {
             seriesRow.style.display = 'none';
         }
@@ -793,90 +940,33 @@
     // ==========================================================
     // WOCHENANSICHT
     // ==========================================================
+    // Gefilterte Therapeuten-IDs fuer Wochenansicht
+    function getWeekVisibleEmployeeIds() {
+        var checkboxes = document.querySelectorAll('#weekTherapistFilters input[type="checkbox"]');
+        if (checkboxes.length === 0) return (CFG.employees || []).map(function(e) { return e.id; });
+        var ids = [];
+        checkboxes.forEach(function(cb) {
+            if (cb.checked) ids.push(parseInt(cb.value));
+        });
+        return ids;
+    }
+
     function initWeekView() {
-        renderTimeColumn();
-        renderWeekColumns();
         loadWeekData();
         setupDayNavigation();
         setupQuickAddModal();
         setupDetailModal();
         setupCancelModal();
 
-        var empFilter = document.getElementById('employeeFilter');
-        if (empFilter) {
-            empFilter.addEventListener('change', function() {
-                CFG.employeeId = parseInt(this.value);
-                navigateToDate(currentDate);
+        // Multi-Therapeut Filter: Checkboxen
+        var filters = document.querySelectorAll('#weekTherapistFilters input[type="checkbox"]');
+        filters.forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                loadWeekData();
             });
-        }
+        });
 
         setInterval(function() { loadWeekData(true); }, 30000);
-    }
-
-    function renderWeekColumns() {
-        var container = document.getElementById('weekColumns');
-        if (!container) return;
-        container.innerHTML = '';
-
-        var monday = new Date(CFG.monday + 'T00:00:00');
-        var dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-        var today = formatDate(new Date());
-
-        for (var d = 0; d < 7; d++) {
-            var dayDate = new Date(monday);
-            dayDate.setDate(dayDate.getDate() + d);
-            var dayStr = formatDate(dayDate);
-
-            var col = document.createElement('div');
-            col.className = 'week-day-column';
-            col.dataset.date = dayStr;
-            col.dataset.dayIndex = d;
-
-            var header = document.createElement('div');
-            header.className = 'week-day-header';
-            if (dayStr === today) header.className += ' today';
-            if (d >= 5) header.className += ' weekend';
-            header.innerHTML = '<span class="day-name">' + dayNames[d] + '</span>' +
-                '<span class="day-number">' + dayDate.getDate() + '</span>';
-            col.appendChild(header);
-
-            var body = document.createElement('div');
-            body.className = 'week-day-body';
-            body.dataset.date = dayStr;
-
-            for (var h = START_HOUR; h < END_HOUR; h++) {
-                var row = document.createElement('div');
-                row.className = 'time-slot-row';
-                row.dataset.hour = h;
-                row.dataset.employeeId = CFG.employeeId || '';
-                row.dataset.date = dayStr;
-
-                var halfLine = document.createElement('div');
-                halfLine.className = 'half-hour-line';
-                row.appendChild(halfLine);
-
-                (function(empId, hr, ds) {
-                    row.addEventListener('click', function(e) {
-                        if (e.target.closest('.appointment-block')) return;
-                        // Datum fuer diesen Tag setzen
-                        var d2 = new Date(ds + 'T00:00:00');
-                        currentDate = d2;
-                        openQuickAdd(empId, hr, 0);
-                    });
-                })(CFG.employeeId, h, dayStr);
-
-                row.addEventListener('dragover', handleDragOver);
-                row.addEventListener('drop', handleDrop);
-
-                body.appendChild(row);
-            }
-
-            // Event Delegation fuer Appointment-Blocks
-            setupAppointmentDelegation(body);
-
-            col.appendChild(body);
-            container.appendChild(col);
-        }
     }
 
     function loadWeekData(silent) {
@@ -886,10 +976,10 @@
 
         var startStr = formatDate(monday);
         var endStr = formatDate(sunday);
-        var empId = CFG.employeeId || '';
+        var empIds = getWeekVisibleEmployeeIds().join(',');
 
         Promise.all([
-            fetchJSON(BASE_URL + '/api/appointments?start=' + startStr + '&end=' + endStr + '&employee_ids=' + empId),
+            fetchJSON(BASE_URL + '/api/appointments?start=' + startStr + '&end=' + endStr + '&employee_ids=' + empIds),
             fetchJSON(BASE_URL + '/api/absences?start=' + startStr + '&end=' + endStr),
             fetchJSON(BASE_URL + '/api/holidays?start=' + startStr + '&end=' + endStr)
         ]).then(function(results) {
@@ -897,84 +987,125 @@
             absences = results[1];
             holidays = results[2];
             renderWeekAppointments();
-            renderWeekHolidays();
         });
     }
 
     function renderWeekAppointments() {
-        document.querySelectorAll('.appointment-block').forEach(function(el) { el.remove(); });
+        var container = document.getElementById('weekGrid');
+        if (!container) return;
+        container.innerHTML = '';
         appointmentMap = {};
 
-        appointments.forEach(function(appt) {
-            appointmentMap[appt.id] = appt;
-            var startDt = new Date(appt.start_time);
-            var dayStr = formatDate(startDt);
-            var body = document.querySelector('.week-day-body[data-date="' + dayStr + '"]');
-            if (!body) return;
+        var monday = new Date(CFG.monday + 'T00:00:00');
+        var dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+        var todayStr = formatDate(new Date());
 
-            var endDt = new Date(appt.end_time);
-            var startMinutes = startDt.getHours() * 60 + startDt.getMinutes();
-            var endMinutes = endDt.getHours() * 60 + endDt.getMinutes();
-            var topPx = (startMinutes - START_HOUR * 60) * (SLOT_HEIGHT / 60);
-            var heightPx = (endMinutes - startMinutes) * (SLOT_HEIGHT / 60);
-            if (heightPx < 15) heightPx = 15;
+        // Termine nach Tag gruppieren
+        var dayGroups = {};
+        for (var i = 0; i < 7; i++) {
+            var dd = new Date(monday);
+            dd.setDate(dd.getDate() + i);
+            dayGroups[formatDate(dd)] = [];
+        }
 
-            var block = document.createElement('div');
-            block.className = 'appointment-block status-' + appt.status;
-            block.dataset.appointmentId = appt.id;
-            block.style.top = topPx + 'px';
-            block.style.height = heightPx + 'px';
-
-            // Farblogik: Kategorie/Domizil/Gruppe ueberschreibt Employee-Farbe
-            var categoryColor = getAppointmentColor(appt);
-            var displayColor = categoryColor || appt.employee_color;
-            block.style.background = hexToRgba(displayColor, 0.15);
-            block.style.borderLeftColor = displayColor;
-            block.style.color = darkenColor(displayColor, 0.6);
-            if (categoryColor) block.dataset.colorCategory = appt.color_category || '';
-            block.draggable = true;
-
-            // Icons fuer Wochenansicht
-            var weekIcons = '';
-            if (appt.is_domicile) weekIcons += '🏠';
-            if (appt.is_group) weekIcons += '👥';
-
-            block.innerHTML =
-                (weekIcons ? '<span class="appt-icons">' + weekIcons + '</span>' : '') +
-                '<div class="appt-patient">' + escapeHtml(appt.patient_name) + '</div>' +
-                '<div class="appt-time">' + formatTime(startDt) + ' – ' + formatTime(endDt) + '</div>' +
-                '<div class="resize-handle"></div>';
-
-            // Resize (bleibt per-element wegen spezifischem State)
-            var resizeHandle = block.querySelector('.resize-handle');
-            resizeHandle.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                resizeState = {
-                    appointmentId: appt.id,
-                    startY: e.clientY,
-                    originalHeight: heightPx,
-                    block: block,
-                    minHeight: QUARTER_HEIGHT
-                };
-                document.addEventListener('mousemove', handleResize);
-                document.addEventListener('mouseup', handleResizeEnd);
-            });
-
-            body.appendChild(block);
+        appointments.forEach(function(a) {
+            appointmentMap[a.id] = a;
+            var day = a.start_time ? a.start_time.split('T')[0] : null;
+            if (day && dayGroups[day]) {
+                dayGroups[day].push(a);
+            }
         });
-    }
 
-    function renderWeekHolidays() {
-        holidays.forEach(function(h) {
-            var header = document.querySelector('.week-day-column[data-date="' + h.date + '"] .week-day-header');
-            if (header && !header.querySelector('.week-holiday')) {
+        var dayIndex = 0;
+        Object.keys(dayGroups).sort().forEach(function(dateStr) {
+            var dayAppts = dayGroups[dateStr];
+            var dayCol = document.createElement('div');
+            dayCol.className = 'week-day-column';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'week-day-header';
+            if (dateStr === todayStr) header.className += ' today';
+            if (dayIndex >= 5) header.className += ' weekend';
+            var d = new Date(dateStr + 'T00:00:00');
+            header.innerHTML = '<span class="day-name">' + dayNames[dayIndex] + '</span>' +
+                '<span class="day-number">' + d.getDate() + '</span>';
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', (function(ds) {
+                return function() {
+                    window.location.href = '/calendar/?date=' + ds +
+                        (CFG.locationId ? '&location_id=' + CFG.locationId : '');
+                };
+            })(dateStr));
+            dayCol.appendChild(header);
+
+            // Feiertag-Badge
+            var dayHoliday = holidays.find(function(h) { return h.date === dateStr; });
+            if (dayHoliday) {
                 var badge = document.createElement('span');
                 badge.className = 'week-holiday';
-                badge.style.cssText = 'display:block;font-size:10px;color:#856404;background:#fff3cd;padding:1px 4px;border-radius:3px;margin-top:2px;';
-                badge.textContent = h.name;
-                header.appendChild(badge);
+                badge.style.cssText = 'display:block;font-size:10px;color:#856404;background:#fff3cd;padding:1px 4px;border-radius:3px;margin:2px 4px;text-align:center;';
+                badge.textContent = dayHoliday.name;
+                dayCol.appendChild(badge);
             }
+
+            // Termine-Container
+            var apptContainer = document.createElement('div');
+            apptContainer.className = 'week-appt-container';
+
+            // Sortiert nach Zeit
+            dayAppts.sort(function(a, b) { return (a.start_time || '').localeCompare(b.start_time || ''); });
+
+            dayAppts.forEach(function(appt) {
+                var card = document.createElement('div');
+                card.className = 'week-appt-card';
+                if (appt.status === 'cancelled') card.className += ' cancelled';
+                card.dataset.appointmentId = appt.id;
+
+                // Farblogik
+                var categoryColor = getAppointmentColor(appt);
+                var displayColor = categoryColor || appt.employee_color || '#4a90d9';
+                card.style.borderLeftColor = displayColor;
+                card.style.background = hexToRgba(displayColor, 0.1);
+
+                var startTime = appt.start_time ? appt.start_time.split('T')[1] : '';
+                if (startTime) startTime = startTime.substring(0, 5);
+                var endTime = appt.end_time ? appt.end_time.split('T')[1] : '';
+                if (endTime) endTime = endTime.substring(0, 5);
+
+                // Serien-Zaehler (z.B. "3/9") - kommt fertig formatiert von API
+                var seriesInfo = appt.series_counter || '';
+
+                // Therapeut-Initialen
+                var empInitials = '';
+                if (appt.employee_name) {
+                    var parts = appt.employee_name.split(' ');
+                    empInitials = parts.map(function(p) { return p.charAt(0); }).join('');
+                }
+
+                card.innerHTML =
+                    '<span class="week-appt-time">' + startTime + '</span>' +
+                    '<span class="week-appt-patient">' + escapeHtml(appt.patient_name || '') + '</span>' +
+                    (empInitials ? '<span class="week-appt-emp" title="' + escapeHtml(appt.employee_name) + '" style="background:' + displayColor + ';">' + empInitials + '</span>' : '') +
+                    (seriesInfo ? '<span class="week-appt-series">' + seriesInfo + '</span>' : '');
+
+                card.addEventListener('click', function() {
+                    openDetailModal(appt);
+                });
+
+                apptContainer.appendChild(card);
+            });
+
+            if (dayAppts.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'week-day-empty';
+                empty.textContent = 'Keine Termine';
+                apptContainer.appendChild(empty);
+            }
+
+            dayCol.appendChild(apptContainer);
+            container.appendChild(dayCol);
+            dayIndex++;
         });
     }
 
@@ -1042,23 +1173,34 @@
                 }
 
                 if (dayData) {
-                    var countEl = document.createElement('div');
-                    countEl.className = 'month-day-count';
-                    countEl.textContent = dayData.count + ' Termin' + (dayData.count !== 1 ? 'e' : '');
-                    cell.appendChild(countEl);
-
-                    var dotsEl = document.createElement('div');
-                    dotsEl.className = 'month-day-dots';
-                    Object.keys(dayData.employees).forEach(function(empId) {
-                        var empData = dayData.employees[empId];
-                        for (var i = 0; i < Math.min(empData.count, 5); i++) {
-                            var dot = document.createElement('span');
-                            dot.className = 'month-dot';
-                            dot.style.background = empData.color;
-                            dotsEl.appendChild(dot);
-                        }
+                    // Termine als kompakte Eintraege anzeigen (max 3, dann "+X weitere")
+                    var maxShow = 3;
+                    var appts = dayData.appointments || [];
+                    appts.slice(0, maxShow).forEach(function(appt) {
+                        var item = document.createElement('div');
+                        item.className = 'month-appt-item';
+                        if (appt.status === 'cancelled') item.className += ' cancelled';
+                        var apptTime = appt.start_time ? appt.start_time.split('T')[1] : '';
+                        if (apptTime) apptTime = apptTime.substring(0, 5);
+                        var empColor = appt.employee_color || '#4a90d9';
+                        item.style.borderLeftColor = empColor;
+                        item.style.background = hexToRgba(empColor, 0.08);
+                        item.innerHTML = '<small>' + apptTime + ' ' + escapeHtml(appt.patient_name || '') + '</small>';
+                        item.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            // Zur Tagesansicht mit diesem Termin navigieren
+                            window.location.href = '/calendar/?date=' + dateStr +
+                                (CFG.locationId ? '&location_id=' + CFG.locationId : '');
+                        });
+                        cell.appendChild(item);
                     });
-                    cell.appendChild(dotsEl);
+
+                    if (appts.length > maxShow) {
+                        var more = document.createElement('div');
+                        more.className = 'month-appt-more';
+                        more.textContent = '+' + (appts.length - maxShow) + ' weitere';
+                        cell.appendChild(more);
+                    }
                 }
 
                 // Klick -> Tagesansicht

@@ -34,12 +34,14 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
     </div>
-    <div class="employee-filter">
-        <select id="employeeFilter" class="form-select form-select-sm">
-            {% for emp in employees %}
-            <option value="{{ emp.id }}" {% if emp.id == current_employee_id %}selected{% endif %}>{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
-            {% endfor %}
-        </select>
+    <div class="employee-filter-multi" id="weekTherapistFilters">
+        {% for emp in employees %}
+        <label class="therapist-filter-item">
+            <input type="checkbox" value="{{ emp.id }}" checked>
+            <span class="therapist-color-dot" style="background: {{ emp.color_code or '#4a90d9' }};"></span>
+            {{ emp.user.first_name }} {{ emp.user.last_name }}
+        </label>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
@@ -49,8 +51,11 @@
     <!-- Feiertags-Banner -->
     <div class="holiday-banner" id="holidayBanner" style="display: none;"></div>
 
-    <!-- Kalender-Grid Woche -->
-    <div class="calendar-week-grid" id="calendarWeekGrid">
+    <!-- Kalender-Grid Woche: Multi-Therapeut Kompaktansicht -->
+    <div id="weekGrid" class="week-multi-grid"></div>
+
+    <!-- Fallback: Klassische Wochenansicht mit Zeitraster (fuer einzelnen Therapeuten) -->
+    <div class="calendar-week-grid" id="calendarWeekGrid" style="display: none;">
         <div class="time-column" id="timeColumn"></div>
         <div class="week-columns" id="weekColumns"></div>
     </div>

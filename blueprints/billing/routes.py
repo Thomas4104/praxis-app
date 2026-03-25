@@ -41,6 +41,7 @@ def index():
     status_filter = request.args.get('status', '')
     tab = request.args.get('tab', 'alle')
     billing_type = request.args.get('billing_type', '')
+    billing_model_filter = request.args.get('billing_model', '')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     sort_by = request.args.get('sort', 'date_desc')
@@ -72,6 +73,10 @@ def index():
     # Abrechnungstyp
     if billing_type:
         query = query.filter(Invoice.billing_type == billing_type)
+
+    # Abrechnungsmodell (Tiers Payant / Tiers Garant)
+    if billing_model_filter:
+        query = query.filter(Invoice.billing_model == billing_model_filter)
 
     # Zeitraum
     if date_from:
@@ -165,6 +170,7 @@ def index():
                            status_filter=status_filter,
                            tab=tab,
                            billing_type=billing_type,
+                           billing_model_filter=billing_model_filter,
                            date_from=date_from,
                            date_to=date_to,
                            sort_by=sort_by,

@@ -107,6 +107,17 @@
     display: inline-block;
 }
 
+.filter-separator {
+    color: var(--gray-300);
+    font-size: 16px;
+    padding: 0 4px;
+    user-select: none;
+}
+
+.resource-toggle {
+    opacity: 0.85;
+}
+
 /* --- Feiertags-Banner --- */
 .holiday-banner {
     background: #fff3cd;
@@ -131,7 +142,7 @@
     position: relative;
 }
 
-/* --- Tagesansicht Grid --- */
+/* --- Tagesansicht Grid (Cenplex-Stil, 15-Min-Raster) --- */
 .calendar-day-grid {
     display: flex;
     background: white;
@@ -144,8 +155,8 @@
 }
 
 .time-column {
-    width: 60px;
-    min-width: 60px;
+    width: 55px;
+    min-width: 55px;
     border-right: 1px solid var(--gray-200);
     background: var(--gray-50);
     position: sticky;
@@ -153,25 +164,32 @@
     z-index: 5;
 }
 
+.time-column-header-spacer {
+    height: 36px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
 .time-slot-label {
-    height: 60px;
+    height: 20px;
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 2px;
-    font-size: 11px;
-    color: var(--gray-500);
-    font-weight: 500;
-    border-bottom: 1px solid var(--gray-100);
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    font-size: 9px;
+    color: var(--gray-400);
+    font-weight: 400;
+    border-bottom: 1px solid var(--gray-50);
     position: relative;
 }
 
 .time-slot-label.full-hour {
     color: var(--gray-700);
     font-weight: 600;
+    font-size: 10px;
+    border-bottom: 1px solid var(--gray-200);
 }
 
-/* --- Therapeuten-Spalten --- */
+/* --- Therapeuten- und Ressourcen-Spalten --- */
 .therapist-columns {
     display: flex;
     flex: 1;
@@ -180,29 +198,81 @@
 
 .therapist-column {
     flex: 1;
-    min-width: 180px;
+    min-width: 160px;
     border-right: 1px solid var(--gray-200);
     position: relative;
 }
 
 .therapist-column:last-child { border-right: none; }
 
+/* Ressourcen-Spalten visuell abgrenzen */
+.therapist-column.resource-column {
+    border-left: 2px solid var(--gray-300);
+}
+
 .therapist-column-header {
     position: sticky;
     top: 0;
     z-index: 4;
-    padding: 8px 12px;
+    padding: 6px 8px;
     text-align: center;
-    font-size: var(--font-sm);
+    font-size: 0.8rem;
     font-weight: 600;
     color: white;
     border-bottom: 2px solid rgba(0,0,0,0.1);
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.therapist-column-header.resource-header {
+    font-style: italic;
+    opacity: 0.9;
 }
 
 .therapist-column-body {
     position: relative;
 }
 
+/* 15-Min-Zeitslots (neu) */
+.time-slot {
+    height: 20px;
+    border-bottom: 1px solid #f5f5f5;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.time-slot.full-hour-slot {
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.time-slot.half-hour-slot {
+    border-bottom: 1px dashed var(--gray-200);
+}
+
+.time-slot:hover {
+    background: rgba(74, 144, 217, 0.04);
+}
+
+.time-slot.non-working {
+    background: var(--gray-100);
+    cursor: default;
+}
+
+.time-slot.non-working:hover {
+    background: var(--gray-100);
+}
+
+/* Drop-Zone Highlight */
+.time-slot.drop-highlight {
+    background-color: #d4edda !important;
+    outline: 2px dashed #28a745;
+    outline-offset: -2px;
+}
+
+/* Alte time-slot-row (fuer Wochenansicht Kompatibilitaet) */
 .time-slot-row {
     height: 60px;
     border-bottom: 1px solid var(--gray-100);
@@ -245,63 +315,93 @@
     pointer-events: none;
 }
 
-/* --- Termin-Bloecke --- */
+/* --- Termin-Bloecke (Cenplex-Stil Terminkarten) --- */
 .appointment-block {
     position: absolute;
-    left: 4px;
-    right: 4px;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 11px;
-    line-height: 1.3;
+    left: 2px;
+    right: 2px;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.78rem;
+    line-height: 1.25;
     overflow: hidden;
-    cursor: pointer;
-    z-index: 2;
-    border-left: 4px solid;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    transition: box-shadow 0.15s, transform 0.1s;
+    cursor: grab;
+    z-index: 5;
+    border-left: 3px solid;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    transition: box-shadow 0.15s;
     user-select: none;
 }
 
 .appointment-block:hover {
-    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
-    z-index: 3;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    z-index: 15;
 }
 
 .appointment-block.dragging {
-    opacity: 0.7;
+    opacity: 0.5;
+    cursor: grabbing;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     z-index: 100;
 }
+
+/* Terminkarten-Farben nach Typ */
+.appointment-block.kvg { border-left-color: #0d6efd; background: #e8f0fe; }
+.appointment-block.uvg { border-left-color: #fd7e14; background: #fff3e0; }
+.appointment-block.suva { border-left-color: #dc3545; background: #fce4e4; }
+.appointment-block.iv { border-left-color: #6f42c1; background: #f0e6ff; }
+.appointment-block.privat { border-left-color: #198754; background: #e6f4ea; }
+.appointment-block.domicile { border-left-color: #20c997; background: #e6fff7; }
+.appointment-block.group { border-left-color: #6f42c1; }
 
 .appointment-block .appt-patient {
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-size: 0.78rem;
+}
+
+.appointment-block .appt-patient strong {
+    font-weight: 700;
 }
 
 .appointment-block .appt-time {
-    font-size: 10px;
-    opacity: 0.8;
+    font-size: 0.7rem;
+    color: #666;
+    line-height: 1.2;
 }
 
-.appointment-block .appt-type {
-    font-size: 10px;
-    opacity: 0.7;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+/* Termin-Meta (Serienzaehler + Status-Icons) */
+.appointment-block .appt-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1px;
+}
+
+.appointment-block .appt-series {
+    font-size: 0.7rem;
+    color: #888;
+    font-weight: 500;
 }
 
 .appointment-block .appt-icons {
-    position: absolute;
-    top: 3px;
-    right: 5px;
     display: flex;
     gap: 2px;
-    font-size: 10px;
+    align-items: center;
 }
+
+.appointment-block .appt-icons .icon-sm {
+    width: 12px;
+    height: 12px;
+}
+
+.appointment-block .appt-icons .icon-documented { color: #198754; }
+.appointment-block .appt-icons .icon-billed { color: #fd7e14; }
+.appointment-block .appt-icons .icon-domicile { color: #20c997; }
+.appointment-block .appt-icons .icon-group { color: #6f42c1; }
+.appointment-block .appt-icons .icon-initial { color: #0d6efd; }
 
 /* Status-Farben */
 .appointment-block.status-cancelled {
@@ -372,7 +472,145 @@
     background: #e74c3c;
 }
 
-/* --- Wochenansicht --- */
+/* --- Wochenansicht: Multi-Therapeut Kompakt --- */
+.week-multi-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    min-height: 500px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 4px;
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+}
+
+.week-multi-grid .week-day-column {
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.week-multi-grid .week-day-header {
+    text-align: center;
+    padding: 8px 6px;
+    background: var(--gray-50);
+    border-bottom: 2px solid var(--gray-200);
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.week-multi-grid .week-day-header:hover {
+    background: var(--gray-100);
+}
+
+.week-multi-grid .week-day-header.today {
+    background: var(--primary);
+    color: white;
+}
+
+.week-multi-grid .week-day-header.today:hover {
+    background: #3a7bc8;
+}
+
+.week-multi-grid .week-day-header.weekend {
+    color: var(--gray-400);
+}
+
+.week-multi-grid .week-day-header .day-name {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.week-multi-grid .week-day-header .day-number {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.week-appt-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.week-appt-card {
+    padding: 3px 6px;
+    margin: 2px 2px;
+    border-radius: 4px;
+    background: #e8f0fe;
+    border-left: 3px solid #0d6efd;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    transition: background 0.1s;
+}
+
+.week-appt-card:hover {
+    background: #d0e0fd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.week-appt-card.cancelled {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.week-appt-time {
+    color: #555;
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 0.7rem;
+}
+
+.week-appt-patient {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    font-weight: 500;
+}
+
+.week-appt-emp {
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 3px;
+    border-radius: 3px;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.week-appt-series {
+    color: #888;
+    font-size: 0.65rem;
+    white-space: nowrap;
+}
+
+.week-day-empty {
+    padding: 20px 8px;
+    text-align: center;
+    color: #aaa;
+    font-size: 0.8rem;
+}
+
+.employee-filter-multi {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* --- Wochenansicht: Klassisch (Fallback, hidden by default) --- */
 .calendar-week-grid {
     display: flex;
     background: white;
@@ -387,49 +625,6 @@
 .week-columns {
     display: flex;
     flex: 1;
-}
-
-.week-day-column {
-    flex: 1;
-    min-width: 120px;
-    border-right: 1px solid var(--gray-200);
-    position: relative;
-}
-
-.week-day-column:last-child { border-right: none; }
-
-.week-day-header {
-    position: sticky;
-    top: 0;
-    z-index: 4;
-    padding: 10px 8px;
-    text-align: center;
-    font-size: var(--font-sm);
-    font-weight: 600;
-    background: var(--gray-50);
-    border-bottom: 2px solid var(--gray-200);
-}
-
-.week-day-header.today {
-    background: var(--primary);
-    color: white;
-}
-
-.week-day-header.weekend {
-    color: var(--gray-400);
-}
-
-.week-day-header .day-name {
-    display: block;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.week-day-header .day-number {
-    display: block;
-    font-size: 18px;
-    font-weight: 700;
 }
 
 .week-day-body {
@@ -535,6 +730,38 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
+}
+
+/* Monatsansicht: Termin-Items in Zellen */
+.month-appt-item {
+    font-size: 0.7rem;
+    padding: 1px 4px;
+    margin: 1px 0;
+    border-radius: 3px;
+    background: #e8f0fe;
+    border-left: 2px solid #4a90d9;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.month-appt-item:hover {
+    background: #d0e0fd;
+}
+
+.month-appt-item.cancelled {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+
+.month-appt-more {
+    font-size: 0.7rem;
+    color: var(--primary);
+    padding: 2px 4px;
+    cursor: pointer;
+    font-weight: 500;
 }
 
 .month-holiday-name {
@@ -1180,6 +1407,26 @@
     .month-day-cell {
         min-height: 70px;
         padding: 4px;
+    }
+
+    .week-multi-grid {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        padding: 2px;
+    }
+
+    .week-appt-card {
+        font-size: 0.65rem;
+        padding: 2px 4px;
+    }
+
+    .week-appt-emp {
+        display: none;
+    }
+
+    .employee-filter-multi {
+        gap: 6px;
+        font-size: 0.75rem;
     }
 
     .wizard-steps {

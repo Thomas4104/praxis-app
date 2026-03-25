@@ -103,10 +103,35 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Abrechnungsmodell</label>
-                    <select name="billing_model" id="billingModel" class="form-input">
-                        <option value="tiers_garant" {% if default_model == 'tiers_garant' %}selected{% endif %}>Tiers Garant (Patient zahlt, fordert zurück)</option>
-                        <option value="tiers_payant" {% if default_model == 'tiers_payant' %}selected{% endif %}>Tiers Payant (Versicherer zahlt direkt)</option>
+                    <label class="form-label">Abrechnungsmodell / Empfaenger</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                        <label style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.2s;" id="tgLabel">
+                            <input type="radio" name="billing_model" value="tiers_garant" id="billingModelTG"
+                                   style="margin-top: 3px;" {% if default_model == 'tiers_garant' %}checked{% endif %}
+                                   onchange="updateBillingModelUI()">
+                            <div>
+                                <strong style="font-size: 14px;">Tiers Garant</strong>
+                                <span class="badge" style="background:#ffc107;color:#333;font-size:10px;margin-left:6px;">TG</span>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Rechnung an <strong>Patient</strong></div>
+                                <div id="tgRecipientInfo" style="font-size: 12px; color: var(--text-secondary); display: none;"></div>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.2s;" id="tpLabel">
+                            <input type="radio" name="billing_model" value="tiers_payant" id="billingModelTP"
+                                   style="margin-top: 3px;" {% if default_model == 'tiers_payant' %}checked{% endif %}
+                                   onchange="updateBillingModelUI()">
+                            <div>
+                                <strong style="font-size: 14px;">Tiers Payant</strong>
+                                <span class="badge" style="background:#17a2b8;color:#fff;font-size:10px;margin-left:6px;">TP</span>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Rechnung an <strong>Versicherer</strong></div>
+                                <div id="tpRecipientInfo" style="font-size: 12px; color: var(--text-secondary); display: none;"></div>
+                            </div>
+                        </label>
+                    </div>
+                    <!-- Hidden select fuer Kompatibilitaet mit loadSeriesData -->
+                    <select name="_billing_model_compat" id="billingModel" class="form-input" style="display:none;">
+                        <option value="tiers_garant">Tiers Garant</option>
+                        <option value="tiers_payant">Tiers Payant</option>
                     </select>
                 </div>
 
@@ -165,7 +190,20 @@ function loadSeriesData() {
 
     // Typ und Modell setzen
     document.getElementById('billingType').value = option.dataset.type || 'KVG';
-    document.getElementById('billingModel').value = option.dataset.model || 'tiers_garant';
+    var model = option.dataset.model || 'tiers_garant';
+    document.getElementById('billingModel').value = model;
+    // Radio-Buttons synchronisieren
+    if (model === 'tiers_payant') {
+        document.getElementById('billingModelTP').checked = true;
+    } else {
+        document.getElementById('billingModelTG').checked = true;
+    }
+    // Empfaenger-Infos anzeigen
+    document.getElementById('tgRecipientInfo').textContent = option.dataset.patient || '';
+    document.getElementById('tgRecipientInfo').style.display = 'block';
+    document.getElementById('tpRecipientInfo').textContent = option.dataset.insurance || '';
+    document.getElementById('tpRecipientInfo').style.display = 'block';
+    updateBillingModelUI();
 
     // Positionen berechnen
     fetch(`/billing/api/series/${seriesId}/calculate`)
@@ -203,6 +241,19 @@ function loadSeriesData() {
             document.getElementById('submitBtn').disabled = true;
         });
 }
+
+function updateBillingModelUI() {
+    var tgChecked = document.getElementById('billingModelTG').checked;
+    var tpChecked = document.getElementById('billingModelTP').checked;
+    document.getElementById('tgLabel').style.borderColor = tgChecked ? 'var(--primary)' : 'var(--border)';
+    document.getElementById('tgLabel').style.background = tgChecked ? 'var(--bg-secondary)' : '';
+    document.getElementById('tpLabel').style.borderColor = tpChecked ? 'var(--primary)' : 'var(--border)';
+    document.getElementById('tpLabel').style.background = tpChecked ? 'var(--bg-secondary)' : '';
+    // Hidden select synchronisieren
+    document.getElementById('billingModel').value = tpChecked ? 'tiers_payant' : 'tiers_garant';
+}
+// Initial aufrufen
+updateBillingModelUI();
 
 let manualPosCount = 0;
 function addManualPosition() {
