@@ -207,6 +207,16 @@ function openModal(modalId) {
     if (modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
+        // Focus Trap aktivieren
+        trapFocus(modal);
+        // Erstes fokussierbares Element fokussieren
+        var firstFocusable = modal.querySelector('button, [href], input, select, textarea');
+        if (firstFocusable) firstFocusable.focus();
+        // Escape zum Schliessen
+        modal._escHandler = function (e) {
+            if (e.key === 'Escape') closeModal(modalId);
+        };
+        document.addEventListener('keydown', modal._escHandler);
     }
 }
 
@@ -215,6 +225,10 @@ function closeModal(modalId) {
     if (modal) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
+        if (modal._escHandler) {
+            document.removeEventListener('keydown', modal._escHandler);
+            delete modal._escHandler;
+        }
     }
 }
 
@@ -224,3 +238,133 @@ function escapeHtml(text) {
     div.textContent = text || '';
     return div.innerHTML;
 }
+
+// === Confirmation Dialog (ersetzt Browser confirm()) ===
+function showConfirmDialog(options) {
+    return new Promise(function (resolve) {
+        var title = options.title || 'Bestätigung';
+        var message = options.message || 'Sind Sie sicher?';
+        var confirmText = options.confirmText || 'Bestätigen';
+        var cancelText = options.cancelText || 'Abbrechen';
+        var type = options.type || 'warning'; // warning, danger, info
+        var btnClass = type === 'danger' ? 'btn-danger' : 'btn-primary';
+
+        var iconSvg = {
+            warning: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            danger: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+            info: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+        };
+
+        var overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active confirm-dialog';
+        overlay.innerHTML =
+            '<div class="modal modal-sm">' +
+            '<div class="modal-body" style="padding: 2rem;">' +
+            '<div class="confirm-dialog-icon icon-' + type + '">' + (iconSvg[type] || iconSvg.warning) + '</div>' +
+            '<div class="confirm-dialog-text">' +
+            '<h3>' + escapeHtml(title) + '</h3>' +
+            '<p>' + escapeHtml(message) + '</p>' +
+            '</div>' +
+            '</div>' +
+            '<div class="modal-footer">' +
+            '<button class="btn btn-ghost" data-action="cancel">' + escapeHtml(cancelText) + '</button>' +
+            '<button class="btn ' + btnClass + '" data-action="confirm">' + escapeHtml(confirmText) + '</button>' +
+            '</div>' +
+            '</div>';
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        // Focus Trap
+        var confirmBtn = overlay.querySelector('[data-action="confirm"]');
+        confirmBtn.focus();
+
+        function cleanup(result) {
+            overlay.remove();
+            document.body.style.overflow = '';
+            resolve(result);
+        }
+
+        overlay.querySelector('[data-action="cancel"]').addEventListener('click', function () { cleanup(false); });
+        overlay.querySelector('[data-action="confirm"]').addEventListener('click', function () { cleanup(true); });
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) cleanup(false);
+        });
+        overlay.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') cleanup(false);
+        });
+    });
+}
+
+// === Focus Trap fuer Modals ===
+function trapFocus(modal) {
+    var focusable = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+
+    modal.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        if (e.shiftKey) {
+            if (document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            }
+        } else {
+            if (document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+}
+
+// === Theme Toggle ===
+(function initTheme() {
+    var saved = localStorage.getItem('omnia-theme');
+    if (saved === 'dark') {
+        document.documentElement.classList.add('theme-dark');
+    } else if (saved === 'light') {
+        document.documentElement.classList.add('theme-light');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var toggleBtn = document.getElementById('themeToggleBtn');
+        var toggleLabel = document.getElementById('themeToggleLabel');
+        if (!toggleBtn) return;
+
+        function updateLabel() {
+            var current = localStorage.getItem('omnia-theme') || 'system';
+            var labels = { system: 'Design: System', light: 'Design: Hell', dark: 'Design: Dunkel' };
+            if (toggleLabel) toggleLabel.textContent = labels[current] || labels.system;
+        }
+        updateLabel();
+
+        toggleBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            var current = localStorage.getItem('omnia-theme') || 'system';
+            var next = { system: 'light', light: 'dark', dark: 'system' };
+            var newTheme = next[current] || 'system';
+
+            document.documentElement.classList.remove('theme-dark', 'theme-light');
+            if (newTheme === 'dark') document.documentElement.classList.add('theme-dark');
+            if (newTheme === 'light') document.documentElement.classList.add('theme-light');
+            localStorage.setItem('omnia-theme', newTheme);
+            updateLabel();
+        });
+    });
+})();
+
+// === Command Palette (Cmd+K / Ctrl+K) ===
+document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        var searchInput = document.getElementById('globalSearch');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+});

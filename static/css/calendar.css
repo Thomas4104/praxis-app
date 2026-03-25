@@ -13,7 +13,7 @@
 .view-switcher {
     display: flex;
     border: 1px solid var(--gray-300);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
 }
 
@@ -22,7 +22,7 @@
     font-size: var(--font-sm);
     text-decoration: none;
     color: var(--gray-700);
-    background: white;
+    background: var(--color-surface);
     border-right: 1px solid var(--gray-300);
     transition: all 0.15s;
 }
@@ -36,7 +36,7 @@
 
 .view-btn.active {
     background: var(--primary);
-    color: white;
+    color: var(--color-surface);
 }
 
 .date-navigation {
@@ -48,7 +48,7 @@
 .date-picker-input {
     padding: 4px 8px;
     border: 1px solid var(--gray-300);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: var(--font-sm);
     cursor: pointer;
 }
@@ -62,9 +62,9 @@
 
 .btn-icon {
     padding: 4px 8px;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-300);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -78,9 +78,9 @@
     display: flex;
     gap: 12px;
     padding: 10px 16px;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     margin-bottom: 12px;
     flex-wrap: wrap;
 }
@@ -120,13 +120,13 @@
 
 /* --- Feiertags-Banner --- */
 .holiday-banner {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
     padding: 10px 16px;
     margin-bottom: 12px;
     font-size: var(--font-sm);
-    color: #856404;
+    color: var(--color-warning);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -145,9 +145,9 @@
 /* --- Tagesansicht Grid (Cenplex-Stil, 15-Min-Raster) --- */
 .calendar-day-grid {
     display: flex;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     min-height: 600px;
     max-height: calc(100vh - 220px);
@@ -218,7 +218,7 @@
     text-align: center;
     font-size: 0.8rem;
     font-weight: 600;
-    color: white;
+    color: var(--color-surface);
     border-bottom: 2px solid rgba(0,0,0,0.1);
     height: 36px;
     display: flex;
@@ -238,7 +238,7 @@
 /* 15-Min-Zeitslots (neu) */
 .time-slot {
     height: 20px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--gray-100);
     position: relative;
     cursor: pointer;
     transition: background 0.1s;
@@ -267,8 +267,8 @@
 
 /* Drop-Zone Highlight */
 .time-slot.drop-highlight {
-    background-color: #d4edda !important;
-    outline: 2px dashed #28a745;
+    background-color: var(--color-success-bg) !important;
+    outline: 2px dashed var(--color-success);
     outline-offset: -2px;
 }
 
@@ -328,20 +328,20 @@
     cursor: grab;
     z-index: 5;
     border-left: 3px solid;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-xs);
     transition: box-shadow 0.15s;
     user-select: none;
 }
 
 .appointment-block:hover {
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-md);
     z-index: 15;
 }
 
 .appointment-block.dragging {
     opacity: 0.5;
     cursor: grabbing;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-lg);
     z-index: 100;
 }
 
@@ -368,7 +368,7 @@
 
 .appointment-block .appt-time {
     font-size: 0.7rem;
-    color: #666;
+    color: var(--gray-500);
     line-height: 1.2;
 }
 
@@ -382,7 +382,7 @@
 
 .appointment-block .appt-series {
     font-size: 0.7rem;
-    color: #888;
+    color: var(--gray-400);
     font-weight: 500;
 }
 
@@ -411,7 +411,7 @@
 
 .appointment-block.status-no_show {
     opacity: 0.6;
-    border-left-color: #e74c3c !important;
+    border-left-color: var(--color-error) !important;
 }
 
 .appointment-block.status-appeared {
@@ -435,7 +435,7 @@
 
 .appointment-block:hover .resize-handle {
     background: rgba(0,0,0,0.1);
-    border-radius: 0 0 6px 6px;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
 /* --- Drag-Indikator --- */
@@ -445,7 +445,7 @@
     right: 2px;
     background: rgba(74, 144, 217, 0.2);
     border: 2px dashed var(--primary);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     pointer-events: none;
     z-index: 1;
 }
@@ -456,7 +456,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #e74c3c;
+    background: var(--color-error);
     z-index: 3;
     pointer-events: none;
 }
@@ -469,7 +469,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #e74c3c;
+    background: var(--color-error);
 }
 
 /* --- Wochenansicht: Multi-Therapeut Kompakt --- */
@@ -478,9 +478,9 @@
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
     min-height: 500px;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 4px;
     max-height: calc(100vh - 220px);
     overflow-y: auto;
@@ -488,7 +488,7 @@
 
 .week-multi-grid .week-day-column {
     border: 1px solid var(--gray-200);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     min-height: 400px;
     display: flex;
     flex-direction: column;
@@ -510,11 +510,11 @@
 
 .week-multi-grid .week-day-header.today {
     background: var(--primary);
-    color: white;
+    color: var(--color-surface);
 }
 
 .week-multi-grid .week-day-header.today:hover {
-    background: #3a7bc8;
+    background: var(--color-primary-dark);
 }
 
 .week-multi-grid .week-day-header.weekend {
@@ -557,7 +557,7 @@
 
 .week-appt-card:hover {
     background: #d0e0fd;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    box-shadow: var(--shadow-sm);
 }
 
 .week-appt-card.cancelled {
@@ -566,7 +566,7 @@
 }
 
 .week-appt-time {
-    color: #555;
+    color: var(--gray-600);
     font-weight: 600;
     white-space: nowrap;
     font-size: 0.7rem;
@@ -581,7 +581,7 @@
 }
 
 .week-appt-emp {
-    color: white;
+    color: var(--color-surface);
     font-size: 0.6rem;
     font-weight: 700;
     padding: 1px 3px;
@@ -591,7 +591,7 @@
 }
 
 .week-appt-series {
-    color: #888;
+    color: var(--gray-400);
     font-size: 0.65rem;
     white-space: nowrap;
 }
@@ -599,7 +599,7 @@
 .week-day-empty {
     padding: 20px 8px;
     text-align: center;
-    color: #aaa;
+    color: var(--gray-400);
     font-size: 0.8rem;
 }
 
@@ -613,9 +613,9 @@
 /* --- Wochenansicht: Klassisch (Fallback, hidden by default) --- */
 .calendar-week-grid {
     display: flex;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     min-height: 600px;
     max-height: calc(100vh - 220px);
@@ -633,9 +633,9 @@
 
 /* --- Monatsansicht --- */
 .calendar-month-grid {
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
 }
 
@@ -689,7 +689,7 @@
 }
 
 .month-day-cell.holiday {
-    background: #fff8e1;
+    background: var(--color-warning-bg);
 }
 
 .month-day-cell.weekend {
@@ -705,7 +705,7 @@
 
 .month-day-cell.today .month-day-number {
     background: var(--primary);
-    color: white;
+    color: var(--color-surface);
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -766,8 +766,8 @@
 
 .month-holiday-name {
     font-size: 10px;
-    color: #856404;
-    background: #fff3cd;
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
     padding: 1px 4px;
     border-radius: 3px;
     margin-top: 2px;
@@ -790,9 +790,9 @@
 }
 
 .modal-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
     max-height: 90vh;
     overflow-y: auto;
     width: 100%;
@@ -873,7 +873,7 @@
     width: 100%;
     padding: 8px 12px;
     border: 1px solid var(--gray-300);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: var(--font-sm);
     transition: border-color 0.15s;
 }
@@ -881,7 +881,7 @@
 .form-control:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
+    box-shadow: var(--ring);
 }
 
 .form-control-sm {
@@ -893,7 +893,7 @@
     padding: 4px 8px;
     font-size: var(--font-sm);
     border: 1px solid var(--gray-300);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
 }
 
 .checkbox-label {
@@ -913,10 +913,10 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-lg);
     z-index: 1010;
     max-height: 200px;
     overflow-y: auto;
@@ -951,7 +951,7 @@
 .selected-patient {
     background: var(--gray-50);
     border: 1px solid var(--gray-200);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 8px 12px;
     margin-top: 6px;
     display: flex;
@@ -1000,7 +1000,7 @@
 .status-badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     font-size: 11px;
     font-weight: 500;
 }
@@ -1064,18 +1064,18 @@
 
 .wizard-step.active .step-number {
     background: var(--primary);
-    color: white;
+    color: var(--color-surface);
 }
 
 .wizard-step.completed .step-number {
     background: var(--success);
-    color: white;
+    color: var(--color-surface);
 }
 
 .wizard-panel {
-    background: white;
+    background: var(--color-surface);
     border: 1px solid var(--gray-200);
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     padding: 24px;
     margin-bottom: 20px;
 }
@@ -1100,7 +1100,7 @@
 
 .template-card {
     border: 2px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 16px;
     cursor: pointer;
     transition: all 0.2s;
@@ -1108,7 +1108,7 @@
 
 .template-card:hover {
     border-color: var(--primary);
-    box-shadow: 0 2px 8px rgba(74, 144, 217, 0.15);
+    box-shadow: var(--shadow-sm);
 }
 
 .template-card.selected {
@@ -1144,7 +1144,7 @@
 
 .employee-card {
     border: 2px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 16px;
     text-align: center;
     cursor: pointer;
@@ -1167,7 +1167,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--color-surface);
     font-weight: 600;
     font-size: var(--font-md);
     margin: 0 auto 8px;
@@ -1243,12 +1243,12 @@
     padding: 10px 16px;
     background: var(--gray-50);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
 }
 
 .slot-item.accepted {
-    background: #e8f5e9;
-    border-color: #66bb6a;
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
 }
 
 .slot-datetime {
@@ -1264,7 +1264,7 @@
 .summary-card {
     background: var(--gray-50);
     border: 1px solid var(--gray-200);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 20px;
 }
 
@@ -1298,7 +1298,7 @@
     justify-content: center;
     gap: 6px;
     padding: 8px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: var(--font-sm);
     font-weight: 500;
     cursor: pointer;
@@ -1311,14 +1311,14 @@
 
 .btn-primary {
     background: var(--primary);
-    color: white;
+    color: var(--color-surface);
     border-color: var(--primary);
 }
 
-.btn-primary:hover { background: #3a7bc8; }
+.btn-primary:hover { background: var(--color-primary-dark); }
 
 .btn-secondary {
-    background: white;
+    background: var(--color-surface);
     color: var(--gray-700);
     border-color: var(--gray-300);
 }
@@ -1326,20 +1326,20 @@
 .btn-secondary:hover { background: var(--gray-50); }
 
 .btn-danger {
-    background: #e74c3c;
-    color: white;
-    border-color: #e74c3c;
+    background: var(--color-error);
+    color: var(--color-surface);
+    border-color: var(--color-error);
 }
 
-.btn-danger:hover { background: #c0392b; }
+.btn-danger:hover { background: var(--color-error); filter: brightness(0.9); }
 
 .btn-success {
     background: var(--success);
-    color: white;
+    color: var(--color-surface);
     border-color: var(--success);
 }
 
-.btn-success:hover { background: #219a52; }
+.btn-success:hover { background: var(--color-success); filter: brightness(0.9); }
 
 /* --- Absence-Overlay --- */
 .absence-overlay {
@@ -1458,6 +1458,6 @@
 
     .appointment-block {
         box-shadow: none;
-        border: 1px solid #ccc;
+        border: 1px solid var(--gray-300);
     }
 }

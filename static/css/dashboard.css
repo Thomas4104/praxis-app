@@ -1,13 +1,14 @@
 /* ============================================================
    DASHBOARD WIDGET-SYSTEM — OMNIA Praxissoftware
+   Redesigned fuer OMNIA 2.0
    ============================================================ */
 
 /* Dashboard-Datum in der Kopfzeile */
 .dashboard-date {
     display: block;
     font-size: var(--font-size-sm);
-    color: var(--color-gray-500);
-    font-weight: 400;
+    color: var(--color-neutral-500);
+    font-weight: var(--font-normal);
     margin-top: 2px;
 }
 
@@ -15,20 +16,32 @@
 .widget-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--spacing-md);
+    gap: var(--space-4);
+}
+
+/* KI-Widget und Termine-Widget: Volle Breite in Hero-Zone */
+#widget-ki_tagesuebersicht {
+    grid-column: 1 / -1;
+    border-left: 3px solid var(--color-primary-500);
+}
+
+#widget-heutige_termine {
+    grid-column: 1 / 3;
 }
 
 /* Widget-Karte */
 .widget-card {
-    background: var(--color-white);
-    border: 1px solid var(--color-gray-200);
+    background: var(--color-surface);
+    border: 1px solid var(--color-neutral-200);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    transition: box-shadow 0.2s ease;
+    transition: box-shadow var(--duration-base) var(--ease-in-out), transform var(--duration-base) var(--ease-in-out);
+    animation: fadeIn var(--duration-enter) var(--ease-out);
 }
 
 .widget-card:hover {
     box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
 }
 
 /* Widget-Header */
@@ -36,21 +49,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-bottom: 1px solid var(--color-gray-100);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-neutral-100);
 }
 
 .widget-title {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    gap: var(--space-2);
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-gray-700);
+    font-weight: var(--font-semibold);
+    color: var(--color-neutral-700);
 }
 
 .widget-title svg {
-    color: var(--color-primary);
+    color: var(--color-primary-500);
     flex-shrink: 0;
 }
 
@@ -92,18 +105,43 @@
 }
 
 .widget-loading {
-    color: var(--color-gray-400);
-    font-size: var(--font-size-sm);
-    text-align: center;
-    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+}
+.widget-loading::before,
+.widget-loading::after {
+    content: '';
+    height: 12px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(90deg,
+        var(--color-neutral-200) 25%,
+        var(--color-neutral-100) 50%,
+        var(--color-neutral-200) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+.widget-loading::after {
+    width: 60%;
+}
+.widget-loading {
+    color: transparent;
+    font-size: 0;
+}
+
+@keyframes skeletonPulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .widget-empty {
-    color: var(--color-gray-400);
+    color: var(--color-neutral-400);
     font-size: var(--font-size-sm);
     text-align: center;
     margin: 0;
-    padding: var(--spacing-md) 0;
+    padding: var(--space-4) 0;
 }
 
 .widget-empty-sm {
@@ -139,7 +177,7 @@
     font-size: var(--font-size-xs);
     color: var(--color-warning);
     padding: 6px 8px;
-    background: #fff8e1;
+    background: var(--color-warning-bg);
     border-radius: var(--radius-md);
 }
 
@@ -266,8 +304,8 @@
 }
 
 .priority-urgent .aufgabe-priority-dot { background: var(--color-error); }
-.priority-high .aufgabe-priority-dot { background: #f39c12; }
-.priority-normal .aufgabe-priority-dot { background: #f1c40f; }
+.priority-high .aufgabe-priority-dot { background: var(--color-warning); }
+.priority-normal .aufgabe-priority-dot { background: var(--color-warning); }
 .priority-low .aufgabe-priority-dot { background: var(--color-gray-300); }
 
 .aufgabe-content {
@@ -409,22 +447,24 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-md);
-    border: 1px solid var(--color-gray-200);
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--color-neutral-200);
     border-radius: var(--radius-md);
-    background: var(--color-white);
-    color: var(--color-gray-700);
+    background: var(--color-surface);
+    color: var(--color-neutral-700);
     text-decoration: none;
-    transition: all 0.15s;
+    transition: all var(--duration-fast) var(--ease-in-out);
     cursor: pointer;
     text-align: center;
 }
 
 .schnellaktion-btn:hover {
-    border-color: var(--color-primary);
-    background: var(--color-primary-bg, #e8f0fe);
-    color: var(--color-primary);
+    border-color: var(--color-primary-300);
+    background: var(--color-primary-50);
+    color: var(--color-primary-500);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .schnellaktion-btn svg {
@@ -500,7 +540,7 @@
 }
 
 .geburtstag-heute {
-    background: #fff8e1;
+    background: var(--color-warning-bg);
     border-radius: var(--radius-md);
     padding: 6px 8px;
     margin: 0 -8px;
@@ -548,7 +588,7 @@
 }
 
 .rechnungen-ueberfaellig {
-    background: #fef2f2;
+    background: var(--color-error-bg);
 }
 
 .rechnungen-zahl {
@@ -689,67 +729,17 @@
     color: var(--color-gray-500);
 }
 
-/* === Konfigurations-Modal === */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
+/* === Konfigurations-Modal (nutzt globale Modal-Styles aus style.css) === */
 .modal-content {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     width: 480px;
     max-width: 90vw;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-lg);
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-lg);
-    border-bottom: 1px solid var(--color-gray-200);
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: var(--font-size-lg);
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: var(--color-gray-500);
-    padding: 0;
-    line-height: 1;
-}
-
-.modal-close:hover {
-    color: var(--color-gray-800);
-}
-
-.modal-body {
-    padding: var(--spacing-lg);
-    overflow-y: auto;
-    flex: 1;
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-top: 1px solid var(--color-gray-200);
+    box-shadow: var(--shadow-xl);
+    animation: modalPanelIn var(--duration-enter) var(--ease-out);
 }
 
 .widget-config-list {

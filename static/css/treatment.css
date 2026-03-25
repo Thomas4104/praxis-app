@@ -4,16 +4,16 @@
 
 /* --- Filter --- */
 .treatment-filters {
-    background: #fff;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+    box-shadow: var(--shadow-sm);
 }
 
 .filter-row {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
     flex-wrap: wrap;
     align-items: center;
 }
@@ -34,19 +34,19 @@
 }
 
 .clickable-row:hover {
-    background-color: #f0f7ff;
+    background-color: var(--color-primary-50);
 }
 
 .diagnose-code {
     font-weight: 600;
-    color: #4a90d9;
+    color: var(--color-primary-500);
     font-size: 0.85em;
 }
 
 .progress-mini {
     width: 80px;
     height: 6px;
-    background: #e8e8e8;
+    background: var(--color-neutral-200);
     border-radius: 3px;
     display: inline-block;
     vertical-align: middle;
@@ -55,37 +55,37 @@
 
 .progress-mini-bar {
     height: 100%;
-    background: #4a90d9;
+    background: var(--color-primary-500);
     border-radius: 3px;
     transition: width 0.3s ease;
 }
 
 .progress-text {
     font-size: 0.8em;
-    color: #666;
+    color: var(--color-neutral-500);
 }
 
 /* --- Badge --- */
 .badge {
     display: inline-block;
     padding: 3px 10px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     font-size: 0.78em;
     font-weight: 600;
     white-space: nowrap;
 }
 
-.badge-success { background: #e8f5e9; color: #2e7d32; }
-.badge-info { background: #e3f2fd; color: #1565c0; }
-.badge-warning { background: #fff3e0; color: #e65100; }
-.badge-danger { background: #fce4ec; color: #c62828; }
-.badge-secondary { background: #f5f5f5; color: #666; }
+.badge-success { background: var(--color-success-bg); color: var(--color-success); }
+.badge-info { background: var(--color-info-bg); color: var(--color-info); }
+.badge-warning { background: var(--color-warning-bg); color: var(--color-warning); }
+.badge-danger { background: var(--color-error-bg); color: var(--color-error); }
+.badge-secondary { background: var(--color-neutral-100); color: var(--color-neutral-500); }
 
 /* --- Drei-Spalten-Layout Serie-Detail --- */
 .serie-detail-layout {
     display: grid;
     grid-template-columns: 240px 1fr 280px;
-    gap: 16px;
+    gap: var(--space-4);
     align-items: start;
 }
 
@@ -110,15 +110,15 @@
 
 /* --- Panel --- */
 .panel {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
 
 .panel-header {
-    padding: 14px 16px;
-    border-bottom: 1px solid #eee;
+    padding: 14px var(--space-4);
+    border-bottom: 1px solid var(--color-neutral-200);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -128,11 +128,11 @@
     margin: 0;
     font-size: 0.95em;
     font-weight: 600;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .panel-body {
-    padding: 16px;
+    padding: var(--space-4);
 }
 
 /* --- Terminliste (linke Spalte) --- */
@@ -146,29 +146,29 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--color-neutral-100);
     cursor: pointer;
     transition: background-color 0.15s;
     border-left: 3px solid transparent;
 }
 
 .termin-item:hover {
-    background-color: #f8f9fa;
+    background-color: var(--color-neutral-50);
 }
 
 .termin-item.active {
     background-color: #e8f0fe;
-    border-left: 3px solid #4a90d9;
+    border-left: 3px solid var(--color-primary-500);
 }
 
 .termin-item.termin-item-cancelled {
-    background-color: #fff5f5;
-    border-left: 3px solid #e74c3c;
+    background-color: var(--color-error-bg);
+    border-left: 3px solid var(--color-error);
 }
 
 .termin-item.termin-item-cancelled.active {
     background-color: #ffe8e8;
-    border-left: 3px solid #e74c3c;
+    border-left: 3px solid var(--color-error);
 }
 
 /* --- Termin-Nummer (Kreis links) --- */
@@ -183,25 +183,25 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: #4a90d9;
-    color: #fff;
+    background: var(--color-primary-500);
+    color: var(--color-surface);
     font-size: 0.78em;
     font-weight: 700;
 }
 
 .termin-nr-0 {
-    background: #e74c3c;
+    background: var(--color-error);
 }
 
 /* --- Termin-Label (Termin X/Y) --- */
 .termin-item-label {
     font-weight: 600;
     font-size: 0.82em;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .termin-item-cancelled .termin-item-label {
-    color: #e74c3c;
+    color: var(--color-error);
 }
 
 /* --- Badges rechts --- */
@@ -219,10 +219,10 @@
     text-align: center;
 }
 
-.termin-status-badge.status-completed { color: #27ae60; }
-.termin-status-badge.status-cancelled { color: #e74c3c; }
-.termin-status-badge.status-noshow { color: #f39c12; }
-.termin-status-badge.status-scheduled { color: #4a90d9; }
+.termin-status-badge.status-completed { color: var(--color-success); }
+.termin-status-badge.status-cancelled { color: var(--color-error); }
+.termin-status-badge.status-noshow { color: var(--color-warning); }
+.termin-status-badge.status-scheduled { color: var(--color-primary-500); }
 
 .termin-item-status { flex-shrink: 0; }
 
@@ -233,39 +233,39 @@
     text-align: center;
 }
 
-.status-completed { color: #27ae60; }
-.status-cancelled { color: #e74c3c; }
-.status-noshow { color: #f39c12; }
-.status-scheduled { color: #4a90d9; }
+.status-completed { color: var(--color-success); }
+.status-cancelled { color: var(--color-error); }
+.status-noshow { color: var(--color-warning); }
+.status-scheduled { color: var(--color-primary-500); }
 
 .termin-item-info { flex: 1; min-width: 0; }
 
 .termin-item-datum {
     font-weight: 600;
     font-size: 0.82em;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .termin-item-zeit {
     font-size: 0.75em;
-    color: #888;
+    color: var(--color-neutral-400);
 }
 
 .termin-item-soap {
     flex-shrink: 0;
-    color: #4a90d9;
+    color: var(--color-primary-500);
     opacity: 0.6;
 }
 
 /* --- Absage-Info-Box (mittlere Spalte) --- */
 .termin-cancel-info {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .cancel-info-box {
-    background: #fff5f5;
+    background: var(--color-error-bg);
     border: 1px solid #fecaca;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 10px 14px;
     font-size: 0.88em;
     color: #991b1b;
@@ -277,21 +277,21 @@
 
 /* --- SOAP-Notes (mittlere Spalte) --- */
 .termin-kopf {
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #eee;
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-neutral-200);
 }
 
 .info-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .info-item label {
     display: block;
     font-size: 0.75em;
-    color: #888;
+    color: var(--color-neutral-400);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 2px;
@@ -300,25 +300,25 @@
 .info-item span {
     font-size: 0.9em;
     font-weight: 500;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .soap-section {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .soap-section h4,
 .notes-section h4 {
     font-size: 0.88em;
     font-weight: 600;
-    color: #555;
+    color: var(--color-neutral-600);
     margin-bottom: 10px;
 }
 
 .soap-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 @media (max-width: 900px) {
@@ -334,9 +334,9 @@
     font-size: 0.78em;
     font-weight: 700;
     margin-bottom: 4px;
-    padding: 2px 8px;
+    padding: 2px var(--space-2);
     border-radius: 4px;
-    color: #fff;
+    color: var(--color-surface);
 }
 
 .soap-s { background: #3498db; }
@@ -348,8 +348,8 @@
     width: 100%;
     min-height: 80px;
     padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    border: 1px solid var(--color-neutral-300);
+    border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: 0.88em;
     resize: vertical;
@@ -359,24 +359,24 @@
 
 .soap-textarea:focus {
     outline: none;
-    border-color: #4a90d9;
-    box-shadow: 0 0 0 2px rgba(74,144,217,0.15);
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 var(--ring-width) rgba(74,144,217,0.15);
 }
 
 .notes-section {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
 }
 
 .soap-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
 }
 
 .auto-save-indicator {
     font-size: 0.82em;
-    color: #27ae60;
+    color: var(--color-success);
     animation: fadeIn 0.3s;
 }
 
@@ -387,7 +387,7 @@
 
 /* --- Serien-Info (rechte Spalte) --- */
 .serie-info-content {
-    padding: 14px 16px;
+    padding: 14px var(--space-4);
 }
 
 .info-block {
@@ -397,7 +397,7 @@
 .info-block label {
     display: block;
     font-size: 0.72em;
-    color: #888;
+    color: var(--color-neutral-400);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 2px;
@@ -406,11 +406,11 @@
 .info-block span,
 .info-block a {
     font-size: 0.88em;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .info-block a {
-    color: #4a90d9;
+    color: var(--color-primary-500);
     text-decoration: none;
 }
 
@@ -420,8 +420,8 @@
 
 .info-divider {
     border: none;
-    border-top: 1px solid #eee;
-    margin: 12px 0;
+    border-top: 1px solid var(--color-neutral-200);
+    margin: var(--space-3) 0;
 }
 
 /* --- Heilungsphasen Mini --- */
@@ -453,7 +453,7 @@
 
 .phase-label {
     font-size: 0.8em;
-    color: #666;
+    color: var(--color-neutral-500);
     margin-left: 4px;
 }
 
@@ -461,8 +461,8 @@
 .serie-aktionen {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 .btn-block {
@@ -474,14 +474,14 @@
 .serie-links {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .action-link {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: #4a90d9;
+    gap: var(--space-2);
+    color: var(--color-primary-500);
     text-decoration: none;
     font-size: 0.85em;
     padding: 6px 0;
@@ -501,7 +501,7 @@
 }
 
 .plan-section {
-    margin-bottom: 20px;
+    margin-bottom: var(--space-5);
 }
 
 /* --- Diagnose --- */
@@ -509,14 +509,14 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-neutral-100);
 }
 
 .diagnose-code-tag {
     display: inline-block;
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--color-info-bg);
+    color: var(--color-info);
     padding: 3px 10px;
     border-radius: 4px;
     font-weight: 700;
@@ -525,12 +525,12 @@
 }
 
 .ki-vorschlag-box {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
+    background: var(--color-neutral-50);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-sm);
     padding: 10px 14px;
     font-size: 0.88em;
-    margin-top: 8px;
+    margin-top: var(--space-2);
 }
 
 /* --- Therapieziele --- */
@@ -538,8 +538,8 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0f0f0;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-neutral-100);
 }
 
 .ziel-info {
@@ -550,15 +550,15 @@
 .ziel-beschreibung {
     font-weight: 500;
     font-size: 0.92em;
-    color: #333;
+    color: var(--color-neutral-800);
     margin-bottom: 4px;
 }
 
 .ziel-werte {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
     font-size: 0.78em;
-    color: #888;
+    color: var(--color-neutral-400);
 }
 
 .ziel-fortschritt {
@@ -566,13 +566,13 @@
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .progress-bar {
     flex: 1;
     height: 8px;
-    background: #e8e8e8;
+    background: var(--color-neutral-200);
     border-radius: 4px;
     overflow: hidden;
 }
@@ -583,14 +583,14 @@
     transition: width 0.4s ease;
 }
 
-.progress-success { background: #27ae60; }
-.progress-warning { background: #f39c12; }
-.progress-danger { background: #e74c3c; }
+.progress-success { background: var(--color-success); }
+.progress-warning { background: var(--color-warning); }
+.progress-danger { background: var(--color-error); }
 
 .progress-label {
     font-size: 0.82em;
     font-weight: 600;
-    color: #555;
+    color: var(--color-neutral-600);
     min-width: 36px;
     text-align: right;
 }
@@ -611,42 +611,42 @@
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    color: #888;
+    color: var(--color-neutral-400);
     transition: background-color 0.15s, color 0.15s;
 }
 
 .btn-icon:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--color-neutral-100);
+    color: var(--color-neutral-800);
 }
 
 .btn-icon-danger:hover {
-    background: #fce4ec;
-    color: #c62828;
+    background: var(--color-error-bg);
+    color: var(--color-error);
 }
 
 /* --- Heilungsphasen Timeline (Behandlungsplan-Seite) --- */
 .healing-timeline {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .healing-timeline-label {
     font-size: 0.82em;
-    color: #888;
-    margin-bottom: 8px;
+    color: var(--color-neutral-400);
+    margin-bottom: var(--space-2);
     font-weight: 500;
 }
 
 .healing-phases {
     display: flex;
     gap: 4px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
 }
 
 .healing-phase-block {
     flex: 1;
-    padding: 14px 12px;
+    padding: 14px var(--space-3);
     background: color-mix(in srgb, var(--phase-color) 12%, white);
     border-bottom: 3px solid transparent;
     cursor: pointer;
@@ -667,7 +667,7 @@
     display: block;
     font-size: 0.82em;
     font-weight: 600;
-    color: #333;
+    color: var(--color-neutral-800);
 }
 
 .phase-block-indicator {
@@ -684,7 +684,7 @@
     align-items: flex-start;
     gap: 0;
     position: relative;
-    padding: 20px 0 10px;
+    padding: var(--space-5) 0 10px;
     overflow-x: auto;
 }
 
@@ -695,7 +695,7 @@
     left: 20px;
     right: 20px;
     height: 3px;
-    background: #e0e0e0;
+    background: var(--color-neutral-200);
     border-radius: 2px;
 }
 
@@ -714,42 +714,42 @@
     margin: 0 auto 10px;
     position: relative;
     z-index: 1;
-    border: 3px solid #e0e0e0;
-    background: #fff;
+    border: 3px solid var(--color-neutral-300);
+    background: var(--color-surface);
     transition: all 0.2s;
 }
 
 .point-achieved .timeline-dot {
-    background: #27ae60;
-    border-color: #27ae60;
+    background: var(--color-success);
+    border-color: var(--color-success);
 }
 
 .point-current .timeline-dot {
-    background: #4a90d9;
-    border-color: #4a90d9;
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
     box-shadow: 0 0 0 4px rgba(74,144,217,0.2);
 }
 
 .point-open .timeline-dot {
-    background: #fff;
-    border-color: #ccc;
+    background: var(--color-surface);
+    border-color: var(--color-neutral-300);
 }
 
 .timeline-name {
     font-size: 0.82em;
     font-weight: 600;
-    color: #333;
+    color: var(--color-neutral-800);
     margin-bottom: 2px;
 }
 
 .timeline-date {
     font-size: 0.72em;
-    color: #888;
+    color: var(--color-neutral-400);
 }
 
 .timeline-achieved {
     font-size: 0.7em;
-    color: #27ae60;
+    color: var(--color-success);
     font-weight: 500;
 }
 
@@ -757,38 +757,38 @@
 .measurement-tabs {
     display: flex;
     gap: 4px;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
     flex-wrap: wrap;
 }
 
 .tab-btn {
-    padding: 6px 16px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
+    padding: 6px var(--space-4);
+    border: 1px solid var(--color-neutral-300);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
     cursor: pointer;
     font-size: 0.82em;
     font-weight: 500;
-    color: #666;
+    color: var(--color-neutral-500);
     transition: all 0.15s;
 }
 
 .tab-btn:hover {
-    background: #f5f5f5;
+    background: var(--color-neutral-100);
 }
 
 .tab-btn.active {
-    background: #4a90d9;
-    border-color: #4a90d9;
-    color: #fff;
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: var(--color-surface);
 }
 
 .measurement-chart-container {
     position: relative;
-    margin-bottom: 16px;
-    background: #fafafa;
-    border-radius: 8px;
-    padding: 12px;
+    margin-bottom: var(--space-4);
+    background: var(--color-neutral-50);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
 }
 
 .measurement-chart-container canvas {
@@ -812,9 +812,9 @@
 }
 
 .modal-content {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
     width: 90%;
     max-width: 560px;
     max-height: 90vh;
@@ -825,8 +825,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #eee;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-neutral-200);
 }
 
 .modal-header h3 {
@@ -839,26 +839,26 @@
     border: none;
     font-size: 1.4em;
     cursor: pointer;
-    color: #999;
-    padding: 4px 8px;
+    color: var(--color-neutral-400);
+    padding: 4px var(--space-2);
     border-radius: 4px;
 }
 
 .modal-close:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--color-neutral-100);
+    color: var(--color-neutral-800);
 }
 
 .modal-body {
-    padding: 20px;
+    padding: var(--space-5);
 }
 
 .modal-footer {
-    padding: 14px 20px;
-    border-top: 1px solid #eee;
+    padding: 14px var(--space-5);
+    border-top: 1px solid var(--color-neutral-200);
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 /* --- Formulare --- */
@@ -870,13 +870,13 @@
     display: block;
     font-size: 0.82em;
     font-weight: 500;
-    color: #555;
+    color: var(--color-neutral-600);
     margin-bottom: 4px;
 }
 
 .form-row {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .form-row .form-group {
@@ -887,9 +887,9 @@
 .form-select,
 .form-textarea {
     width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-neutral-300);
+    border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: 0.88em;
     box-sizing: border-box;
@@ -900,8 +900,8 @@
 .form-select:focus,
 .form-textarea:focus {
     outline: none;
-    border-color: #4a90d9;
-    box-shadow: 0 0 0 2px rgba(74,144,217,0.15);
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 var(--ring-width) rgba(74,144,217,0.15);
 }
 
 .form-textarea {
@@ -911,7 +911,7 @@
 
 .input-group {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .input-group .form-input {
@@ -921,9 +921,9 @@
 /* --- Buttons --- */
 .btn {
     display: inline-block;
-    padding: 8px 18px;
+    padding: var(--space-2) 18px;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: 0.85em;
     font-weight: 500;
@@ -935,9 +935,9 @@
 }
 
 .btn-primary {
-    background: #4a90d9;
-    color: #fff;
-    border-color: #4a90d9;
+    background: var(--color-primary-500);
+    color: var(--color-surface);
+    border-color: var(--color-primary-500);
 }
 
 .btn-primary:hover {
@@ -945,19 +945,19 @@
 }
 
 .btn-outline {
-    background: #fff;
-    color: #4a90d9;
-    border-color: #4a90d9;
+    background: var(--color-surface);
+    color: var(--color-primary-500);
+    border-color: var(--color-primary-500);
 }
 
 .btn-outline:hover {
-    background: #f0f7ff;
+    background: var(--color-primary-50);
 }
 
 .btn-success {
-    background: #27ae60;
-    color: #fff;
-    border-color: #27ae60;
+    background: var(--color-success);
+    color: var(--color-surface);
+    border-color: var(--color-success);
 }
 
 .btn-success:hover {
@@ -965,9 +965,9 @@
 }
 
 .btn-danger {
-    background: #e74c3c;
-    color: #fff;
-    border-color: #e74c3c;
+    background: var(--color-error);
+    color: var(--color-surface);
+    border-color: var(--color-error);
 }
 
 .btn-danger:hover {
@@ -975,7 +975,7 @@
 }
 
 .btn-sm {
-    padding: 5px 12px;
+    padding: 5px var(--space-3);
     font-size: 0.78em;
 }
 
@@ -988,37 +988,37 @@
 
 .data-table th {
     text-align: left;
-    padding: 10px 12px;
-    border-bottom: 2px solid #e0e0e0;
+    padding: 10px var(--space-3);
+    border-bottom: 2px solid var(--color-neutral-200);
     font-size: 0.78em;
     font-weight: 600;
-    color: #888;
+    color: var(--color-neutral-400);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .data-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f0f0f0;
-    color: #333;
+    padding: 10px var(--space-3);
+    border-bottom: 1px solid var(--color-neutral-100);
+    color: var(--color-neutral-800);
 }
 
 .data-table tbody tr:hover {
-    background-color: #fafafa;
+    background-color: var(--color-neutral-50);
 }
 
 /* --- Hilfsklassen --- */
 .empty-state {
     text-align: center;
-    padding: 30px 20px;
-    color: #999;
+    padding: 30px var(--space-5);
+    color: var(--color-neutral-400);
     font-size: 0.9em;
 }
 
 .loading-spinner {
     text-align: center;
-    padding: 40px 20px;
-    color: #888;
+    padding: 40px var(--space-5);
+    color: var(--color-neutral-400);
 }
 
 .termin-status-info {
@@ -1027,7 +1027,7 @@
 }
 
 #terminDetailContent {
-    padding: 16px;
+    padding: var(--space-4);
 }
 
 @media (max-width: 768px) {
