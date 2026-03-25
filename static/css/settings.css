@@ -18,7 +18,7 @@
 
 /* --- Settings Navigation --- */
 .settings-nav {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     padding: var(--spacing-sm);
@@ -131,7 +131,7 @@
     left: 2px;
     width: 20px;
     height: 20px;
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: 50%;
     box-shadow: var(--shadow-sm);
     transition: transform var(--transition-fast);
@@ -330,7 +330,7 @@
 }
 
 .modal {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-xl);
     width: 90%;
@@ -441,7 +441,7 @@
     font-family: var(--font-family);
     font-size: var(--font-size-base);
     color: var(--color-gray-800);
-    background: var(--color-white);
+    background: var(--color-surface);
     resize: vertical;
     transition: border-color var(--transition-fast);
 }

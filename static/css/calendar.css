@@ -36,7 +36,7 @@
 
 .view-btn.active {
     background: var(--primary);
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .date-navigation {
@@ -218,7 +218,7 @@
     text-align: center;
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--color-surface);
+    color: #fff;
     border-bottom: 2px solid rgba(0,0,0,0.1);
     height: 36px;
     display: flex;
@@ -510,7 +510,7 @@
 
 .week-multi-grid .week-day-header.today {
     background: var(--primary);
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .week-multi-grid .week-day-header.today:hover {
@@ -581,7 +581,7 @@
 }
 
 .week-appt-emp {
-    color: var(--color-surface);
+    color: #fff;
     font-size: 0.6rem;
     font-weight: 700;
     padding: 1px 3px;
@@ -705,7 +705,7 @@
 
 .month-day-cell.today .month-day-number {
     background: var(--primary);
-    color: var(--color-surface);
+    color: #fff;
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -1064,12 +1064,12 @@
 
 .wizard-step.active .step-number {
     background: var(--primary);
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .wizard-step.completed .step-number {
     background: var(--success);
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .wizard-panel {
@@ -1167,7 +1167,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-surface);
+    color: #fff;
     font-weight: 600;
     font-size: var(--font-md);
     margin: 0 auto 8px;
@@ -1311,7 +1311,7 @@
 
 .btn-primary {
     background: var(--primary);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--primary);
 }
 
@@ -1327,7 +1327,7 @@
 
 .btn-danger {
     background: var(--color-error);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--color-error);
 }
 
@@ -1335,7 +1335,7 @@
 
 .btn-success {
     background: var(--success);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--success);
 }
 

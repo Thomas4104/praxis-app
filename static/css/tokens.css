@@ -210,8 +210,6 @@
         --color-neutral-800: #E0E0E0;
         --color-neutral-900: #F0F0F0;
 
-        --color-white: #242424;
-
         --color-primary-50:  #0b2e2e;
         --color-primary-100: #0f3d3d;
         --color-primary-200: #145252;
@@ -229,6 +227,8 @@
         --color-error-bg:   #7F1D1D;
         --color-info:       #38BDF8;
         --color-info-bg:    #0C4A6E;
+
+        --ring: 0 0 0 var(--ring-offset) var(--color-surface), 0 0 0 calc(var(--ring-offset) + var(--ring-width)) var(--ring-color);
 
         --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
         --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.15);
@@ -256,8 +256,6 @@
     --color-neutral-800: #E0E0E0;
     --color-neutral-900: #F0F0F0;
 
-    --color-white: #242424;
-
     --color-primary-50:  #0b2e2e;
     --color-primary-100: #0f3d3d;
     --color-primary-200: #145252;
@@ -275,6 +273,8 @@
     --color-error-bg:   #7F1D1D;
     --color-info:       #38BDF8;
     --color-info-bg:    #0C4A6E;
+
+    --ring: 0 0 0 var(--ring-offset) var(--color-surface), 0 0 0 calc(var(--ring-offset) + var(--ring-width)) var(--ring-color);
 
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
     --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.15);

@@ -146,7 +146,7 @@ h3 { font-size: var(--font-size-lg); }
 }
 .search-input:focus {
     border-color: var(--color-primary);
-    background: var(--color-white);
+    background: var(--color-surface);
     box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 .search-input::placeholder {
@@ -158,7 +158,7 @@ h3 { font-size: var(--font-size-lg); }
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
@@ -222,7 +222,7 @@ h3 { font-size: var(--font-size-lg); }
     border: 1px solid var(--color-gray-300);
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
-    background: var(--color-white);
+    background: var(--color-surface);
     color: var(--color-gray-700);
     cursor: pointer;
     outline: none;
@@ -292,7 +292,7 @@ h3 { font-size: var(--font-size-lg); }
     top: 100%;
     right: 0;
     min-width: 200px;
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
@@ -586,7 +586,7 @@ body.chat-open .main-content {
 }
 
 .stat-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
@@ -692,7 +692,7 @@ body.chat-open .main-content {
     padding: var(--spacing-md);
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-md);
-    background: var(--color-white);
+    background: var(--color-surface);
     cursor: pointer;
     transition: var(--transition-fast);
     font-size: var(--font-size-sm);
@@ -1229,7 +1229,7 @@ textarea.form-control,
     right: 0;
     bottom: 0;
     width: var(--chat-panel-width);
-    background: var(--color-white);
+    background: var(--color-surface);
     border-left: 1px solid var(--color-gray-200);
     display: flex;
     flex-direction: column;
@@ -1487,7 +1487,7 @@ textarea.form-control,
     border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    background: var(--color-white);
+    background: var(--color-surface);
 }
 
 .calendar-time-slot {
@@ -1535,7 +1535,7 @@ textarea.form-control,
 }
 
 .login-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-xl);
     padding: var(--spacing-2xl) var(--spacing-xl);
@@ -1672,7 +1672,7 @@ textarea.form-control,
     font-size: var(--font-size-base);
     font-family: inherit;
     color: var(--color-gray-800);
-    background: var(--color-white);
+    background: var(--color-surface);
     transition: var(--transition-base);
     outline: none;
 }
@@ -1733,7 +1733,7 @@ textarea.form-control,
 }
 
 .form-section {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-sm);
@@ -1776,7 +1776,7 @@ textarea.form-control,
     left: 3px;
     width: 18px;
     height: 18px;
-    background: white;
+    background: var(--color-surface);
     border-radius: 50%;
     transition: var(--transition-base);
 }

@@ -184,7 +184,7 @@
     height: 28px;
     border-radius: 50%;
     background: var(--color-primary-500);
-    color: var(--color-surface);
+    color: #fff;
     font-size: 0.78em;
     font-weight: 700;
 }
@@ -336,7 +336,7 @@
     margin-bottom: 4px;
     padding: 2px var(--space-2);
     border-radius: 4px;
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .soap-s { background: #3498db; }
@@ -780,7 +780,7 @@
 .tab-btn.active {
     background: var(--color-primary-500);
     border-color: var(--color-primary-500);
-    color: var(--color-surface);
+    color: #fff;
 }
 
 .measurement-chart-container {
@@ -936,7 +936,7 @@
 
 .btn-primary {
     background: var(--color-primary-500);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--color-primary-500);
 }
 
@@ -956,7 +956,7 @@
 
 .btn-success {
     background: var(--color-success);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--color-success);
 }
 
@@ -966,7 +966,7 @@
 
 .btn-danger {
     background: var(--color-error);
-    color: var(--color-surface);
+    color: #fff;
     border-color: var(--color-error);
 }
 
