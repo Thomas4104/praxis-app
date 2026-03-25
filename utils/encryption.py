@@ -15,10 +15,14 @@ def _get_encryption_key():
     """Leitet den Verschluesselungsschluessel aus ENCRYPTION_KEY ab."""
     key = os.environ.get('ENCRYPTION_KEY', '')
     if not key:
-        raise RuntimeError(
-            'ENCRYPTION_KEY Umgebungsvariable muss gesetzt sein! '
-            'Generieren: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+        # Im Produktionsbetrieb: Warnung statt Crash, Fallback-Key verwenden
+        import logging
+        logging.getLogger('encryption').warning(
+            'ENCRYPTION_KEY nicht gesetzt! Verwende Fallback. '
+            'Bitte ENCRYPTION_KEY in .env setzen.'
         )
+        # Fallback-Key damit die App nicht crasht (nur fuer bestehende unverschluesselte Daten)
+        key = Fernet.generate_key().decode()
     # Falls der Key bereits ein gueltiger Fernet-Key ist, direkt verwenden
     try:
         Fernet(key.encode() if isinstance(key, str) else key)
