@@ -29,48 +29,75 @@ def find_available_slots(employee_id, start_date, end_date, duration_minutes=30,
     slots = []
     current_date = start_date
 
+    # Alle Daten vorab laden (vermeidet N+1 Queries)
+    all_schedules = WorkSchedule.query.filter_by(
+        employee_id=employee_id
+    ).filter(
+        (WorkSchedule.valid_from.is_(None)) | (WorkSchedule.valid_from <= end_date),
+        (WorkSchedule.valid_to.is_(None)) | (WorkSchedule.valid_to >= start_date)
+    ).all()
+
+    # Nach Wochentag gruppieren
+    schedules_by_day = {}
+    for s in all_schedules:
+        schedules_by_day.setdefault(s.day_of_week, []).append(s)
+
+    all_absences = Absence.query.filter(
+        Absence.employee_id == employee_id,
+        Absence.start_date <= end_date,
+        Absence.end_date >= start_date
+    ).all()
+
+    # Absenz-Tage als Set fuer O(1) Lookup
+    absence_dates = set()
+    for ab in all_absences:
+        d = ab.start_date
+        while d <= ab.end_date:
+            absence_dates.add(d)
+            d += timedelta(days=1)
+
+    all_existing = Appointment.query.filter(
+        Appointment.employee_id == employee_id,
+        Appointment.start_time >= datetime.combine(start_date, time(0, 0)),
+        Appointment.start_time <= datetime.combine(end_date, time(23, 59)),
+        Appointment.status.notin_(['cancelled', 'deleted'])
+    ).all()
+
+    if exclude_appointment_ids:
+        all_existing = [a for a in all_existing if a.id not in exclude_appointment_ids]
+
+    # Nach Datum gruppieren
+    existing_by_date = {}
+    for a in all_existing:
+        d = a.start_time.date()
+        existing_by_date.setdefault(d, []).append(a)
+
     while current_date <= end_date:
         # Wochentag-Filter
         if preferred_days and current_date.weekday() not in preferred_days:
             current_date += timedelta(days=1)
             continue
 
-        # Arbeitszeiten fuer diesen Tag laden
-        day_schedules = WorkSchedule.query.filter_by(
-            employee_id=employee_id,
-            day_of_week=current_date.weekday()
-        ).filter(
-            (WorkSchedule.valid_from == None) | (WorkSchedule.valid_from <= current_date),
-            (WorkSchedule.valid_to == None) | (WorkSchedule.valid_to >= current_date)
-        ).all()
+        # Arbeitszeiten fuer diesen Tag (aus vorab geladenen Daten)
+        day_schedules = schedules_by_day.get(current_date.weekday(), [])
+        # Gueltigkeitsfilter anwenden
+        day_schedules = [
+            s for s in day_schedules
+            if (s.valid_from is None or s.valid_from <= current_date)
+            and (s.valid_to is None or s.valid_to >= current_date)
+        ]
 
         if not day_schedules:
             current_date += timedelta(days=1)
             continue
 
-        # Abwesenheiten pruefen
-        absences = Absence.query.filter(
-            Absence.employee_id == employee_id,
-            Absence.start_date <= current_date,
-            Absence.end_date >= current_date
-        ).first()
-
-        if absences:
+        # Abwesenheiten pruefen (O(1) Lookup)
+        if current_date in absence_dates:
             current_date += timedelta(days=1)
             continue
 
-        # Bestehende Termine laden
-        day_start = datetime.combine(current_date, time(0, 0))
-        day_end = datetime.combine(current_date, time(23, 59))
-        existing = Appointment.query.filter(
-            Appointment.employee_id == employee_id,
-            Appointment.start_time >= day_start,
-            Appointment.start_time <= day_end,
-            Appointment.status.notin_(['cancelled', 'deleted'])
-        ).all()
-
-        if exclude_appointment_ids:
-            existing = [a for a in existing if a.id not in exclude_appointment_ids]
+        # Bestehende Termine fuer diesen Tag (aus vorab geladenen Daten)
+        existing = existing_by_date.get(current_date, [])
 
         # Fuer jeden Arbeitszeit-Block freie Slots finden
         for schedule in day_schedules:

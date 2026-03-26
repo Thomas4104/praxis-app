@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from utils.encryption import EncryptedString
 
 db = SQLAlchemy()
@@ -29,8 +29,8 @@ class Organization(db.Model):
     contact_person = db.Column(db.String(200))
     default_language = db.Column(db.String(5), default='de')
     opening_hours_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     locations = db.relationship('Location', backref='organization', lazy='dynamic')
     users = db.relationship('User', backref='organization', lazy='dynamic')
@@ -64,8 +64,8 @@ class Location(db.Model):
     opening_hours_json = db.Column(db.Text)
     holidays_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     resources = db.relationship('Resource', backref='location', lazy='dynamic')
     work_schedules = db.relationship('WorkSchedule', backref='location', lazy='dynamic')
@@ -100,8 +100,8 @@ class User(UserMixin, db.Model):
     totp_secret = db.Column(db.String(32), nullable=True)  # Base32-encoded TOTP Secret
     totp_enabled = db.Column(db.Boolean, default=False)
     totp_backup_codes = db.Column(db.Text, nullable=True)  # JSON-Array mit Backup-Codes
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref='user', uselist=False)
     chat_messages = db.relationship('ChatMessage', backref='user', lazy='dynamic')
@@ -178,8 +178,8 @@ class Employee(db.Model):
     booking_sync_till = db.Column(db.Date)
     booking_book_active = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     default_location = db.relationship('Location', foreign_keys=[default_location_id])
     default_room = db.relationship('Resource', foreign_keys=[default_room_id])
@@ -205,7 +205,7 @@ class WorkSchedule(db.Model):
     valid_from = db.Column(db.Date)
     valid_to = db.Column(db.Date)
     repeat_weeks = db.Column(db.Integer, default=1)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Absence(db.Model):
@@ -225,7 +225,7 @@ class Absence(db.Model):
     requested_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Certificate(db.Model):
@@ -237,7 +237,7 @@ class Certificate(db.Model):
     issued_date = db.Column(db.Date)
     expiry_date = db.Column(db.Date)
     file_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('certificates', lazy='dynamic'))
 
@@ -252,7 +252,7 @@ class AbsenceQuota(db.Model):
     total_days = db.Column(db.Float, nullable=False)
     used_days = db.Column(db.Float, default=0)
     carryover_days = db.Column(db.Float, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('absence_quotas', lazy='dynamic'))
 
@@ -268,7 +268,7 @@ class Permission(db.Model):
     module = db.Column(db.String(50), nullable=False)
     action = db.Column(db.String(50), nullable=False)
     is_allowed = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -309,8 +309,8 @@ class Patient(db.Model):
     employer_address = db.Column(db.String(300))
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Erweiterte Versicherungsfelder
     case_number = db.Column(db.String(30))  # Fallnummer bei UVG/IVG
@@ -395,7 +395,7 @@ class PatientDocument(db.Model):
     notes = db.Column(db.Text)
     portal_visible = db.Column(db.Boolean, default=False)  # Im Patientenportal sichtbar
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     uploaded_by = db.relationship('User', backref='uploaded_documents')
 
@@ -420,7 +420,7 @@ class InsuranceProvider(db.Model):
     supports_tiers_payant_json = db.Column(db.Text)
     contact_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Doctor(db.Model):
@@ -440,7 +440,7 @@ class Doctor(db.Model):
     email = db.Column(db.String(200))
     fax = db.Column(db.String(30))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     treatment_series = db.relationship('TreatmentSeries', backref='prescribing_doctor', lazy='dynamic')
 
@@ -474,7 +474,7 @@ class Contact(db.Model):
     addressing = db.Column(db.String(200))  # Anredeformel
     is_imported = db.Column(db.Boolean, default=False)
     reference_contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -501,8 +501,8 @@ class Product(db.Model):
     stock_quantity = db.Column(db.Integer, default=0)
     min_stock = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Resource(db.Model):
@@ -520,8 +520,8 @@ class Resource(db.Model):
     capacity = db.Column(db.Integer, default=1)
     equipment_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     bookings = db.relationship('ResourceBooking', backref='resource', lazy='dynamic', cascade='all, delete-orphan')
 
@@ -534,7 +534,7 @@ class ProductPriceHistory(db.Model):
     old_price = db.Column(db.Numeric(10, 2), nullable=False)
     new_price = db.Column(db.Numeric(10, 2), nullable=False)
     changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    changed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     product = db.relationship('Product', backref=db.backref('price_history', lazy='dynamic', order_by='ProductPriceHistory.changed_at.desc()'))
     changed_by = db.relationship('User', backref='price_changes')
@@ -552,7 +552,7 @@ class MaintenanceRecord(db.Model):
     next_due = db.Column(db.Date)
     interval_months = db.Column(db.Integer)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     resource = db.relationship('Resource', backref=db.backref('maintenance_records', lazy='dynamic', order_by='MaintenanceRecord.performed_at.desc()'))
 
@@ -567,7 +567,7 @@ class ResourceBooking(db.Model):
     appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'))
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -594,7 +594,7 @@ class TreatmentSeriesTemplate(db.Model):
     cancellation_fee_amount = db.Column(db.Numeric(10, 2))
     settings_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref='templates')
     default_location = db.relationship('Location', foreign_keys=[default_location_id])
@@ -630,8 +630,8 @@ class TreatmentSeries(db.Model):
     iv_decision_number = db.Column(db.String(50), nullable=True)  # Verfuegungsnummer
     iv_decision_date = db.Column(db.Date, nullable=True)  # Verfuegungsdatum
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime)
 
     template = db.relationship('TreatmentSeriesTemplate', backref='series')
@@ -654,8 +654,8 @@ class FindingTemplate(db.Model):
     is_default = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Beziehungen
     location = db.relationship('Location', backref='finding_templates')
@@ -677,8 +677,8 @@ class ClinicalFinding(db.Model):
     finding_type = db.Column(db.String(30), default='erstbefund')  # erstbefund, verlaufsbefund
     data_json = db.Column(db.Text, nullable=False)  # Ausgefuellte Felder als JSON
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Beziehungen
     patient = db.relationship('Patient', backref=db.backref('findings', lazy='dynamic'))
@@ -701,8 +701,8 @@ class TreatmentPlanTemplate(db.Model):
     insurance_type = db.Column(db.String(20), nullable=True)  # KVG, UVG, IV - optional filtern
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Appointment(db.Model):
@@ -774,8 +774,8 @@ class Appointment(db.Model):
     last_sms_sent = db.Column(db.DateTime)
     email_triggered = db.Column(db.Boolean, default=False)
     max_participants = db.Column(db.Integer, nullable=True)  # Max. Teilnehmer bei Gruppentherapie
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     location = db.relationship('Location', foreign_keys=[location_id])
     resource = db.relationship('Resource', foreign_keys=[resource_id])
@@ -806,8 +806,8 @@ class AppointmentTariffPosition(db.Model):
     vat_amount = db.Column(db.Numeric(10, 2), default=0)
     position = db.Column(db.Integer, default=0)  # Reihenfolge
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     created_by = db.relationship('User', backref='created_tariff_positions')
 
@@ -871,8 +871,8 @@ class Invoice(db.Model):
     print_date = db.Column(db.DateTime)
     email_send_date = db.Column(db.DateTime)
     pdf_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     insurance_provider = db.relationship('InsuranceProvider', backref='invoices')
     items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic', cascade='all, delete-orphan')
@@ -903,7 +903,7 @@ class InvoiceItem(db.Model):
     valuta_date = db.Column(db.Date)  # fuer MwSt-Satz
     is_credit = db.Column(db.Boolean, default=False)
     remark = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Payment(db.Model):
@@ -923,7 +923,7 @@ class Payment(db.Model):
     payed_too_much = db.Column(db.Boolean, default=False)
     is_from_file = db.Column(db.Boolean, default=False)  # Aus CAMT-Import
     is_inkasso = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class TaxPointValue(db.Model):
@@ -936,7 +936,7 @@ class TaxPointValue(db.Model):
     valid_to = db.Column(db.Date)
     canton = db.Column(db.String(5))
     insurer_id = db.Column(db.Integer, db.ForeignKey('insurance_providers.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref='tax_point_values')
     insurer = db.relationship('InsuranceProvider', backref='tax_point_values')
@@ -953,7 +953,7 @@ class BankAccount(db.Model):
     account_name = db.Column(db.String(200))
     is_default = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class DunningRecord(db.Model):
@@ -967,7 +967,7 @@ class DunningRecord(db.Model):
     dunning_text = db.Column(db.Text)
     sent_via = db.Column(db.String(50))  # email, print, medidata
     pdf_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     invoice = db.relationship('Invoice', backref=db.backref('dunning_records', lazy='dynamic', order_by='DunningRecord.dunning_date.desc()'))
 
@@ -980,7 +980,7 @@ class Holiday(db.Model):
     name = db.Column(db.String(100), nullable=False)
     date = db.Column(db.Date, nullable=False)
     canton = db.Column(db.String(5))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     location = db.relationship('Location', backref='holidays')
 
@@ -1036,8 +1036,8 @@ class CostApproval(db.Model):
     is_xml45 = db.Column(db.Boolean, default=False)
     print_only = db.Column(db.Boolean, default=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     extension_of = db.relationship('CostApproval', remote_side=[id], backref='extensions')
     items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic', cascade='all, delete-orphan')
@@ -1057,7 +1057,7 @@ class CostApprovalItem(db.Model):
     quantity = db.Column(db.Numeric(10, 2), default=1)
     amount = db.Column(db.Numeric(10, 2), default=0)
     comment = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -1086,8 +1086,8 @@ class Task(db.Model):
     due_date = db.Column(db.Date)
     completed_at = db.Column(db.DateTime)
     auto_generated = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     related_patient = db.relationship('Patient', backref='tasks')
     related_series = db.relationship('TreatmentSeries', backref='tasks')
@@ -1104,7 +1104,7 @@ class TaskComment(db.Model):
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     comment = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = db.relationship('User', backref='task_comments')
 
@@ -1136,8 +1136,8 @@ class Email(db.Model):
     has_attachments = db.Column(db.Boolean, default=False)
     read_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     attachments = db.relationship('EmailAttachment', backref='email', lazy='dynamic', cascade='all, delete-orphan')
 
@@ -1150,7 +1150,7 @@ class EmailAttachment(db.Model):
     filepath = db.Column(db.String(500))
     filesize = db.Column(db.Integer)
     mimetype = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class EmailFolder(db.Model):
@@ -1160,7 +1160,7 @@ class EmailFolder(db.Model):
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('email_folders', lazy='dynamic'))
 
@@ -1177,7 +1177,7 @@ class ChatMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     tool_calls_json = db.Column(db.Text)
     agent_name = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -1192,7 +1192,7 @@ class AISettings(db.Model):
     budget_monthly = db.Column(db.Numeric(10, 2), default=100.0)
     budget_used = db.Column(db.Numeric(10, 2), default=0.0)
     features_enabled_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref='ai_settings')
 
@@ -1204,6 +1204,7 @@ class AISettings(db.Model):
 class WaitingList(db.Model):
     __tablename__ = 'waiting_list'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))
     preferred_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
@@ -1212,7 +1213,7 @@ class WaitingList(db.Model):
     priority = db.Column(db.Integer, default=0)
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), default='waiting')  # waiting, contacted, scheduled, cancelled
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('waiting_list_entries', lazy='dynamic'))
     template = db.relationship('TreatmentSeriesTemplate', backref='waiting_list_entries')
@@ -1227,6 +1228,7 @@ class TherapyGoal(db.Model):
     """Therapieziele pro Serie/Patient"""
     __tablename__ = 'therapy_goals'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     description = db.Column(db.Text, nullable=False)
@@ -1234,7 +1236,7 @@ class TherapyGoal(db.Model):
     current_value = db.Column(db.String(100))
     achievement_percent = db.Column(db.Integer, default=0)
     status = db.Column(db.String(20), default='open')  # open, in_progress, achieved
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     series = db.relationship('TreatmentSeries', backref=db.backref('goals', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('therapy_goals', lazy='dynamic'))
@@ -1253,7 +1255,7 @@ class Milestone(db.Model):
     criteria = db.Column(db.Text)
     status = db.Column(db.String(20), default='open')  # open, current, achieved
     sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     series = db.relationship('TreatmentSeries', backref=db.backref('milestones', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('milestones', lazy='dynamic'))
@@ -1263,6 +1265,7 @@ class Measurement(db.Model):
     """Messwerte und Assessments"""
     __tablename__ = 'measurements'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
     appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
@@ -1273,7 +1276,7 @@ class Measurement(db.Model):
     measured_at = db.Column(db.DateTime, nullable=False)
     measured_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('measurements', lazy='dynamic'))
     series = db.relationship('TreatmentSeries', backref=db.backref('measurements', lazy='dynamic'))
@@ -1285,12 +1288,13 @@ class HealingPhase(db.Model):
     """Heilungsphasen einer Behandlungsserie"""
     __tablename__ = 'healing_phases'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=False)
     phase_type = db.Column(db.String(30), nullable=False)  # initial, treatment, consolidation, autonomy
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     series = db.relationship('TreatmentSeries', backref=db.backref('healing_phases', lazy='dynamic'))
 
@@ -1308,8 +1312,8 @@ class SystemSetting(db.Model):
     value = db.Column(db.Text)
     value_type = db.Column(db.String(20), default='string')  # string, integer, boolean, json
     category = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('system_settings', lazy='dynamic'))
 
@@ -1342,7 +1346,7 @@ class EmailTemplate(db.Model):
     resend_after_days = db.Column(db.Integer)  # Nach X Tagen erneut
     is_deleted = db.Column(db.Boolean, default=False)
     is_system = db.Column(db.Boolean, default=False)  # System-Template (nicht loeschbar)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('email_templates', lazy='dynamic'))
 
@@ -1356,7 +1360,7 @@ class PrintTemplate(db.Model):
     template_type = db.Column(db.String(50))  # invoice, dunning, prescription, report, confirmation
     body_html = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('print_templates', lazy='dynamic'))
 
@@ -1378,7 +1382,7 @@ class AuditLog(db.Model):
     ip_address = db.Column(db.String(45))
     user_role = db.Column(db.String(20), nullable=True)
     integrity_hash = db.Column(db.String(64), nullable=True)  # HMAC-SHA256
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = db.relationship('User', backref='audit_logs')
 
@@ -1401,7 +1405,7 @@ class Account(db.Model):
     parent_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)
     vat_code = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('accounts', lazy='dynamic'))
     parent_account = db.relationship('Account', remote_side='Account.id', backref='sub_accounts')
@@ -1430,7 +1434,7 @@ class JournalEntry(db.Model):
     attachment_path = db.Column(db.String(500))
     period_locked = db.Column(db.Boolean, default=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('journal_entries', lazy='dynamic'))
     created_by = db.relationship('User', backref='journal_entries')
@@ -1450,7 +1454,7 @@ class JournalEntryLine(db.Model):
     vat_amount = db.Column(db.Numeric(10, 2), default=0)
     cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'), nullable=True)
     description = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class CreditorInvoice(db.Model):
@@ -1471,7 +1475,7 @@ class CreditorInvoice(db.Model):
     journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     payment_journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('creditor_invoices', lazy='dynamic'))
     contact = db.relationship('Contact', backref='creditor_invoices')
@@ -1495,7 +1499,7 @@ class FixedAsset(db.Model):
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     depreciation_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('fixed_assets', lazy='dynamic'))
     account = db.relationship('Account', foreign_keys=[account_id])
@@ -1511,7 +1515,7 @@ class CostCenter(db.Model):
     name = db.Column(db.String(200), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('cost_centers', lazy='dynamic'))
     location = db.relationship('Location', backref='cost_centers')
@@ -1526,7 +1530,7 @@ class PeriodLock(db.Model):
     month = db.Column(db.Integer, nullable=False)  # 0 = ganzes Jahr
     locked_at = db.Column(db.DateTime)
     locked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('period_locks', lazy='dynamic'))
     locked_by = db.relationship('User', backref='period_locks')
@@ -1549,7 +1553,7 @@ class EmployeeContract(db.Model):
     pensum_percent = db.Column(db.Integer, default=100)
     vacation_days = db.Column(db.Integer, default=20)
     document_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('contracts', lazy='dynamic'))
 
@@ -1573,7 +1577,7 @@ class EmployeeSalary(db.Model):
     ktg_rate = db.Column(db.Numeric(5, 2), default=0.5)  # KTG-Satz in %
     valid_from = db.Column(db.Date, nullable=False)
     valid_to = db.Column(db.Date)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('salaries', lazy='dynamic'))
 
@@ -1588,7 +1592,7 @@ class EmployeeChild(db.Model):
     date_of_birth = db.Column(db.Date)
     allowance_type = db.Column(db.String(20), default='child')  # child (200/Mt), education (250/Mt)
     allowance_amount = db.Column(db.Numeric(10, 2), default=200.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('children', lazy='dynamic'))
 
@@ -1608,7 +1612,7 @@ class PayrollRun(db.Model):
     approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     approved_at = db.Column(db.DateTime)
     paid_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('payroll_runs', lazy='dynamic'))
     approved_by = db.relationship('User', backref='approved_payroll_runs')
@@ -1652,7 +1656,7 @@ class Payslip(db.Model):
     # Details
     pdf_path = db.Column(db.String(500))
     details_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('payslips', lazy='dynamic'))
 
@@ -1672,7 +1676,7 @@ class TimeEntry(db.Model):
     worked_minutes = db.Column(db.Integer, default=0)
     entry_type = db.Column(db.String(20), default='manual')  # manual, clock, auto_calendar
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('time_entries', lazy='dynamic'))
 
@@ -1688,7 +1692,7 @@ class OvertimeAccount(db.Model):
     actual_minutes = db.Column(db.Integer, default=0)  # Ist
     overtime_minutes = db.Column(db.Integer, default=0)  # Differenz
     cumulative_overtime = db.Column(db.Integer, default=0)  # Kumuliert
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('overtime_accounts', lazy='dynamic'))
 
@@ -1710,7 +1714,7 @@ class Expense(db.Model):
     paid_via = db.Column(db.String(20))  # payroll, separate
     payroll_run_id = db.Column(db.Integer, db.ForeignKey('payroll_runs.id'), nullable=True)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref=db.backref('expenses', lazy='dynamic'))
     approved_by = db.relationship('User', backref='approved_expenses')
@@ -1731,7 +1735,7 @@ class SavedReport(db.Model):
     category = db.Column(db.String(50), nullable=False)  # patients, appointments, series, invoices, employees, products
     filters_json = db.Column(db.Text)  # JSON mit Filter-Konfiguration
     columns_json = db.Column(db.Text)  # JSON mit ausgewaehlten Spalten
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('saved_reports', lazy='dynamic'))
     user = db.relationship('User', backref=db.backref('saved_reports', lazy='dynamic'))
@@ -1757,7 +1761,7 @@ class SubscriptionTemplate(db.Model):
     access_hours_json = db.Column(db.Text)  # JSON: z.B. {"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)  # null = alle Standorte
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('subscription_templates', lazy='dynamic'))
     location = db.relationship('Location', backref=db.backref('subscription_templates', lazy='dynamic'))
@@ -1783,7 +1787,7 @@ class Subscription(db.Model):
     paused_until = db.Column(db.Date)
     visits_used = db.Column(db.Integer, default=0)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('subscriptions', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('subscriptions', lazy='dynamic'))
@@ -1803,7 +1807,7 @@ class FitnessVisit(db.Model):
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
     check_in = db.Column(db.DateTime, nullable=False)
     check_out = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     subscription = db.relationship('Subscription', backref=db.backref('visits', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('fitness_visits', lazy='dynamic'))
@@ -1821,6 +1825,7 @@ class SoapNoteHistory(db.Model):
     __tablename__ = 'soap_note_history'
 
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=False)
     version = db.Column(db.Integer, nullable=False, default=1)
 
@@ -1832,7 +1837,7 @@ class SoapNoteHistory(db.Model):
 
     # Metadaten
     changed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    changed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     change_reason = db.Column(db.String(500), nullable=True)  # Aenderungsgrund (Pflicht bei Korrektur)
 
     # Integritaet
@@ -1862,13 +1867,14 @@ class PortalAccount(db.Model):
     """Portal-Zugang fuer Patienten (separates Login-System)"""
     __tablename__ = 'portal_accounts'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), unique=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     is_active = db.Column(db.Boolean, default=False)  # Muss von Praxis aktiviert werden
     is_verified = db.Column(db.Boolean, default=False)
     last_login = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('portal_account', uselist=False))
 
@@ -1883,13 +1889,14 @@ class PortalMessage(db.Model):
     """Nachrichten zwischen Patient und Praxis"""
     __tablename__ = 'portal_messages'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     sender_type = db.Column(db.String(10), nullable=False)  # patient, practice
     sender_name = db.Column(db.String(200))
     subject = db.Column(db.String(500))
     body = db.Column(db.Text, nullable=False)
     read_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('portal_messages', lazy='dynamic'))
 
@@ -1898,6 +1905,7 @@ class OnlineBookingRequest(db.Model):
     """Online-Buchungsanfragen ueber das Patientenportal"""
     __tablename__ = 'online_booking_requests'
     id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))
     preferred_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
@@ -1906,7 +1914,7 @@ class OnlineBookingRequest(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, confirmed, rejected
     appointment_id = db.Column(db.Integer, db.ForeignKey('appointments.id'), nullable=True)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('booking_requests', lazy='dynamic'))
     template = db.relationship('TreatmentSeriesTemplate', backref='booking_requests')
@@ -1930,8 +1938,8 @@ class InvoiceCopyConfig(db.Model):
     email_template_id = db.Column(db.Integer, db.ForeignKey('email_templates.id'), nullable=True)
     sender_email = db.Column(db.String(200))
     create_task_on_failure = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class InvoiceCopy(db.Model):
@@ -1951,7 +1959,7 @@ class InvoiceCopy(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, sent, failed
     error_message = db.Column(db.Text)
     pdf_path = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Beziehungen
     invoice = db.relationship('Invoice', backref=db.backref('copies', lazy='dynamic'))
@@ -1974,8 +1982,8 @@ class Questionnaire(db.Model):
     is_portal_visible = db.Column(db.Boolean, default=True)  # Im Portal sichtbar
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class QuestionnaireResponse(db.Model):
@@ -1994,7 +2002,7 @@ class QuestionnaireResponse(db.Model):
     score = db.Column(db.Numeric(10, 2), nullable=True)  # Berechneter Score
     completed_at = db.Column(db.DateTime, nullable=True)
     completed_via = db.Column(db.String(20), default='praxis')  # portal, praxis
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Beziehungen
     questionnaire = db.relationship('Questionnaire', backref=db.backref('responses', lazy='dynamic'))
@@ -2019,7 +2027,7 @@ class GroupAppointmentParticipant(db.Model):
     series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'), nullable=True)
     status = db.Column(db.String(20), default='scheduled')  # scheduled, attended, no_show, cancelled
     notes = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Beziehungen
     patient = db.relationship('Patient')
@@ -2037,8 +2045,8 @@ class EmployeeGroup(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     user_rights_json = db.Column(db.Text)  # JSON: Gruppen-Berechtigungen
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class EmployeeGroupMember(db.Model):
@@ -2046,7 +2054,7 @@ class EmployeeGroupMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('employee_groups.id'), nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     group = db.relationship('EmployeeGroup', backref='members')
     employee = db.relationship('Employee', backref='group_memberships')
@@ -2074,7 +2082,7 @@ class VacationRequest(db.Model):
     declined_date = db.Column(db.DateTime)
     declined_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     decline_reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', foreign_keys=[employee_id], backref='vacation_requests')
     approved_by = db.relationship('Employee', foreign_keys=[approved_by_id])
@@ -2098,8 +2106,8 @@ class VacationAllotment(db.Model):
     pensum_details_json = db.Column(db.Text)  # JSON
     allotments_json = db.Column(db.Text)  # JSON: Betraege pro Template
     comments = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     employee = db.relationship('Employee', backref='vacation_allotments')
 
@@ -2131,8 +2139,8 @@ class TreatmentPlan(db.Model):
     finished_reason = db.Column(db.Text)
     flag_alerts_json = db.Column(db.Text)  # JSON
     is_deleted = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref='treatment_plans')
     series = db.relationship('TreatmentSeries', backref='treatment_plans')
@@ -2159,7 +2167,7 @@ class TreatmentPhase(db.Model):
     end_date = db.Column(db.Date)
     finished_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     check_states_json = db.Column(db.Text)  # JSON
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     finished_by = db.relationship('Employee')
 
@@ -2179,7 +2187,7 @@ class Assessment(db.Model):
     execution_count = db.Column(db.Integer)
     start_phase_id = db.Column(db.Integer, db.ForeignKey('treatment_phases.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     created_by = db.relationship('Employee')
     results = db.relationship('AssessmentResult', backref='assessment', cascade='all, delete-orphan')
@@ -2194,7 +2202,7 @@ class AssessmentResult(db.Model):
     calculated_value = db.Column(db.Numeric(10, 2))
     sent_by_mail = db.Column(db.DateTime)
     created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     created_by = db.relationship('Employee')
 
@@ -2211,6 +2219,6 @@ class SubscriptionBreak(db.Model):
     end_date = db.Column(db.Date, nullable=False)
     reason = db.Column(db.Text)
     price = db.Column(db.Numeric(10, 2))  # Erstattung
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     subscription = db.relationship('Subscription', backref='breaks')

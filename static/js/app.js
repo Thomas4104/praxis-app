@@ -208,7 +208,7 @@ function openModal(modalId) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
         // Focus Trap aktivieren
-        trapFocus(modal);
+        modal._trapHandler = trapFocus(modal);
         // Erstes fokussierbares Element fokussieren
         var firstFocusable = modal.querySelector('button, [href], input, select, textarea');
         if (firstFocusable) firstFocusable.focus();
@@ -223,6 +223,10 @@ function openModal(modalId) {
 function closeModal(modalId) {
     var modal = document.getElementById(modalId);
     if (modal) {
+        if (modal._trapHandler) {
+            modal.removeEventListener('keydown', modal._trapHandler);
+            delete modal._trapHandler;
+        }
         modal.classList.remove('active');
         document.body.style.overflow = '';
         if (modal._escHandler) {
@@ -301,11 +305,11 @@ function trapFocus(modal) {
     var focusable = modal.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    if (focusable.length === 0) return;
+    if (focusable.length === 0) return null;
     var first = focusable[0];
     var last = focusable[focusable.length - 1];
 
-    modal.addEventListener('keydown', function (e) {
+    var handler = function (e) {
         if (e.key !== 'Tab') return;
         if (e.shiftKey) {
             if (document.activeElement === first) {
@@ -318,7 +322,9 @@ function trapFocus(modal) {
                 first.focus();
             }
         }
-    });
+    };
+    modal.addEventListener('keydown', handler);
+    return handler;
 }
 
 // === Command Palette (Cmd+K / Ctrl+K) ===

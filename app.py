@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime, timedelta, date, time
-from flask import Flask, session, render_template, current_app
+from flask import Flask, session, render_template, current_app, request, jsonify
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
@@ -29,7 +29,11 @@ from config import config
 login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
-limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per minute", "5000 per hour"],
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://')
+)
 
 
 def create_app(config_name=None):
@@ -172,6 +176,12 @@ def create_app(config_name=None):
     @app.errorhandler(403)
     def forbidden(e):
         return render_template('errors/403.html'), 403
+
+    @app.errorhandler(429)
+    def too_many_requests(e):
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return jsonify(error='Zu viele Anfragen. Bitte warten Sie einen Moment.'), 429
+        return render_template('errors/429.html'), 429
 
     # Datenbank erstellen und Demo-Daten laden
     with app.app_context():

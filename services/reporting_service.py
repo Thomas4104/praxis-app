@@ -1365,34 +1365,50 @@ def _kpi_billing(org_id, date_from, date_to, location_id=None, employee_id=None)
 
 
 def _kpi_utilization(org_id, date_from, date_to, location_id=None, employee_id=None):
-    """Auslastungs-KPIs (Cenplex: KpicontrollingDto)"""
+    """Auslastungs-KPIs (Cenplex: KpicontrollingDto) - optimiert"""
+    from models import Appointment, Employee, WorkSchedule
+
     employees_query = Employee.query.filter_by(organization_id=org_id, is_active=True)
     if employee_id:
         employees_query = employees_query.filter_by(id=employee_id)
     employees = employees_query.all()
 
+    if not employees:
+        return {'employees': [], 'avg_utilization': 0, 'total_planned_hours': 0, 'total_actual_hours': 0}
+
+    emp_ids = [e.id for e in employees]
+
+    # Alle WorkSchedules und Appointments auf einmal laden
+    all_schedules = WorkSchedule.query.filter(
+        WorkSchedule.employee_id.in_(emp_ids)
+    ).all()
+    schedules_by_emp = {}
+    for s in all_schedules:
+        schedules_by_emp.setdefault(s.employee_id, []).append(s)
+
+    all_appts = Appointment.query.filter(
+        Appointment.employee_id.in_(emp_ids),
+        Appointment.start_time >= date_from,
+        Appointment.start_time <= date_to,
+        Appointment.status.in_(['completed', 'scheduled'])
+    ).all()
+    appts_by_emp = {}
+    for a in all_appts:
+        appts_by_emp.setdefault(a.employee_id, []).append(a)
+
+    days = (date_to - date_from).days if hasattr(date_to, 'days') else (date_to - date_from).days
+    weeks = max(1, days / 7)
+
     utilization = []
     for emp in employees:
-        # Geplante Arbeitszeit berechnen
-        schedules = WorkSchedule.query.filter_by(employee_id=emp.id).all()
+        schedules = schedules_by_emp.get(emp.id, [])
         planned_minutes_per_week = sum(
-            (datetime.combine(date.today(), s.end_time) - datetime.combine(date.today(), s.start_time)).seconds / 60
+            max(0, (datetime.combine(date.today(), s.end_time) - datetime.combine(date.today(), s.start_time)).total_seconds() / 60)
             for s in schedules if s.work_type in ('treatment', 'regular')
         )
-
-        # Anzahl Wochen im Zeitraum
-        days = (date_to - date_from).days
-        weeks = max(1, days / 7)
         total_planned = planned_minutes_per_week * weeks
 
-        # Tatsaechliche Behandlungszeit
-        appts = Appointment.query.filter(
-            Appointment.employee_id == emp.id,
-            Appointment.start_time >= date_from,
-            Appointment.start_time <= date_to,
-            Appointment.status.in_(['completed', 'scheduled'])
-        ).all()
-
+        appts = appts_by_emp.get(emp.id, [])
         total_actual = sum(a.duration_minutes or 30 for a in appts)
 
         rate = (total_actual / total_planned * 100) if total_planned > 0 else 0
