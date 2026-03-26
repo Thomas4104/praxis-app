@@ -40,7 +40,8 @@ DEFAULT_RIGHTS = {
 }
 
 # Admin hat alle Rechte
-ADMIN_RIGHTS = {key: {k: True if isinstance(v, bool) else v for k, v in val.items()}
+ADMIN_RIGHTS = {key: {k: True if isinstance(v, bool) else (['*'] if isinstance(v, list) else v)
+                      for k, v in val.items()}
                 if isinstance(val, dict) else val
                 for key, val in DEFAULT_RIGHTS.items()}
 ADMIN_RIGHTS['version'] = 1

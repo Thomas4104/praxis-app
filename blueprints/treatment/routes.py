@@ -1,7 +1,7 @@
 """Routen fuer Behandlungsplan und Serien-Verwaltung"""
 import json
 from datetime import datetime, date
-from flask import render_template, request, jsonify, redirect, url_for, flash
+from flask import render_template, request, jsonify, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from models import (db, TreatmentSeries, TreatmentSeriesTemplate, Appointment,
                     Patient, Employee, Doctor, Location, InsuranceProvider,
@@ -915,9 +915,15 @@ def add_phase(plan_id):
 @login_required
 def complete_phase(plan_id, phase_id):
     """Phase als abgeschlossen markieren"""
-    from models import TreatmentPhase
+    from models import TreatmentPhase, TreatmentPlan
+    from utils.auth import check_org
 
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
     phase = TreatmentPhase.query.get_or_404(phase_id)
+    if phase.treatment_plan_id != plan_id:
+        abort(404)
     phase.end_date = datetime.now().date()
     phase.finished_by_id = current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None
     db.session.commit()
@@ -953,7 +959,12 @@ def add_assessment(plan_id):
 @login_required
 def add_assessment_result(plan_id, assessment_id):
     """Ergebnis zu Assessment hinzufuegen"""
-    from models import AssessmentResult
+    from models import AssessmentResult, TreatmentPlan
+    from utils.auth import check_org
+
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
 
     result = AssessmentResult(
         assessment_id=assessment_id,

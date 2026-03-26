@@ -1,7 +1,7 @@
 """Kalender-Blueprint: Tages-, Wochen-, Monatsansicht und API-Endpunkte"""
 import json
 from datetime import datetime, date, time, timedelta
-from flask import render_template, request, jsonify, redirect, url_for
+from flask import render_template, request, jsonify, redirect, url_for, abort
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload, selectinload
 from models import db, Appointment, Employee, Patient, Location, Resource, \
@@ -725,6 +725,13 @@ def schedule_suggestions():
     from services.scheduling_service import schedule_series_appointments
     data = request.get_json()
 
+    if data.get('series_id'):
+        from models import TreatmentSeries
+        series = TreatmentSeries.query.get(data['series_id'])
+        if series and series.patient:
+            if series.patient.organization_id != current_user.organization_id:
+                abort(403)
+
     suggestions = schedule_series_appointments(
         series_id=data.get('series_id'),
         total_appointments=data.get('total_appointments', 9),
@@ -767,7 +774,9 @@ def waitlist_suggestions(appointment_id):
 def toggle_waitlist(id):
     """Termin auf/von Warteliste setzen"""
     appointment = Appointment.query.get_or_404(id)
-    check_org(appointment)
+    if appointment.employee:
+        if appointment.employee.organization_id != current_user.organization_id:
+            abort(403)
     appointment.is_on_waitlist = not appointment.is_on_waitlist
     db.session.commit()
     return jsonify({'success': True, 'is_on_waitlist': appointment.is_on_waitlist})

@@ -308,8 +308,8 @@ def import_payments(file_content, file_type, organization_id):
             )
             db.session.add(payment)
             # Rechnungsbetrag aktualisieren
-            invoice.amount_paid = float(invoice.amount_paid or 0) + payment_data['amount']
-            invoice.amount_open = float(invoice.amount_total or 0) - float(invoice.amount_paid or 0)
+            invoice.amount_paid = round(float(invoice.amount_paid or 0) + payment_data['amount'], 2)
+            invoice.amount_open = round(float(invoice.amount_total or 0) - float(invoice.amount_paid or 0), 2)
             if invoice.amount_open <= 0:
                 invoice.status = 'paid'
                 invoice.paid_at = datetime.utcnow()
@@ -331,7 +331,11 @@ def import_payments(file_content, file_type, organization_id):
         })
 
     if matched > 0:
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            return {'error': 'Datenbankfehler beim Speichern', 'imported': 0, 'matched': 0, 'unmatched': 0}
 
     return {
         'error': None,

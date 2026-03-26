@@ -261,6 +261,9 @@ def run_depreciation(org_id, depreciation_date=None, created_by_id=None):
         if asset.current_book_value <= 0:
             continue
 
+        if not asset.useful_life_years or asset.useful_life_years <= 0:
+            continue
+
         if asset.depreciation_method == 'linear':
             annual = asset.acquisition_value / asset.useful_life_years
         else:  # degressiv (doppelte lineare Rate)

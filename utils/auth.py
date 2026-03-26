@@ -4,11 +4,11 @@ from flask_login import current_user
 
 
 def check_org(obj):
-    """Prueft ob ein Objekt zur Organisation des aktuellen Users gehoert.
-    Bricht mit 403 ab wenn nicht."""
-    if hasattr(obj, 'organization_id') and obj.organization_id:
-        if obj.organization_id != current_user.organization_id:
-            abort(403)
+    """Prueft ob ein Objekt zur Organisation des aktuellen Users gehoert."""
+    if not hasattr(obj, 'organization_id'):
+        return
+    if obj.organization_id != current_user.organization_id:
+        abort(403)
 
 
 def get_org_id():

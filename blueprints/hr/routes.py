@@ -1,6 +1,6 @@
 """HR und Lohnbuchhaltung - Routen"""
 from datetime import datetime, date, time, timedelta
-from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort
 from flask_login import login_required, current_user
 from blueprints.hr import hr_bp
 from models import db, Employee, User, EmployeeContract, EmployeeSalary, EmployeeChild, \
@@ -766,6 +766,10 @@ def create_vacation_request():
         netto_days=float(request.form.get('netto_days', 0)) if request.form.get('netto_days') else None,
         netto_hours=float(request.form.get('netto_hours', 0)) if request.form.get('netto_hours') else None
     )
+    from models import Employee as Emp
+    emp_check = Emp.query.get(vr.employee_id)
+    if not emp_check or emp_check.organization_id != current_user.organization_id:
+        abort(403)
     db.session.add(vr)
     db.session.commit()
 
@@ -778,6 +782,8 @@ def create_vacation_request():
 def approve_vacation(id):
     """Urlaubsantrag genehmigen"""
     vr = VacationRequest.query.get_or_404(id)
+    if vr.organization_id != current_user.organization_id:
+        abort(403)
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
     vr.approved_date = datetime.utcnow()
@@ -804,6 +810,8 @@ def approve_vacation(id):
 def decline_vacation(id):
     """Urlaubsantrag ablehnen"""
     vr = VacationRequest.query.get_or_404(id)
+    if vr.organization_id != current_user.organization_id:
+        abort(403)
     employee = Employee.query.filter_by(user_id=current_user.id).first()
 
     vr.declined_date = datetime.utcnow()

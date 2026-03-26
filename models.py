@@ -523,7 +523,7 @@ class Resource(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    bookings = db.relationship('ResourceBooking', backref='resource', lazy='dynamic')
+    bookings = db.relationship('ResourceBooking', backref='resource', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class ProductPriceHistory(db.Model):
@@ -782,6 +782,7 @@ class Appointment(db.Model):
     resource_bookings = db.relationship('ResourceBooking', backref='appointment', lazy='dynamic')
     soap_updated_by = db.relationship('User', foreign_keys=[soap_updated_by_id])
     tariff_positions = db.relationship('AppointmentTariffPosition', backref='appointment', lazy='dynamic', cascade='all, delete-orphan')
+    cost_unit = db.relationship('Contact', foreign_keys=[cost_unit_id])
     group_participants = db.relationship('GroupAppointmentParticipant', backref='appointment', cascade='all, delete-orphan')
 
 
@@ -1039,7 +1040,7 @@ class CostApproval(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     extension_of = db.relationship('CostApproval', remote_side=[id], backref='extensions')
-    items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic')
+    items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic', cascade='all, delete-orphan')
     patient = db.relationship('Patient', backref='cost_approvals')
     insurance_provider = db.relationship('InsuranceProvider', backref='cost_approvals')
     doctor = db.relationship('Doctor', backref='cost_approvals')
@@ -1138,7 +1139,7 @@ class Email(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    attachments = db.relationship('EmailAttachment', backref='email', lazy='dynamic')
+    attachments = db.relationship('EmailAttachment', backref='email', lazy='dynamic', cascade='all, delete-orphan')
 
 
 class EmailAttachment(db.Model):

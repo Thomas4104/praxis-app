@@ -1,4 +1,5 @@
 """Lohnberechnungs-Service fuer Schweizer Lohnbuchhaltung"""
+import json
 from datetime import date, datetime
 from models import db, Employee, EmployeeSalary, EmployeeChild, Payslip, PayrollRun, \
     Expense, TimeEntry, OvertimeAccount, JournalEntry, JournalEntryLine, Account, User
@@ -59,8 +60,8 @@ def calculate_payslip(employee, month, year, bonus=0):
     # 2. 13. Monatslohn-Anteil (1/12)
     thirteenth_month = 0
     if salary.thirteenth_month:
-        annual_salary = salary.amount * 12 * pensum_factor if salary.salary_type == 'monthly' else gross_salary * 12
-        thirteenth_month = round(annual_salary / 12 / 12, 2)  # 1/12 pro Monat
+        annual_salary = salary.amount * 12 * pensum_factor if salary.salary_type == 'monthly' else gross_salary
+        thirteenth_month = round(annual_salary / 12, 2)  # 1/12 pro Monat
 
     # 3. Kinderzulagen
     children = EmployeeChild.query.filter_by(employee_id=employee.id).all()
@@ -238,7 +239,7 @@ def create_payroll_run(org_id, year, month, employee_ids=None):
             employer_fak=data['employer_fak'],
             employer_vk=data['employer_vk'],
             employer_total=data['employer_total'],
-            details_json=str(data)
+            details_json=json.dumps(data, default=str, ensure_ascii=False)
         )
         db.session.add(payslip)
         total_gross += data['gross_total']

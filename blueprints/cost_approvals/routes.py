@@ -144,8 +144,8 @@ def create():
         organization_id=current_user.organization_id, is_active=True
     ).order_by(Patient.last_name).all()
 
-    insurances = InsuranceProvider.query.filter_by(is_active=True).all()
-    doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.last_name).all()
+    insurances = InsuranceProvider.query.filter_by(organization_id=current_user.organization_id, is_active=True).all()
+    doctors = Doctor.query.filter_by(organization_id=current_user.organization_id, is_active=True).order_by(Doctor.last_name).all()
     employees = Employee.query.filter_by(
         organization_id=current_user.organization_id, is_active=True
     ).all()
@@ -199,8 +199,8 @@ def record_response(id):
     data = request.get_json()
 
     result = data.get('result')  # approved, partially_approved, rejected
-    approved_sessions = data.get('approved_sessions', type=int)
-    approved_amount = data.get('approved_amount', type=float)
+    approved_sessions = int(data.get('approved_sessions')) if data.get('approved_sessions') is not None else None
+    approved_amount = float(data.get('approved_amount')) if data.get('approved_amount') is not None else None
     valid_until = data.get('valid_until', '')
     rejection_reason = data.get('rejection_reason', '')
     response_notes = data.get('response_notes', '')

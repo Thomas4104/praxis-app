@@ -239,7 +239,7 @@ def calculate_invoice_from_tariff_positions(series_id, org_id):
     from models import AppointmentTariffPosition
 
     series = TreatmentSeries.query.get(series_id)
-    if not series or series.patient.organization_id != org_id:
+    if not series or not series.patient or series.patient.organization_id != org_id:
         return None, 'Serie nicht gefunden'
 
     # Alle abrechnbaren Termine (completed + appeared + charge_despite_cancel)

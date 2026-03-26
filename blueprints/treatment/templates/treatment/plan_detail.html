@@ -4,12 +4,12 @@
 
 {% block breadcrumbs %}
 <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
-<span class="breadcrumb-separator">/</span>
+<span class="breadcrumb-sep">/</span>
 <a href="{{ url_for('treatment.index') }}">Behandlung</a>
-<span class="breadcrumb-separator">/</span>
+<span class="breadcrumb-sep">/</span>
 {% if plan.series %}
 <a href="{{ url_for('treatment.serie_detail', serie_id=plan.series_id) }}">Serie #{{ plan.series_id }}</a>
-<span class="breadcrumb-separator">/</span>
+<span class="breadcrumb-sep">/</span>
 {% endif %}
 <span>Behandlungsplan</span>
 {% endblock %}

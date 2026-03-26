@@ -117,7 +117,9 @@ def resolve_placeholders(template_text, context):
 
         lines = []
         for appt in appointments:
-            line = f"{appt.start_time.strftime('%a %d.%m.%Y %H:%M')} - {appt.end_time.strftime('%H:%M')}"
+            line = f"{appt.start_time.strftime('%a %d.%m.%Y %H:%M')}"
+            if appt.end_time:
+                line += f" - {appt.end_time.strftime('%H:%M')}"
             if appt.employee and appt.employee.user:
                 line += f" ({appt.employee.user.first_name} {appt.employee.user.last_name})"
             lines.append(line)
