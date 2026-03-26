@@ -236,6 +236,7 @@ def cancel_approval(id):
     """Gutsprache stornieren"""
     gutsprache = CostApproval.query.get_or_404(id)
     check_org(gutsprache)
+    gutsprache.is_storno = True
     gutsprache.status = 'cancelled'
     db.session.commit()
     return jsonify({'success': True, 'message': 'Gutsprache wurde storniert.'})
@@ -285,6 +286,46 @@ def patient_series(patient_id):
             'prescription_type': s.prescription_type or ''
         })
     return jsonify({'series': result})
+
+
+@cost_approvals_bp.route('/detail/<int:id>/extend', methods=['POST'])
+@login_required
+def extend_approval(id):
+    """Kostengutsprache verlaengern (Cenplex: Extension)"""
+    original = CostApproval.query.get_or_404(id)
+    check_org(original)
+
+    extension = CostApproval(
+        organization_id=current_user.organization_id,
+        series_id=original.series_id,
+        patient_id=original.patient_id,
+        insurance_provider_id=original.insurance_provider_id,
+        doctor_id=original.doctor_id,
+        therapist_id=original.therapist_id,
+        diagnosis_code=original.diagnosis_code,
+        diagnosis_text=original.diagnosis_text,
+        prescription_date=original.prescription_date,
+        prescription_type=original.prescription_type,
+        justification=request.form.get('justification', original.justification),
+        requested_sessions=int(request.form.get('requested_sessions', original.requested_sessions or 9)),
+        total_amount=float(request.form.get('total_amount', 0)) if request.form.get('total_amount') else None,
+        status='draft',
+        requested_date=date.today(),
+        extension_of_id=id
+    )
+
+    # Naechste Gutsprache-Nummer generieren
+    last = CostApproval.query.filter_by(
+        organization_id=current_user.organization_id
+    ).order_by(CostApproval.id.desc()).first()
+    next_nr = (last.id + 1) if last else 1
+    extension.approval_number = f'GS-{date.today().year}-{next_nr:04d}'
+
+    db.session.add(extension)
+    db.session.commit()
+
+    flash('Verlaengerung erstellt.', 'success')
+    return redirect(url_for('cost_approvals.detail', id=extension.id))
 
 
 @cost_approvals_bp.route('/api/patient/<int:patient_id>/insurance')

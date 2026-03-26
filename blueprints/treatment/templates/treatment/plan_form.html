@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Behandlungsplan erstellen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}">Serie #{{ series.id }}</a>
+<span class="breadcrumb-separator">/</span>
+<span>Behandlungsplan erstellen</span>
+{% endblock %}
+
+{% block page_title %}Behandlungsplan erstellen{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}" class="btn btn-outline">Zurueck zur Serie</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+<style>
+    .plan-form { max-width: 900px; }
+    .plan-form .form-row { display: flex; gap: 1rem; margin-bottom: 1rem; }
+    .plan-form .form-row .form-group { flex: 1; }
+    .phase-list { margin-top: 0.5rem; }
+    .phase-row { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-secondary, #f8f9fa); border-radius: 6px; }
+    .phase-row .form-group { margin-bottom: 0; }
+    .phase-row .phase-title { flex: 3; }
+    .phase-row .phase-duration { flex: 1; min-width: 100px; }
+    .phase-row .btn-remove { flex-shrink: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="plan-form">
+    <form method="POST" action="{{ url_for('treatment.create_plan', series_id=series.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Grunddaten -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Grunddaten</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="title">Titel</label>
+                        <input type="text" id="title" name="title" class="form-control"
+                               value="{{ series.title or series.diagnosis_text or '' }}"
+                               placeholder="Titel des Behandlungsplans">
+                    </div>
+                    <div class="form-group">
+                        <label for="start_date">Startdatum</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control"
+                               value="{{ today if today else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="diagnosis">Diagnose</label>
+                    <textarea id="diagnosis" name="diagnosis" class="form-control" rows="3"
+                              placeholder="Diagnose beschreiben">{{ series.diagnosis_text or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="hypothesis">Arbeitshypothese</label>
+                    <textarea id="hypothesis" name="hypothesis" class="form-control" rows="3"
+                              placeholder="Arbeitshypothese formulieren"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="affected_side">Betroffene Seite</label>
+                        <select id="affected_side" name="affected_side" class="form-control">
+                            <option value="0">Bilateral</option>
+                            <option value="1">Rechts</option>
+                            <option value="2">Links</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="icd_codes">ICD-10 Codes</label>
+                        <input type="text" id="icd_codes" name="icd_codes" class="form-control"
+                               value="{{ series.diagnosis_code or '' }}"
+                               placeholder="z.B. M54.5, S83.5">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="responsible_id">Verantwortlicher Therapeut</label>
+                        <select id="responsible_id" name="responsible_id" class="form-control">
+                            <option value="">-- Therapeut waehlen --</option>
+                            {% for emp in employees %}
+                            <option value="{{ emp.id }}" {% if series.therapist_id == emp.id %}selected{% endif %}>
+                                {{ emp.user.first_name if emp.user else '' }} {{ emp.user.last_name if emp.user else 'MA ' ~ emp.id }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="physician_id">Zuweisender Arzt</label>
+                        <select id="physician_id" name="physician_id" class="form-control">
+                            <option value="">-- Arzt waehlen (optional) --</option>
+                            {% for doc in doctors %}
+                            <option value="{{ doc.id }}">
+                                {{ doc.first_name }} {{ doc.last_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phasen -->
+        <div class="card" style="margin-top: 1.5rem;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Behandlungsphasen</h3>
+                <button type="button" class="btn btn-sm btn-outline" onclick="addPhaseRow()">+ Phase hinzufuegen</button>
+            </div>
+            <div class="card-body">
+                <p style="color: var(--text-secondary, #6c757d); margin-bottom: 1rem;">
+                    Definieren Sie die einzelnen Phasen des Behandlungsplans (z.B. Akutphase, Aufbauphase, Stabilisierung).
+                </p>
+                <div id="phaseContainer" class="phase-list">
+                    <!-- Standardmaessig eine Phase -->
+                    <div class="phase-row" id="phase-0">
+                        <div class="form-group phase-title">
+                            <input type="text" name="phase_title[]" class="form-control" placeholder="Phasenbezeichnung (z.B. Akutphase)">
+                        </div>
+                        <div class="form-group phase-duration">
+                            <input type="number" name="phase_duration[]" class="form-control" placeholder="Tage" min="1">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger btn-remove" onclick="removePhaseRow(this)">Entfernen</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aktionen -->
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+            <a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}" class="btn btn-outline">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">Behandlungsplan erstellen</button>
+        </div>
+    </form>
+</div>
+
+<script>
+let phaseCount = 1;
+
+function addPhaseRow() {
+    const container = document.getElementById('phaseContainer');
+    const row = document.createElement('div');
+    row.className = 'phase-row';
+    row.id = 'phase-' + phaseCount;
+    row.innerHTML = `
+        <div class="form-group phase-title">
+            <input type="text" name="phase_title[]" class="form-control" placeholder="Phasenbezeichnung">
+        </div>
+        <div class="form-group phase-duration">
+            <input type="number" name="phase_duration[]" class="form-control" placeholder="Tage" min="1">
+        </div>
+        <button type="button" class="btn btn-sm btn-danger btn-remove" onclick="removePhaseRow(this)">Entfernen</button>
+    `;
+    container.appendChild(row);
+    phaseCount++;
+}
+
+function removePhaseRow(btn) {
+    const row = btn.closest('.phase-row');
+    const container = document.getElementById('phaseContainer');
+    if (container.children.length > 1) {
+        row.remove();
+    } else {
+        // Letzte Zeile nur leeren, nicht entfernen
+        row.querySelectorAll('input').forEach(input => input.value = '');
+    }
+}
+
+// Startdatum auf heute setzen falls leer
+document.addEventListener('DOMContentLoaded', function() {
+    const startDate = document.getElementById('start_date');
+    if (!startDate.value) {
+        startDate.value = new Date().toISOString().split('T')[0];
+    }
+});
+</script>
+{% endblock %}

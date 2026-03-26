@@ -797,6 +797,177 @@ def api_tariff_position_delete(position_id):
     return jsonify({'message': 'Position geloescht'})
 
 
+# ============================================================
+# Behandlungsplan (Cenplex: TreatmentPlan)
+# ============================================================
+
+@treatment_bp.route('/plan/create/<int:series_id>', methods=['GET', 'POST'])
+@login_required
+def create_plan(series_id):
+    """Neuen Behandlungsplan fuer eine Serie erstellen"""
+    from models import TreatmentSeries, TreatmentPlan, TreatmentPhase, Employee, Contact
+    from utils.auth import check_org, get_org_id
+
+    series = TreatmentSeries.query.get_or_404(series_id)
+    check_org(series.patient)
+
+    if request.method == 'POST':
+        plan = TreatmentPlan(
+            organization_id=get_org_id(),
+            patient_id=series.patient_id,
+            series_id=series_id,
+            location_id=series.location_id,
+            responsible_id=int(request.form.get('responsible_id')) if request.form.get('responsible_id') else series.therapist_id,
+            created_by_id=current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None,
+            title=request.form.get('title', series.title or ''),
+            diagnosis=request.form.get('diagnosis', ''),
+            hypothesis=request.form.get('hypothesis', ''),
+            affected_side=int(request.form.get('affected_side', 0)),
+            icd_codes_json=request.form.get('icd_codes', ''),
+            start_date=datetime.strptime(request.form['start_date'], '%Y-%m-%d').date() if request.form.get('start_date') else datetime.now().date()
+        )
+        db.session.add(plan)
+        db.session.flush()
+
+        # Phasen erstellen falls angegeben
+        phase_titles = request.form.getlist('phase_title[]')
+        phase_durations = request.form.getlist('phase_duration[]')
+        for i, title in enumerate(phase_titles):
+            if title.strip():
+                phase = TreatmentPhase(
+                    treatment_plan_id=plan.id,
+                    title=title,
+                    position=i + 1,
+                    default_duration_days=int(phase_durations[i]) if i < len(phase_durations) and phase_durations[i] else None
+                )
+                db.session.add(phase)
+
+        db.session.commit()
+        flash('Behandlungsplan erstellt.', 'success')
+        return redirect(url_for('treatment.plan_detail', plan_id=plan.id))
+
+    employees = Employee.query.filter_by(organization_id=get_org_id(), is_active=True).all()
+    doctors = Contact.query.filter_by(organization_id=get_org_id(), contact_type='doctor').all()
+
+    return render_template('treatment/plan_form.html',
+                          series=series,
+                          patient=series.patient,
+                          employees=employees,
+                          doctors=doctors)
+
+
+@treatment_bp.route('/plan/detail/<int:plan_id>')
+@login_required
+def plan_detail(plan_id):
+    """Behandlungsplan-Detail mit Phasen und Assessments"""
+    from models import TreatmentPlan, TreatmentPhase, Assessment, AssessmentResult, TherapyGoal, Measurement
+    from utils.auth import check_org
+
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    check_org(plan)
+
+    phases = TreatmentPhase.query.filter_by(treatment_plan_id=plan_id).order_by(TreatmentPhase.position).all()
+    assessments = Assessment.query.filter_by(treatment_plan_id=plan_id).all()
+    goals = TherapyGoal.query.filter_by(series_id=plan.series_id).order_by(TherapyGoal.created_at).all() if plan.series_id else []
+    measurements = Measurement.query.filter_by(series_id=plan.series_id).order_by(Measurement.measured_at.desc()).all() if plan.series_id else []
+
+    # Phasen-Fortschritt berechnen
+    total_phases = len(phases)
+    completed_phases = sum(1 for p in phases if p.end_date and p.finished_by_id)
+    phase_progress = int(completed_phases / total_phases * 100) if total_phases > 0 else 0
+
+    return render_template('treatment/plan_detail.html',
+                          plan=plan,
+                          phases=phases,
+                          assessments=assessments,
+                          goals=goals,
+                          measurements=measurements,
+                          phase_progress=phase_progress)
+
+
+@treatment_bp.route('/plan/<int:plan_id>/phase', methods=['POST'])
+@login_required
+def add_phase(plan_id):
+    """Phase zu Behandlungsplan hinzufuegen"""
+    from models import TreatmentPlan, TreatmentPhase
+    from utils.auth import check_org
+
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    check_org(plan)
+
+    max_pos = db.session.query(db.func.max(TreatmentPhase.position)).filter_by(treatment_plan_id=plan_id).scalar() or 0
+
+    phase = TreatmentPhase(
+        treatment_plan_id=plan_id,
+        title=request.form.get('title', 'Neue Phase'),
+        position=max_pos + 1,
+        default_duration_days=int(request.form.get('duration_days', 14)),
+        start_date=datetime.strptime(request.form['start_date'], '%Y-%m-%d').date() if request.form.get('start_date') else None
+    )
+    db.session.add(phase)
+    db.session.commit()
+
+    flash('Phase hinzugefuegt.', 'success')
+    return redirect(url_for('treatment.plan_detail', plan_id=plan_id))
+
+
+@treatment_bp.route('/plan/<int:plan_id>/phase/<int:phase_id>/complete', methods=['POST'])
+@login_required
+def complete_phase(plan_id, phase_id):
+    """Phase als abgeschlossen markieren"""
+    from models import TreatmentPhase
+
+    phase = TreatmentPhase.query.get_or_404(phase_id)
+    phase.end_date = datetime.now().date()
+    phase.finished_by_id = current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None
+    db.session.commit()
+
+    flash('Phase abgeschlossen.', 'success')
+    return redirect(url_for('treatment.plan_detail', plan_id=plan_id))
+
+
+@treatment_bp.route('/plan/<int:plan_id>/assessment', methods=['POST'])
+@login_required
+def add_assessment(plan_id):
+    """Assessment zu Behandlungsplan hinzufuegen"""
+    from models import TreatmentPlan, Assessment
+    from utils.auth import check_org
+
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    check_org(plan)
+
+    assessment = Assessment(
+        treatment_plan_id=plan_id,
+        title=request.form.get('title', ''),
+        assessment_type=int(request.form.get('assessment_type', 0)),
+        created_by_id=current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None
+    )
+    db.session.add(assessment)
+    db.session.commit()
+
+    flash('Assessment hinzugefuegt.', 'success')
+    return redirect(url_for('treatment.plan_detail', plan_id=plan_id))
+
+
+@treatment_bp.route('/plan/<int:plan_id>/assessment/<int:assessment_id>/result', methods=['POST'])
+@login_required
+def add_assessment_result(plan_id, assessment_id):
+    """Ergebnis zu Assessment hinzufuegen"""
+    from models import AssessmentResult
+
+    result = AssessmentResult(
+        assessment_id=assessment_id,
+        text_value=request.form.get('text_value', ''),
+        calculated_value=float(request.form.get('calculated_value')) if request.form.get('calculated_value') else None,
+        created_by_id=current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None
+    )
+    db.session.add(result)
+    db.session.commit()
+
+    flash('Ergebnis erfasst.', 'success')
+    return redirect(url_for('treatment.plan_detail', plan_id=plan_id))
+
+
 @treatment_bp.route('/api/tariff-codes')
 @login_required
 def api_tariff_codes():

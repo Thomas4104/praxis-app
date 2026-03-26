@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}Behandlungsplan: {{ plan.title or 'Ohne Titel' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('treatment.index') }}">Behandlung</a>
+<span class="breadcrumb-separator">/</span>
+{% if plan.series %}
+<a href="{{ url_for('treatment.serie_detail', serie_id=plan.series_id) }}">Serie #{{ plan.series_id }}</a>
+<span class="breadcrumb-separator">/</span>
+{% endif %}
+<span>Behandlungsplan</span>
+{% endblock %}
+
+{% block page_title %}{{ plan.title or 'Behandlungsplan' }}{% endblock %}
+
+{% block page_actions %}
+{% if plan.series %}
+<a href="{{ url_for('treatment.serie_detail', serie_id=plan.series_id) }}" class="btn btn-outline">Zurueck zur Serie</a>
+{% endif %}
+<a href="{{ url_for('treatment.treatment_plan', patient_id=plan.patient_id) }}" class="btn btn-outline">Patientenplan</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/treatment.css') }}">
+<style>
+    .plan-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .plan-detail-full { grid-column: 1 / -1; }
+
+    /* Fortschrittsbalken */
+    .progress-bar-container { background: var(--bg-secondary, #e9ecef); border-radius: 8px; height: 24px; overflow: hidden; position: relative; }
+    .progress-bar-fill { height: 100%; background: var(--primary, #0d6efd); border-radius: 8px; transition: width 0.4s ease; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.75rem; font-weight: 600; min-width: 2rem; }
+
+    /* Phasen-Timeline */
+    .phase-timeline { position: relative; padding-left: 2rem; }
+    .phase-timeline::before { content: ''; position: absolute; left: 0.75rem; top: 0; bottom: 0; width: 2px; background: var(--border-color, #dee2e6); }
+    .phase-item { position: relative; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary, #f8f9fa); border-radius: 8px; border-left: 3px solid var(--border-color, #dee2e6); }
+    .phase-item.phase-completed { border-left-color: var(--success, #198754); }
+    .phase-item.phase-active { border-left-color: var(--primary, #0d6efd); }
+    .phase-item::before { content: ''; position: absolute; left: -1.75rem; top: 1.25rem; width: 12px; height: 12px; border-radius: 50%; background: var(--border-color, #dee2e6); border: 2px solid #fff; }
+    .phase-item.phase-completed::before { background: var(--success, #198754); }
+    .phase-item.phase-active::before { background: var(--primary, #0d6efd); }
+    .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .phase-meta { font-size: 0.85rem; color: var(--text-secondary, #6c757d); }
+
+    /* Assessment-Liste */
+    .assessment-item { padding: 1rem; border: 1px solid var(--border-color, #dee2e6); border-radius: 8px; margin-bottom: 1rem; }
+    .assessment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .result-item { padding: 0.5rem 0.75rem; background: var(--bg-secondary, #f8f9fa); border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .result-meta { font-size: 0.8rem; color: var(--text-secondary, #6c757d); }
+
+    /* Info-Grid */
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+    .info-item label { font-size: 0.8rem; color: var(--text-secondary, #6c757d); display: block; margin-bottom: 0.25rem; }
+    .info-item .info-value { font-weight: 500; }
+
+    /* Ziele und Messungen */
+    .goal-item, .measurement-item { padding: 0.75rem 1rem; border-left: 3px solid var(--border-color, #dee2e6); margin-bottom: 0.75rem; background: var(--bg-secondary, #f8f9fa); border-radius: 0 6px 6px 0; }
+    .goal-item.goal-achieved { border-left-color: var(--success, #198754); }
+    .goal-item.goal-open { border-left-color: var(--primary, #0d6efd); }
+
+    @media (max-width: 768px) {
+        .plan-detail-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="plan-detail-grid">
+
+    <!-- Header-Card: Plandaten -->
+    <div class="card plan-detail-full">
+        <div class="card-header">
+            <h3>Plandetails</h3>
+            {% if plan.finished_date %}
+            <span class="badge badge-success">Abgeschlossen</span>
+            {% else %}
+            <span class="badge badge-info">Aktiv</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Patient</label>
+                    <div class="info-value">
+                        {% if plan.patient %}
+                        <a href="{{ url_for('patients.detail', patient_id=plan.patient_id) }}">
+                            {{ plan.patient.first_name }} {{ plan.patient.last_name }}
+                        </a>
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Verantwortlich</label>
+                    <div class="info-value">
+                        {% if plan.responsible and plan.responsible.user %}
+                            {{ plan.responsible.user.first_name }} {{ plan.responsible.user.last_name }}
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Zuweisender Arzt</label>
+                    <div class="info-value">
+                        {% if plan.physician %}
+                            {{ plan.physician.first_name }} {{ plan.physician.last_name }}
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Betroffene Seite</label>
+                    <div class="info-value">
+                        {% if plan.affected_side == 1 %}Rechts{% elif plan.affected_side == 2 %}Links{% else %}Bilateral{% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Startdatum</label>
+                    <div class="info-value">{{ plan.start_date.strftime('%d.%m.%Y') if plan.start_date else '-' }}</div>
+                </div>
+                <div class="info-item">
+                    <label>ICD-10 Codes</label>
+                    <div class="info-value">{{ plan.icd_codes_json or '-' }}</div>
+                </div>
+            </div>
+
+            {% if plan.diagnosis %}
+            <div style="margin-top: 1rem;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary, #6c757d);">Diagnose</label>
+                <p>{{ plan.diagnosis }}</p>
+            </div>
+            {% endif %}
+
+            {% if plan.hypothesis %}
+            <div style="margin-top: 0.75rem;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary, #6c757d);">Arbeitshypothese</label>
+                <p>{{ plan.hypothesis }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Fortschrittsbalken -->
+            <div style="margin-top: 1rem;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary, #6c757d);">Phasen-Fortschritt</label>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: {{ phase_progress }}%;">
+                        {{ phase_progress }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phasen-Timeline -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Phasen ({{ phases|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if phases %}
+            <div class="phase-timeline">
+                {% for phase in phases %}
+                <div class="phase-item {% if phase.end_date and phase.finished_by_id %}phase-completed{% elif loop.first or (phases[loop.index0 - 1].end_date if loop.index0 > 0 else True) %}phase-active{% endif %}">
+                    <div class="phase-header">
+                        <strong>{{ phase.position }}. {{ phase.title }}</strong>
+                        {% if phase.end_date and phase.finished_by_id %}
+                        <span class="badge badge-success">Abgeschlossen</span>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('treatment.complete_phase', plan_id=plan.id, phase_id=phase.id) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-outline" onclick="return confirm('Phase als abgeschlossen markieren?')">Abschliessen</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div class="phase-meta">
+                        {% if phase.default_duration_days %}Dauer: {{ phase.default_duration_days }} Tage{% endif %}
+                        {% if phase.start_date %} | Start: {{ phase.start_date.strftime('%d.%m.%Y') }}{% endif %}
+                        {% if phase.end_date %} | Ende: {{ phase.end_date.strftime('%d.%m.%Y') }}{% endif %}
+                        {% if phase.finished_by and phase.finished_by.user %}
+                            | Abgeschlossen von: {{ phase.finished_by.user.first_name }} {{ phase.finished_by.user.last_name }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: var(--text-secondary, #6c757d);">Noch keine Phasen definiert.</p>
+            {% endif %}
+
+            <!-- Phase hinzufuegen -->
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #dee2e6);">
+                <form method="POST" action="{{ url_for('treatment.add_phase', plan_id=plan.id) }}" style="display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">Neue Phase</label>
+                        <input type="text" name="title" class="form-control" placeholder="Phasenbezeichnung" required>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">Dauer (Tage)</label>
+                        <input type="number" name="duration_days" class="form-control" value="14" min="1">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">Startdatum</label>
+                        <input type="date" name="start_date" class="form-control">
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Hinzufuegen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assessments -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Assessments ({{ assessments|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if assessments %}
+            {% for assessment in assessments %}
+            <div class="assessment-item">
+                <div class="assessment-header">
+                    <strong>{{ assessment.title or 'Assessment' }}</strong>
+                    <span class="badge">
+                        {% if assessment.assessment_type == 1 %}Manuell{% elif assessment.assessment_type == 2 %}Automatisch{% else %}Standard{% endif %}
+                    </span>
+                </div>
+
+                <!-- Ergebnisse -->
+                {% if assessment.results %}
+                {% for result in assessment.results %}
+                <div class="result-item">
+                    {% if result.text_value %}{{ result.text_value }}{% endif %}
+                    {% if result.calculated_value is not none %}<strong>Wert: {{ result.calculated_value }}</strong>{% endif %}
+                    <div class="result-meta">
+                        {{ result.created_at.strftime('%d.%m.%Y %H:%M') if result.created_at else '' }}
+                        {% if result.created_by and result.created_by.user %}
+                            von {{ result.created_by.user.first_name }} {{ result.created_by.user.last_name }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="font-size: 0.9rem; color: var(--text-secondary, #6c757d);">Noch keine Ergebnisse.</p>
+                {% endif %}
+
+                <!-- Ergebnis hinzufuegen -->
+                <form method="POST" action="{{ url_for('treatment.add_assessment_result', plan_id=plan.id, assessment_id=assessment.id) }}"
+                      style="display: flex; gap: 0.5rem; margin-top: 0.75rem; align-items: flex-end;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="form-group" style="flex: 3; margin-bottom: 0;">
+                        <input type="text" name="text_value" class="form-control" placeholder="Ergebnis-Text">
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <input type="number" name="calculated_value" class="form-control" placeholder="Wert" step="0.01">
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline">Erfassen</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-secondary, #6c757d);">Noch keine Assessments erfasst.</p>
+            {% endif %}
+
+            <!-- Assessment hinzufuegen -->
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #dee2e6);">
+                <form method="POST" action="{{ url_for('treatment.add_assessment', plan_id=plan.id) }}" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">Neues Assessment</label>
+                        <input type="text" name="title" class="form-control" placeholder="Assessment-Titel" required>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">Typ</label>
+                        <select name="assessment_type" class="form-control">
+                            <option value="0">Standard</option>
+                            <option value="1">Manuell</option>
+                            <option value="2">Automatisch</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Hinzufuegen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Therapieziele -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Therapieziele ({{ goals|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if goals %}
+            {% for goal in goals %}
+            <div class="goal-item {% if goal.status == 'achieved' %}goal-achieved{% else %}goal-open{% endif %}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>{{ goal.description }}</strong>
+                    <span class="badge {% if goal.status == 'achieved' %}badge-success{% elif goal.status == 'in_progress' %}badge-info{% else %}badge-warning{% endif %}">
+                        {% if goal.status == 'achieved' %}Erreicht{% elif goal.status == 'in_progress' %}In Bearbeitung{% else %}Offen{% endif %}
+                    </span>
+                </div>
+                {% if goal.target_value or goal.current_value %}
+                <div style="font-size: 0.85rem; color: var(--text-secondary, #6c757d); margin-top: 0.25rem;">
+                    {% if goal.target_value %}Ziel: {{ goal.target_value }}{% endif %}
+                    {% if goal.current_value %} | Aktuell: {{ goal.current_value }}{% endif %}
+                    {% if goal.achievement_percent is not none %} | Erreichung: {{ goal.achievement_percent }}%{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-secondary, #6c757d);">Keine Therapieziele fuer diese Serie definiert.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Messwerte -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Messwerte ({{ measurements|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if measurements %}
+            {% for m in measurements %}
+            <div class="measurement-item">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>{{ m.name or m.measurement_type }}</strong>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary, #6c757d);">
+                        {{ m.measured_at.strftime('%d.%m.%Y') if m.measured_at else '' }}
+                    </span>
+                </div>
+                {% if m.unit %}
+                <div style="font-size: 0.85rem; color: var(--text-secondary, #6c757d);">Einheit: {{ m.unit }}</div>
+                {% endif %}
+                {% if m.notes %}
+                <div style="font-size: 0.85rem; margin-top: 0.25rem;">{{ m.notes }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <p style="color: var(--text-secondary, #6c757d);">Keine Messwerte fuer diese Serie erfasst.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

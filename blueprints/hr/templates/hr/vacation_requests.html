@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Urlaubsantraege{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('hr.index') }}">HR</a>
+<span class="breadcrumb-sep">/</span>
+<span>Urlaubsantraege</span>
+{% endblock %}
+
+{% block page_title %}Urlaubsantraege{% endblock %}
+
+{% block content %}
+<!-- Filter-Tabs -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="filter-tabs" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('hr.vacation_requests', status='pending') }}"
+           class="tab-btn {% if status_filter == 'pending' %}tab-active{% endif %}">
+            Offen
+        </a>
+        <a href="{{ url_for('hr.vacation_requests', status='approved') }}"
+           class="tab-btn {% if status_filter == 'approved' %}tab-active{% endif %}">
+            Genehmigt
+        </a>
+        <a href="{{ url_for('hr.vacation_requests', status='declined') }}"
+           class="tab-btn {% if status_filter == 'declined' %}tab-active{% endif %}">
+            Abgelehnt
+        </a>
+        <a href="{{ url_for('hr.vacation_requests', status='all') }}"
+           class="tab-btn {% if status_filter == 'all' %}tab-active{% endif %}">
+            Alle
+        </a>
+        <div style="flex:1;"></div>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('newRequestModal').style.display='flex'">
+            + Neuer Antrag
+        </button>
+    </div>
+</div>
+
+<!-- Antragsliste -->
+<div class="card">
+    {% if requests %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Mitarbeiter</th>
+                <th>Typ</th>
+                <th>Von</th>
+                <th>Bis</th>
+                <th>Tage</th>
+                <th>Titel</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr>
+                <td>{{ req.employee.user.first_name }} {{ req.employee.user.last_name }}</td>
+                <td>{{ vacation_types.get(req.vacation_type, 'Urlaub') }}</td>
+                <td>{{ req.start_time.strftime('%d.%m.%Y') }}</td>
+                <td>{{ req.end_time.strftime('%d.%m.%Y') }}</td>
+                <td>
+                    {% if req.netto_days %}{{ '{:.1f}'.format(req.netto_days|float) }}{% endif %}
+                    {% if req.is_halfday %}<span style="font-size:0.8em; color:var(--text-secondary);">(halbtags)</span>{% endif %}
+                </td>
+                <td>{{ req.title or '' }}</td>
+                <td>
+                    {% if req.approved_date %}
+                        <span class="status-badge status-approved">Genehmigt</span>
+                    {% elif req.declined_date %}
+                        <span class="status-badge status-rejected">Abgelehnt</span>
+                    {% else %}
+                        <span class="status-badge status-submitted">Offen</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:right; white-space:nowrap;">
+                    {% if not req.approved_date and not req.declined_date and current_user.role == 'admin' %}
+                    <form method="POST" action="{{ url_for('hr.approve_vacation', id=req.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-success" title="Genehmigen">&#10003;</button>
+                    </form>
+                    <button type="button" class="btn btn-sm btn-danger" title="Ablehnen"
+                            onclick="openDeclineModal({{ req.id }})">&#10007;</button>
+                    {% endif %}
+                    {% if req.declined_date and req.decline_reason %}
+                    <span title="{{ req.decline_reason }}" style="cursor:help; color:var(--text-secondary);">&#9432;</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:40px; text-align:center; color:var(--text-secondary);">
+        Keine Urlaubsantraege gefunden.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: Neuer Antrag -->
+<div id="newRequestModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin:0;">Neuer Urlaubsantrag</h3>
+            <button type="button" class="modal-close" onclick="document.getElementById('newRequestModal').style.display='none'">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('hr.create_vacation_request') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Mitarbeiter</label>
+                    <select name="employee_id" class="form-control" required>
+                        <option value="">Bitte waehlen...</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if current_user.employee and emp.id == current_user.employee.id %}selected{% endif %}>
+                            {{ emp.user.first_name }} {{ emp.user.last_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Typ</label>
+                    <select name="vacation_type" class="form-control">
+                        {% for key, label in vacation_types.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Von</label>
+                        <input type="date" name="start_date" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Bis</label>
+                        <input type="date" name="end_date" class="form-control" required>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group">
+                        <label>Netto-Tage</label>
+                        <input type="number" name="netto_days" class="form-control" step="0.5" min="0" placeholder="z.B. 3.0">
+                    </div>
+                    <div class="form-group">
+                        <label>Netto-Stunden</label>
+                        <input type="number" name="netto_hours" class="form-control" step="0.5" min="0" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" name="is_halfday"> Halbtag
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Titel / Bemerkung</label>
+                    <input type="text" name="title" class="form-control" placeholder="z.B. Sommerferien">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('newRequestModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Antrag erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Ablehnung -->
+<div id="declineModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin:0;">Urlaubsantrag ablehnen</h3>
+            <button type="button" class="modal-close" onclick="document.getElementById('declineModal').style.display='none'">&times;</button>
+        </div>
+        <form id="declineForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Grund der Ablehnung</label>
+                    <textarea name="decline_reason" class="form-control" rows="3" placeholder="Bitte Grund angeben..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('declineModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-danger">Ablehnen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .form-group { margin-bottom:12px; }
+    .form-group label { display:block; font-weight:500; margin-bottom:4px; font-size:0.9em; }
+    .form-control { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:0.95em; box-sizing:border-box; }
+    textarea.form-control { resize:vertical; }
+    .status-badge { padding:4px 12px; border-radius:12px; font-size:0.8em; font-weight:600; display:inline-block; }
+    .status-submitted { background:#fff3cd; color:#856404; }
+    .status-approved { background:#d4edda; color:#155724; }
+    .status-rejected { background:#f8d7da; color:#721c24; }
+    .data-table { width:100%; border-collapse:collapse; }
+    .data-table th, .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    .data-table th { font-weight:600; color:var(--text-secondary); font-size:0.85em; text-transform:uppercase; }
+    .btn-sm { padding:4px 10px; font-size:0.85em; border:none; border-radius:6px; cursor:pointer; }
+    .btn-success { background:#27ae60; color:#fff; }
+    .btn-danger { background:#e74c3c; color:#fff; }
+    .btn-secondary { background:#95a5a6; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; }
+
+    /* Tabs */
+    .tab-btn { padding:8px 16px; border-radius:6px; text-decoration:none; color:var(--text-secondary); font-weight:500; font-size:0.95em; background:var(--bg-secondary, #f0f0f0); transition:all 0.2s; }
+    .tab-btn:hover { background:var(--bg-hover, #e0e0e0); }
+    .tab-active { background:var(--primary, #3498db); color:#fff; }
+
+    /* Modal */
+    .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+    .modal-content { background:var(--bg-primary, #fff); border-radius:12px; width:90%; max-width:520px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+    .modal-close { background:none; border:none; font-size:1.5em; cursor:pointer; color:var(--text-secondary); line-height:1; }
+    .modal-body { padding:20px; }
+    .modal-footer { display:flex; justify-content:flex-end; gap:8px; padding:16px 20px; border-top:1px solid var(--border); }
+</style>
+
+<script>
+function openDeclineModal(requestId) {
+    var form = document.getElementById('declineForm');
+    form.action = '/hr/vacation-requests/' + requestId + '/decline';
+    document.getElementById('declineModal').style.display = 'flex';
+}
+
+// Modal schliessen bei Klick ausserhalb
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal-overlay')) {
+        e.target.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

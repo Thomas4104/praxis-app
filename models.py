@@ -1021,9 +1021,24 @@ class CostApproval(db.Model):
     response_notes = db.Column(db.Text)  # Bemerkung des Kostentraegers
     pdf_path = db.Column(db.String(500))
     prescription_document_path = db.Column(db.String(500))
+
+    # Cenplex: Erweiterte Kostengutsprache-Felder
+    extension_of_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))  # Verlaengerung
+    medidata_state = db.Column(db.Integer)  # 0=pending, 1=picked_up, 2=error
+    medidata_state_changed = db.Column(db.DateTime)
+    transmission_reference = db.Column(db.String(100))
+    verification_key = db.Column(db.String(100))
+    verification_key_valid_until = db.Column(db.DateTime)
+    request_id = db.Column(db.String(50))
+    is_storno = db.Column(db.Boolean, default=False)
+    payload_type = db.Column(db.Integer, default=0)  # 0=Standard, 1=XML
+    is_xml45 = db.Column(db.Boolean, default=False)
+    print_only = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    extension_of = db.relationship('CostApproval', remote_side=[id], backref='extensions')
     items = db.relationship('CostApprovalItem', backref='cost_approval', lazy='dynamic')
     patient = db.relationship('Patient', backref='cost_approvals')
     insurance_provider = db.relationship('InsuranceProvider', backref='cost_approvals')

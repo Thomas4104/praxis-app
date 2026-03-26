@@ -4,7 +4,8 @@ from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.hr import hr_bp
 from models import db, Employee, User, EmployeeContract, EmployeeSalary, EmployeeChild, \
-    PayrollRun, Payslip, TimeEntry, OvertimeAccount, Expense, Certificate, AbsenceQuota, Absence
+    PayrollRun, Payslip, TimeEntry, OvertimeAccount, Expense, Certificate, AbsenceQuota, Absence, \
+    VacationRequest
 from utils.auth import check_org
 
 
@@ -713,3 +714,109 @@ def api_personnel_list():
         })
 
     return jsonify(result)
+
+
+# ============================================================
+# Urlaubsantraege (Cenplex: VacationRequest)
+# ============================================================
+
+@hr_bp.route('/vacation-requests')
+@login_required
+def vacation_requests():
+    """Uebersicht aller Urlaubsantraege"""
+    org_id = current_user.organization_id
+    status_filter = request.args.get('status', 'pending')
+
+    query = VacationRequest.query.filter_by(organization_id=org_id)
+
+    if status_filter == 'pending':
+        query = query.filter(VacationRequest.approved_date == None, VacationRequest.declined_date == None)
+    elif status_filter == 'approved':
+        query = query.filter(VacationRequest.approved_date != None)
+    elif status_filter == 'declined':
+        query = query.filter(VacationRequest.declined_date != None)
+
+    requests_list = query.order_by(VacationRequest.start_time.desc()).all()
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+
+    vacation_types = {
+        0: 'Urlaub', 1: 'Weiterbildung', 2: 'Krankheit', 3: 'Unfall',
+        4: 'Mutterschaft', 5: 'Militaer', 6: 'Unbezahlt', 7: 'Sonstiges'
+    }
+
+    return render_template('hr/vacation_requests.html',
+                          requests=requests_list,
+                          employees=employees,
+                          status_filter=status_filter,
+                          vacation_types=vacation_types)
+
+
+@hr_bp.route('/vacation-requests/create', methods=['POST'])
+@login_required
+def create_vacation_request():
+    """Neuen Urlaubsantrag erstellen"""
+    vr = VacationRequest(
+        organization_id=current_user.organization_id,
+        employee_id=int(request.form['employee_id']),
+        start_time=datetime.strptime(request.form['start_date'], '%Y-%m-%d'),
+        end_time=datetime.strptime(request.form['end_date'], '%Y-%m-%d'),
+        is_halfday=request.form.get('is_halfday') == 'on',
+        vacation_type=int(request.form.get('vacation_type', 0)),
+        title=request.form.get('title', ''),
+        netto_days=float(request.form.get('netto_days', 0)) if request.form.get('netto_days') else None,
+        netto_hours=float(request.form.get('netto_hours', 0)) if request.form.get('netto_hours') else None
+    )
+    db.session.add(vr)
+    db.session.commit()
+
+    flash('Urlaubsantrag erstellt.', 'success')
+    return redirect(url_for('hr.vacation_requests'))
+
+
+@hr_bp.route('/vacation-requests/<int:id>/approve', methods=['POST'])
+@login_required
+def approve_vacation(id):
+    """Urlaubsantrag genehmigen"""
+    vr = VacationRequest.query.get_or_404(id)
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+
+    vr.approved_date = datetime.utcnow()
+    vr.approved_by_id = employee.id if employee else None
+
+    # Automatisch Abwesenheit erstellen
+    absence = Absence(
+        employee_id=vr.employee_id,
+        absence_type=_map_vacation_type(vr.vacation_type),
+        start_date=vr.start_time.date() if isinstance(vr.start_time, datetime) else vr.start_time,
+        end_date=vr.end_time.date() if isinstance(vr.end_time, datetime) else vr.end_time,
+        reason=vr.title or 'Genehmigter Urlaubsantrag',
+        status='approved'
+    )
+    db.session.add(absence)
+    db.session.commit()
+
+    flash('Urlaubsantrag genehmigt und Abwesenheit eingetragen.', 'success')
+    return redirect(url_for('hr.vacation_requests'))
+
+
+@hr_bp.route('/vacation-requests/<int:id>/decline', methods=['POST'])
+@login_required
+def decline_vacation(id):
+    """Urlaubsantrag ablehnen"""
+    vr = VacationRequest.query.get_or_404(id)
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+
+    vr.declined_date = datetime.utcnow()
+    vr.declined_by_id = employee.id if employee else None
+    vr.decline_reason = request.form.get('decline_reason', '')
+    db.session.commit()
+
+    flash('Urlaubsantrag abgelehnt.', 'success')
+    return redirect(url_for('hr.vacation_requests'))
+
+
+def _map_vacation_type(vac_type):
+    """Mappt Cenplex VacationType auf OMNIA Absence-Typ"""
+    mapping = {0: 'vacation', 1: 'training', 2: 'sick', 3: 'accident',
+               4: 'maternity', 5: 'military', 6: 'unpaid', 7: 'other'}
+    return mapping.get(vac_type, 'vacation')
