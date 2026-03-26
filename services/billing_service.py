@@ -8,6 +8,131 @@ from models import (db, Invoice, InvoiceItem, Payment, TaxPointValue, BankAccoun
 from services.settings_service import get_setting
 
 
+def get_invoice_type_label(invoice_type):
+    """Gibt Label fuer Rechnungstyp zurueck"""
+    types = {0: 'Therapie', 1: 'Produkt', 2: 'Gutschrift', 3: 'Pauschale',
+             4: 'Privat', 5: 'Stornierter Termin', 6: 'Fitness-Abo',
+             8: 'EMR', 9: 'Gutschein', 12: 'Ergotherapie', 14: 'UVG'}
+    return types.get(invoice_type, 'Unbekannt')
+
+
+def get_billing_case_label(billing_case):
+    """Gibt Label fuer Abrechnungsfall zurueck"""
+    cases = {0: 'KVG', 1: 'Suva/UVG', 2: 'Militaer/MVG', 3: 'Privat',
+             4: 'Spital', 5: 'IV', 6: 'VVG', 7: 'Pauschale'}
+    return cases.get(billing_case, 'Standard')
+
+
+def get_payment_type_label(payment_type):
+    """Gibt Label fuer Zahlungsart zurueck"""
+    types = {0: 'Bankueberweisung', 1: 'Bar', 2: 'Karte', 3: 'Twint'}
+    return types.get(payment_type, 'Unbekannt')
+
+
+def get_reduction_reason_label(reason):
+    """Gibt Label fuer Reduktionsgrund zurueck"""
+    reasons = {1: 'Skonto', 2: 'Reduktion', 3: 'Rundung', 4: 'Diverses',
+               5: 'Storno', 6: 'Teilstorno', 7: 'Verlust', 8: 'Gutschein'}
+    return reasons.get(reason, 'Unbekannt')
+
+
+def calculate_invoice_totals(invoice):
+    """Berechnet Rechnungstotale inkl. MwSt und Mahngebuehren nach Cenplex-Logik"""
+    items = InvoiceItem.query.filter_by(invoice_id=invoice.id).all()
+    payments = Payment.query.filter_by(invoice_id=invoice.id).all()
+
+    # Positionen summieren
+    total_netto = sum(float(item.amount or 0) for item in items)
+    total_vat = sum(float(item.vat_amount or 0) for item in items)
+    total_brutto = total_netto + total_vat
+
+    # Mahngebuehren addieren
+    dunnings = DunningRecord.query.filter_by(invoice_id=invoice.id).all()
+    dunning_fees = sum(float(d.dunning_fee or 0) for d in dunnings)
+
+    # Zahlungen summieren
+    total_paid = sum(float(p.amount or 0) for p in payments)
+
+    # Offener Betrag
+    open_amount = total_brutto + dunning_fees - total_paid
+
+    return {
+        'total_netto': total_netto,
+        'total_vat': total_vat,
+        'total_brutto': total_brutto,
+        'dunning_fees': dunning_fees,
+        'total_with_fees': total_brutto + dunning_fees,
+        'total_paid': total_paid,
+        'open_amount': max(0, open_amount),
+        'is_overpaid': open_amount < 0,
+        'overpaid_amount': abs(min(0, open_amount))
+    }
+
+
+def approve_invoice(invoice_id, employee_id):
+    """Rechnung genehmigen (Cenplex-Workflow)"""
+    invoice = Invoice.query.get(invoice_id)
+    if invoice:
+        invoice.approved_by_id = employee_id
+        invoice.approved_date = datetime.utcnow()
+        invoice.was_disapproved = False
+        db.session.commit()
+    return invoice
+
+
+def disapprove_invoice(invoice_id):
+    """Genehmigung zurueckziehen"""
+    invoice = Invoice.query.get(invoice_id)
+    if invoice:
+        invoice.was_disapproved = True
+        invoice.approved_by_id = None
+        invoice.approved_date = None
+        db.session.commit()
+    return invoice
+
+
+def close_invoice(invoice_id, reduction_reason=None, open_amount=0):
+    """Rechnung schliessen/abschliessen (Cenplex: CloseInvoice)"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None
+
+    if reduction_reason and open_amount > 0:
+        # Restbetrag als Reduktion buchen
+        payment = Payment(
+            invoice_id=invoice_id,
+            amount=open_amount,
+            payment_date=date.today(),
+            payment_method='reduction',
+            payment_type=0,
+            reduction_reason=reduction_reason,
+            notes=f'Abschluss: {get_reduction_reason_label(reduction_reason)}'
+        )
+        db.session.add(payment)
+
+    invoice.closed_date = datetime.utcnow()
+    invoice.status = 'paid'
+    invoice.amount_open = 0
+    db.session.commit()
+    return invoice
+
+
+def generate_reference_number(invoice):
+    """Generiert VESR-kompatible Referenznummer (26 Zeichen + Pruefziffer)"""
+    patient_id = str(invoice.patient_id or 0).zfill(5)
+    cost_unit_id = str(invoice.cost_unit_id or 0).zfill(5)
+    org_id = str(invoice.organization_id or 0).zfill(5)
+    invoice_id = str(invoice.id).zfill(9)
+    ref = f'00{patient_id}{cost_unit_id}{org_id}{invoice_id}'
+    # Pruefziffer nach Modulo 10
+    weights = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5]
+    carry = 0
+    for digit in ref:
+        carry = weights[(carry + int(digit)) % 10]
+    check = (10 - carry) % 10
+    return ref + str(check)
+
+
 def get_tax_point_value(org_id, tariff_type, ref_date=None, canton=None, insurer_id=None):
     """Findet den passenden Taxpunktwert fuer einen Tariftyp"""
     if ref_date is None:

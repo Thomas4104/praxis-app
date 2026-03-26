@@ -17,6 +17,16 @@ from utils.permissions import require_permission, has_permission
 from services.audit_service import log_action
 
 
+def parse_date(date_str):
+    """Hilfsfunktion: Datumsstring (YYYY-MM-DD) in date-Objekt umwandeln"""
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+
 # ============================================================
 # Patientenuebersicht
 # ============================================================
@@ -159,12 +169,15 @@ def create():
         .order_by(Doctor.last_name).all()
     therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
     therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True) \
+        .order_by(Location.name).all()
 
     return render_template('patients/form.html',
                            patient=None,
                            insurances=insurances,
                            doctors=doctors,
-                           therapists=therapists)
+                           therapists=therapists,
+                           locations=locations)
 
 
 @patients_bp.route('/<int:patient_id>/edit', methods=['GET', 'POST'])
@@ -185,12 +198,15 @@ def edit(patient_id):
         .order_by(Doctor.last_name).all()
     therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
     therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True) \
+        .order_by(Location.name).all()
 
     return render_template('patients/form.html',
                            patient=patient,
                            insurances=insurances,
                            doctors=doctors,
-                           therapists=therapists)
+                           therapists=therapists,
+                           locations=locations)
 
 
 def _save_patient(patient):
@@ -230,11 +246,14 @@ def _save_patient(patient):
             .order_by(Doctor.last_name).all()
         therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
         therapists = [t for t in therapists if t.user and t.user.role == 'therapist']
+        locations = Location.query.filter_by(organization_id=org_id, is_active=True) \
+            .order_by(Location.name).all()
         return render_template('patients/form.html',
                                patient=patient,
                                insurances=insurances,
                                doctors=doctors,
-                               therapists=therapists)
+                               therapists=therapists,
+                               locations=locations)
 
     is_new = patient is None
     if is_new:
@@ -307,6 +326,58 @@ def _save_patient(patient):
     patient.blacklist_reason = request.form.get('blacklist_reason', '').strip()
     pref_ther = request.form.get('preferred_therapist_id', '')
     patient.preferred_therapist_id = int(pref_ther) if pref_ther else None
+
+    # Cenplex: Erweiterte Versicherung
+    patient.kanton = request.form.get('kanton', '')
+    patient.is_kvg_base = request.form.get('is_kvg_base') == 'on'
+    patient.kvg_model = int(request.form.get('kvg_model', 0))
+    patient.kvg_accident_coverage = int(request.form.get('kvg_accident_coverage', 0))
+    patient.card_id = request.form.get('card_id', '')
+    patient.card_expiry = parse_date(request.form.get('card_expiry'))
+
+    # Cenplex: UVG/VVG Kostentraeger
+    costunit_uvg = request.form.get('costunit_uvg_id', '')
+    patient.costunit_uvg_id = int(costunit_uvg) if costunit_uvg else None
+    costunit_vvg = request.form.get('costunit_vvg_id', '')
+    patient.costunit_vvg_id = int(costunit_vvg) if costunit_vvg else None
+    patient.insured_id_vvg = request.form.get('insured_id_vvg', '')
+    patient.card_id_vvg = request.form.get('card_id_vvg', '')
+    patient.card_vvg_expiry = parse_date(request.form.get('card_vvg_expiry'))
+
+    # Cenplex: Premium-Zahler (Rechnungsempfaenger)
+    patient.premium_payer_firstname = request.form.get('premium_payer_firstname', '')
+    patient.premium_payer_lastname = request.form.get('premium_payer_lastname', '')
+    patient.premium_payer_company = request.form.get('premium_payer_company', '')
+    patient.premium_payer_address = request.form.get('premium_payer_address', '')
+    patient.premium_payer_zipcode = request.form.get('premium_payer_zipcode', '')
+    patient.premium_payer_town = request.form.get('premium_payer_town', '')
+    patient.premium_payer_kanton = request.form.get('premium_payer_kanton', '')
+    patient.premium_payer_country = request.form.get('premium_payer_country', 'CH')
+
+    # Cenplex: Beruf, Hobbies, Zuweiser
+    patient.hobbies = request.form.get('hobbies', '')
+    patient.profession = request.form.get('profession', '')
+    doctor_id = request.form.get('doctor_id', '')
+    patient.doctor_id = int(doctor_id) if doctor_id else None
+    referenced_by = request.form.get('referenced_by_id', '')
+    patient.referenced_by_id = int(referenced_by) if referenced_by else None
+
+    # Cenplex: Externe Systeme
+    patient.egym_id = request.form.get('egym_id', '')
+    patient.vald_id = request.form.get('vald_id', '')
+    patient.dividat_id = request.form.get('dividat_id', '')
+    patient.mywellness_id = request.form.get('mywellness_id', '')
+
+    # Cenplex: Kaution
+    deposit_str = request.form.get('deposit_amount', '')
+    patient.deposit_amount = float(deposit_str) if deposit_str else None
+    patient.deposit_payed_date = parse_date(request.form.get('deposit_payed_date'))
+    patient.deposit_receipt_date = parse_date(request.form.get('deposit_receipt_date'))
+    patient.deposit_payed_back_date = parse_date(request.form.get('deposit_payed_back_date'))
+
+    # Cenplex: Standort
+    loc_id = request.form.get('location_id', '')
+    patient.location_id = int(loc_id) if loc_id else None
 
     if is_new:
         db.session.add(patient)

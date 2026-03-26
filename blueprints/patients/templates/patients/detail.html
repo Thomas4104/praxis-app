@@ -153,6 +153,24 @@
                 <span class="sidebar-value">{{ patient.supplementary_insurance_name }}</span>
             </div>
             {% endif %}
+            {% if patient.kanton %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Kanton</span>
+                <span class="sidebar-value">{{ patient.kanton }}</span>
+            </div>
+            {% endif %}
+            {% if patient.card_id %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Karten-Nr.</span>
+                <span class="sidebar-value">{{ patient.card_id }}{% if patient.card_expiry %} (bis {{ patient.card_expiry.strftime('%d.%m.%Y') }}){% endif %}</span>
+            </div>
+            {% endif %}
+            {% if patient.kvg_model %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">KVG Modell</span>
+                <span class="sidebar-value">{% if patient.kvg_model == 1 %}HMO{% elif patient.kvg_model == 2 %}PPO{% else %}Standard{% endif %}</span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Arzt / Therapeut -->
@@ -164,6 +182,12 @@
                 <span class="sidebar-value">{{ patient.referring_doctor.salutation }} {{ patient.referring_doctor.first_name }} {{ patient.referring_doctor.last_name }}</span>
             </div>
             {% endif %}
+            {% if patient.doctor and patient.doctor != patient.referring_doctor %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Arzt (Cenplex)</span>
+                <span class="sidebar-value">{{ patient.doctor.salutation }} {{ patient.doctor.first_name }} {{ patient.doctor.last_name }}</span>
+            </div>
+            {% endif %}
             {% if patient.preferred_therapist %}
             <div class="sidebar-field">
                 <span class="sidebar-label">Bev. Therapeut</span>
@@ -171,6 +195,25 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- Beruf / Freizeit -->
+        {% if patient.profession or patient.hobbies %}
+        <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Beruf / Freizeit</h4>
+            {% if patient.profession %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Beruf</span>
+                <span class="sidebar-value">{{ patient.profession }}</span>
+            </div>
+            {% endif %}
+            {% if patient.hobbies %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Hobbies</span>
+                <span class="sidebar-value">{{ patient.hobbies }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Termine -->
         <div class="sidebar-section">
@@ -217,6 +260,46 @@
             <div class="sidebar-field">
                 <span class="sidebar-label">Telefon</span>
                 <span class="sidebar-value">{{ patient.employer_phone }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Rechnungsempfaenger -->
+        {% if patient.premium_payer_firstname or patient.premium_payer_lastname or patient.premium_payer_company %}
+        <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Rechnungsempfaenger</h4>
+            <div class="sidebar-field">
+                <span class="sidebar-label">Name</span>
+                <span class="sidebar-value">{{ patient.premium_payer_firstname }} {{ patient.premium_payer_lastname }}{% if patient.premium_payer_company %} ({{ patient.premium_payer_company }}){% endif %}</span>
+            </div>
+            {% if patient.premium_payer_address %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Adresse</span>
+                <span class="sidebar-value">{{ patient.premium_payer_address }}, {{ patient.premium_payer_zipcode or '' }} {{ patient.premium_payer_town or '' }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Kaution -->
+        {% if patient.deposit_amount %}
+        <div class="sidebar-section">
+            <h4 class="sidebar-section-title">Kaution</h4>
+            <div class="sidebar-field">
+                <span class="sidebar-label">Betrag</span>
+                <span class="sidebar-value">CHF {{ '%.2f' | format(patient.deposit_amount) }}</span>
+            </div>
+            {% if patient.deposit_payed_date %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Bezahlt am</span>
+                <span class="sidebar-value">{{ patient.deposit_payed_date.strftime('%d.%m.%Y') }}</span>
+            </div>
+            {% endif %}
+            {% if patient.deposit_payed_back_date %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Zurueckbezahlt</span>
+                <span class="sidebar-value">{{ patient.deposit_payed_back_date.strftime('%d.%m.%Y') }}</span>
             </div>
             {% endif %}
         </div>

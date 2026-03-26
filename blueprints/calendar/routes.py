@@ -718,6 +718,61 @@ def api_get_absences():
     return jsonify(result)
 
 
+@calendar_bp.route('/api/schedule-suggestions', methods=['POST'])
+@login_required
+def schedule_suggestions():
+    """API: Automatische Terminvorschlaege (Cenplex: AppointmentFinder)"""
+    from services.scheduling_service import schedule_series_appointments
+    data = request.get_json()
+
+    suggestions = schedule_series_appointments(
+        series_id=data.get('series_id'),
+        total_appointments=data.get('total_appointments', 9),
+        duration_minutes=data.get('duration_minutes', 30),
+        start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date() if data.get('start_date') else None,
+        preferred_interval_days=data.get('preferred_interval_days', 7),
+        preferred_days=data.get('preferred_days'),
+        preferred_time_start=time.fromisoformat(data['preferred_time_start']) if data.get('preferred_time_start') else None,
+        preferred_time_end=time.fromisoformat(data['preferred_time_end']) if data.get('preferred_time_end') else None
+    )
+
+    return jsonify({
+        'suggestions': [{
+            'start': s['start'].isoformat(),
+            'end': s['end'].isoformat(),
+            'score': s['score'],
+            'employee_id': s['employee_id']
+        } for s in suggestions]
+    })
+
+
+@calendar_bp.route('/api/waitlist-suggestions/<int:appointment_id>')
+@login_required
+def waitlist_suggestions(appointment_id):
+    """API: Wartelisten-Vorschlaege"""
+    from services.scheduling_service import get_waitlist_suggestions
+    suggestions = get_waitlist_suggestions(appointment_id)
+
+    return jsonify({
+        'suggestions': [{
+            'start': s['start'].isoformat(),
+            'end': s['end'].isoformat(),
+            'score': s['score']
+        } for s in suggestions]
+    })
+
+
+@calendar_bp.route('/api/appointment/<int:id>/waitlist', methods=['POST'])
+@login_required
+def toggle_waitlist(id):
+    """Termin auf/von Warteliste setzen"""
+    appointment = Appointment.query.get_or_404(id)
+    check_org(appointment)
+    appointment.is_on_waitlist = not appointment.is_on_waitlist
+    db.session.commit()
+    return jsonify({'success': True, 'is_on_waitlist': appointment.is_on_waitlist})
+
+
 @calendar_bp.route('/api/holidays')
 @login_required
 def api_get_holidays():

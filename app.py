@@ -102,6 +102,7 @@ def create_app(config_name=None):
     # Kontext-Prozessoren
     @app.context_processor
     def inject_globals():
+        from services.user_rights_service import has_right
         now = datetime.now()
         hour = now.hour
         if hour < 12:
@@ -117,7 +118,8 @@ def create_app(config_name=None):
             'current_datetime': now,
             'tageszeit': tageszeit,
             'timedelta': timedelta,
-            'today': date.today()
+            'today': date.today(),
+            'has_right': has_right,
         }
 
     # Session permanent machen

@@ -10,7 +10,11 @@ from models import (db, Invoice, InvoiceItem, Payment, TaxPointValue, BankAccoun
 from services.billing_service import (
     calculate_invoice_from_series, create_invoice_from_series,
     generate_invoice_number, record_payment, process_dunning,
-    run_dunning_batch, generate_invoice_pdf, get_tax_point_value
+    run_dunning_batch, generate_invoice_pdf, get_tax_point_value,
+    get_invoice_type_label, get_billing_case_label, get_payment_type_label,
+    get_reduction_reason_label, calculate_invoice_totals,
+    approve_invoice, disapprove_invoice, close_invoice,
+    generate_reference_number
 )
 from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
@@ -302,12 +306,28 @@ def detail(id):
     payments = Payment.query.filter_by(invoice_id=id).order_by(Payment.payment_date.desc()).all()
     dunnings = DunningRecord.query.filter_by(invoice_id=id).order_by(DunningRecord.dunning_date.desc()).all()
 
+    # Cenplex-Labels und Totale berechnen
+    invoice_type_label = get_invoice_type_label(invoice.invoice_type) if invoice.invoice_type is not None else None
+    billing_case_label = get_billing_case_label(invoice.billing_case) if invoice.billing_case is not None else None
+    totals = calculate_invoice_totals(invoice)
+
+    # Mitarbeiter fuer Genehmigung laden
+    employees = Employee.query.filter_by(
+        organization_id=invoice.organization_id, is_active=True
+    ).order_by(Employee.last_name).all()
+
     return render_template('billing/detail.html',
                            invoice=invoice,
                            items=items,
                            payments=payments,
                            dunnings=dunnings,
-                           today=date.today())
+                           today=date.today(),
+                           invoice_type_label=invoice_type_label,
+                           billing_case_label=billing_case_label,
+                           totals=totals,
+                           employees=employees,
+                           get_payment_type_label=get_payment_type_label,
+                           get_reduction_reason_label=get_reduction_reason_label)
 
 
 # ============================================================
@@ -472,6 +492,82 @@ def send_tp_copy(id):
 
 
 # ============================================================
+# Cenplex-Workflow: Genehmigen, Ablehnen, Abschliessen
+# ============================================================
+
+@billing_bp.route('/<int:id>/approve', methods=['POST'])
+@login_required
+@require_permission('billing.send_invoice')
+def approve(id):
+    """Rechnung genehmigen (Cenplex-Workflow)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    employee_id = request.form.get('employee_id', type=int)
+    if not employee_id:
+        flash('Bitte waehlen Sie einen Mitarbeiter fuer die Genehmigung aus.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    result = approve_invoice(id, employee_id)
+    if result:
+        log_action('update', 'invoice', id, changes={
+            'approved_by_id': {'new': employee_id},
+            'approved_date': {'new': str(result.approved_date)},
+        })
+        flash('Rechnung wurde genehmigt.', 'success')
+    else:
+        flash('Rechnung nicht gefunden.', 'error')
+
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/disapprove', methods=['POST'])
+@login_required
+@require_permission('billing.send_invoice')
+def disapprove(id):
+    """Genehmigung zurueckziehen"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    result = disapprove_invoice(id)
+    if result:
+        log_action('update', 'invoice', id, changes={
+            'was_disapproved': {'new': True},
+            'approved_by_id': {'old': str(invoice.approved_by_id), 'new': None},
+        })
+        flash('Genehmigung wurde zurueckgezogen.', 'success')
+    else:
+        flash('Rechnung nicht gefunden.', 'error')
+
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/close', methods=['POST'])
+@login_required
+@require_permission('billing.record_payment')
+def close(id):
+    """Rechnung abschliessen (Cenplex: CloseInvoice)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    reduction_reason = request.form.get('reduction_reason', type=int)
+    open_amount = float(invoice.amount_open or 0)
+
+    result = close_invoice(id, reduction_reason=reduction_reason, open_amount=open_amount)
+    if result:
+        log_action('update', 'invoice', id, changes={
+            'status': {'old': invoice.status, 'new': 'paid'},
+            'closed_date': {'new': str(result.closed_date)},
+            'reduction_reason': {'new': reduction_reason},
+        })
+        flash('Rechnung wurde abgeschlossen.', 'success')
+    else:
+        flash('Rechnung nicht gefunden.', 'error')
+
+    return redirect(url_for('billing.detail', id=id))
+
+
+# ============================================================
 # Mahnungen
 # ============================================================
 
@@ -595,6 +691,9 @@ def api_invoice_detail(id):
     items = InvoiceItem.query.filter_by(invoice_id=id).order_by(InvoiceItem.position).all()
     payments = Payment.query.filter_by(invoice_id=id).order_by(Payment.payment_date.desc()).all()
 
+    # Cenplex-Totale berechnen
+    totals = calculate_invoice_totals(invoice)
+
     return jsonify({
         'id': invoice.id,
         'invoice_number': invoice.invoice_number,
@@ -606,6 +705,18 @@ def api_invoice_detail(id):
         'billing_model': invoice.billing_model,
         'due_date': invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else None,
         'dunning_level': invoice.dunning_level,
+        # Cenplex-Felder
+        'invoice_type': invoice.invoice_type,
+        'invoice_type_label': get_invoice_type_label(invoice.invoice_type) if invoice.invoice_type is not None else None,
+        'billing_case': invoice.billing_case,
+        'billing_case_label': get_billing_case_label(invoice.billing_case) if invoice.billing_case is not None else None,
+        'reference_number': invoice.reference_number,
+        'approved_by_id': invoice.approved_by_id,
+        'approved_date': invoice.approved_date.strftime('%d.%m.%Y %H:%M') if invoice.approved_date else None,
+        'was_disapproved': invoice.was_disapproved,
+        'closed_date': invoice.closed_date.strftime('%d.%m.%Y %H:%M') if invoice.closed_date else None,
+        'medidata_state': invoice.medidata_state,
+        'totals': totals,
         'patient': {
             'id': invoice.patient.id,
             'name': f'{invoice.patient.first_name} {invoice.patient.last_name}'
@@ -629,7 +740,11 @@ def api_invoice_detail(id):
             'amount': p.amount,
             'date': p.payment_date.strftime('%d.%m.%Y') if p.payment_date else None,
             'method': p.payment_method,
-            'reference': p.reference
+            'reference': p.reference,
+            'payment_type': p.payment_type,
+            'payment_type_label': get_payment_type_label(p.payment_type) if p.payment_type is not None else None,
+            'reduction_reason': p.reduction_reason,
+            'reduction_reason_label': get_reduction_reason_label(p.reduction_reason) if p.reduction_reason else None
         } for p in payments]
     })
 
