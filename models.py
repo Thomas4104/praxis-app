@@ -161,6 +161,23 @@ class Employee(db.Model):
     default_location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
     default_room_id = db.Column(db.Integer, db.ForeignKey('resources.id'))
     is_active = db.Column(db.Boolean, default=True)
+    # Cenplex: Erweiterte Mitarbeiterfelder
+    degree = db.Column(db.String(100))  # Akademischer Grad
+    internal_number = db.Column(db.String(20))  # Personalnummer
+    ahv_number = db.Column(db.String(20))  # AHV-Nummer
+    tax_number = db.Column(db.String(20))  # Steuernummer
+    asca_number = db.Column(db.String(20))  # ASCA-Nummer
+    emr_number = db.Column(db.String(20))  # EMR-Nummer
+    temp_gln = db.Column(db.String(20))  # Temporaere GLN
+    user_rights_json = db.Column(db.Text)  # JSON: Feingranulare Berechtigungen
+    user_groups_json = db.Column(db.Text)  # JSON: Gruppen-IDs
+    app_settings_json = db.Column(db.Text)  # JSON: App-Einstellungen
+    calendar_default_interval = db.Column(db.Integer)  # Standard-Termindauer Minuten
+    send_invoice_as_practice = db.Column(db.Boolean, default=False)
+    booking_sync_from = db.Column(db.Date)
+    booking_sync_till = db.Column(db.Date)
+    booking_book_active = db.Column(db.Boolean, default=False)
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -308,8 +325,53 @@ class Patient(db.Model):
     # Bevorzugter Therapeut
     preferred_therapist_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
 
+    # Cenplex: Erweiterte Versicherungsfelder
+    kanton = db.Column(db.String(5))  # Kanton fuer Taxpunktwert
+    is_kvg_base = db.Column(db.Boolean, default=True)  # KVG Grundversicherung
+    kvg_model = db.Column(db.Integer, default=0)  # 0=Standard, 1=HMO, 2=PPO
+    kvg_accident_coverage = db.Column(db.Integer, default=0)  # 0=nein, 1=ja
+    card_id = db.Column(db.String(30))  # Versichertenkarte KVG
+    card_expiry = db.Column(db.Date)  # Kartengueltig bis
+    costunit_uvg_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # UVG Kostentraeger
+    costunit_vvg_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # VVG Kostentraeger
+    insured_id_vvg = db.Column(db.String(30))  # Versichertennummer VVG
+    card_id_vvg = db.Column(db.String(30))  # Kartennummer VVG
+    card_vvg_expiry = db.Column(db.Date)  # VVG Karte gueltig bis
+    insurance_extra_data = db.Column(db.Text)  # JSON: Zusaetzliche Versicherungsdaten
+
+    # Cenplex: Premium-Zahler (separater Rechnungsempfaenger)
+    premium_payer_firstname = db.Column(db.String(100))
+    premium_payer_lastname = db.Column(db.String(100))
+    premium_payer_company = db.Column(db.String(200))
+    premium_payer_address = db.Column(db.String(300))
+    premium_payer_zipcode = db.Column(db.String(10))
+    premium_payer_town = db.Column(db.String(100))
+    premium_payer_kanton = db.Column(db.String(5))
+    premium_payer_country = db.Column(db.String(5), default='CH')
+
+    # Cenplex: Externe System-IDs
+    egym_id = db.Column(db.String(50))
+    vald_id = db.Column(db.String(50))
+    dividat_id = db.Column(db.String(50))
+    mywellness_id = db.Column(db.String(50))
+
+    # Cenplex: Weitere Felder
+    hobbies = db.Column(db.String(500))
+    profession = db.Column(db.String(200))
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'))  # Zuweisender Arzt
+    referenced_by_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Zuweiser/Empfehlung
+    deposit_amount = db.Column(db.Numeric(10, 2))  # Depot/Kaution
+    deposit_payed_date = db.Column(db.Date)
+    deposit_receipt_date = db.Column(db.Date)
+    deposit_payed_back_date = db.Column(db.Date)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))  # Behandlungsort
+
     insurance_provider = db.relationship('InsuranceProvider', backref='patients')
     preferred_therapist = db.relationship('Employee', foreign_keys=[preferred_therapist_id])
+    costunit_uvg = db.relationship('Contact', foreign_keys=[costunit_uvg_id])
+    costunit_vvg = db.relationship('Contact', foreign_keys=[costunit_vvg_id])
+    doctor = db.relationship('Doctor', foreign_keys=[doctor_id])
+    referenced_by = db.relationship('Contact', foreign_keys=[referenced_by_id])
     treatment_series = db.relationship('TreatmentSeries', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
     appointments = db.relationship('Appointment', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
@@ -398,6 +460,20 @@ class Contact(db.Model):
     email = db.Column(db.String(200))
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    # Cenplex: Erweiterte Kontaktfelder
+    department = db.Column(db.String(200))
+    gln_receiver = db.Column(db.String(20))
+    postbox = db.Column(db.String(100))
+    affiliate_id = db.Column(db.String(50))
+    law_code = db.Column(db.Integer)  # Fachgebiet
+    expertise = db.Column(db.String(200))  # Spezialisierung
+    supports_online = db.Column(db.Boolean)
+    accept_kostengutsprache = db.Column(db.Boolean, default=False)
+    email_gutsprache = db.Column(db.String(200))
+    tarif_code = db.Column(db.Integer)
+    addressing = db.Column(db.String(200))  # Anredeformel
+    is_imported = db.Column(db.Boolean, default=False)
+    reference_contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -667,6 +743,36 @@ class Appointment(db.Model):
     charge_despite_cancel = db.Column(db.Boolean, default=False)  # "Trotzdem abrechnen"
     is_group = db.Column(db.Boolean, default=False)  # Gruppentherapie-Termin
     color_category = db.Column(db.String(30), nullable=True)  # Farbkategorie fuer Einzeltermine
+    # Cenplex: Erweiterte Terminfelder
+    is_on_waitlist = db.Column(db.Boolean, default=False)
+    is_remote = db.Column(db.Boolean, default=False)  # Telemedizin
+    is_virtual = db.Column(db.Boolean, default=False)
+    is_mtt = db.Column(db.Boolean, default=False)  # Med. Trainingstherapie
+    is_pauschal = db.Column(db.Boolean, default=False)
+    pauschal_price = db.Column(db.Numeric(10, 2))
+    is_emr = db.Column(db.Boolean, default=False)
+    is_ergo = db.Column(db.Boolean, default=False)
+    is_billable = db.Column(db.Boolean, default=True)
+    bill_state = db.Column(db.Integer, default=0)  # 0=nicht abgerechnet
+    cost_unit_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Kostentraeger
+    cancellation_date = db.Column(db.DateTime)
+    additional_employees_json = db.Column(db.Text)  # JSON: weitere Therapeuten-IDs
+    effort_notes = db.Column(db.Text)  # Aufwandsnotizen
+    booking_messages_json = db.Column(db.Text)  # JSON
+    treatment_history_json = db.Column(db.Text)  # JSON: Behandlungsverlauf
+    sum_of_positions = db.Column(db.Numeric(10, 2), default=0)
+    public_notes = db.Column(db.Text)  # Oeffentliche Notizen
+    # Online-Buchung
+    was_booked_online = db.Column(db.Boolean, default=False)
+    confirmed_by_patient = db.Column(db.Boolean, default=False)
+    booker_id = db.Column(db.String(50))
+    web_booker_id = db.Column(db.BigInteger)
+    was_synced = db.Column(db.Boolean, default=False)
+    # Benachrichtigungen
+    last_printed = db.Column(db.DateTime)
+    last_mailed = db.Column(db.DateTime)
+    last_sms_sent = db.Column(db.DateTime)
+    email_triggered = db.Column(db.Boolean, default=False)
     max_participants = db.Column(db.Integer, nullable=True)  # Max. Teilnehmer bei Gruppentherapie
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -740,6 +846,29 @@ class Invoice(db.Model):
     dunning_3_date = db.Column(db.Date)
     category = db.Column(db.String(30))  # treatment, fitness, etc.
     notes = db.Column(db.Text)
+    # Cenplex: Erweiterte Rechnungsfelder
+    invoice_type = db.Column(db.Integer, default=0)  # 0=Serie, 1=Produkt, 2=Gutschrift, 3=Pauschal, 4=Privat, 6=FitnessAbo, 8=EMR, 9=Gutschein, 12=Ergo, 14=UVG
+    billing_case = db.Column(db.Integer, default=0)  # 0=KVG, 1=Suva, 2=Militaer, 3=Privat, 4=Spital, 5=IV, 6=VVG, 7=Pauschal
+    reference_number = db.Column(db.String(30))  # Referenznummer fuer Abrechnung
+    cost_unit_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Kostentraeger/Versicherer
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'))  # Behandelnder Therapeut
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'))
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    approved_date = db.Column(db.DateTime)
+    sent_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    was_disapproved = db.Column(db.Boolean, default=False)
+    apply_vat = db.Column(db.Boolean, default=False)
+    include_vat = db.Column(db.Boolean, default=False)
+    exclude_discount = db.Column(db.Boolean, default=False)
+    # MediData
+    medidata_state = db.Column(db.Integer)  # 0=pending, 1=picked_up, 2=error
+    medidata_state_changed = db.Column(db.DateTime)
+    transmission_reference = db.Column(db.String(100))
+    is_xml45 = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)
+    closed_date = db.Column(db.DateTime)  # Rechnungsabschluss
+    print_date = db.Column(db.DateTime)
+    email_send_date = db.Column(db.DateTime)
     pdf_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -747,6 +876,11 @@ class Invoice(db.Model):
     insurance_provider = db.relationship('InsuranceProvider', backref='invoices')
     items = db.relationship('InvoiceItem', backref='invoice', lazy='dynamic', cascade='all, delete-orphan')
     payments = db.relationship('Payment', backref='invoice', lazy='dynamic', cascade='all, delete-orphan')
+    cost_unit = db.relationship('Contact', foreign_keys=[cost_unit_id])
+    therapist = db.relationship('Employee', foreign_keys=[employee_id])
+    approved_by = db.relationship('Employee', foreign_keys=[approved_by_id])
+    sent_by = db.relationship('Employee', foreign_keys=[sent_by_id])
+    bank_account = db.relationship('BankAccount', foreign_keys=[bank_account_id])
 
 
 class InvoiceItem(db.Model):
@@ -762,6 +896,12 @@ class InvoiceItem(db.Model):
     amount = db.Column(db.Numeric(10, 2), default=0)
     vat_rate = db.Column(db.Numeric(5, 2), default=0)
     vat_amount = db.Column(db.Numeric(10, 2), default=0)
+    # Cenplex: Erweiterte Positionsfelder
+    taxpoint_code = db.Column(db.String(20))  # z.B. "001.0001"
+    unit_price_netto = db.Column(db.Numeric(10, 2))  # Netto-Einzelpreis
+    valuta_date = db.Column(db.Date)  # fuer MwSt-Satz
+    is_credit = db.Column(db.Boolean, default=False)
+    remark = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -775,6 +915,13 @@ class Payment(db.Model):
     reference = db.Column(db.String(50))
     source = db.Column(db.String(30))
     notes = db.Column(db.Text)
+    # Cenplex: Erweiterte Zahlungsfelder
+    payment_type = db.Column(db.Integer, default=0)  # 0=Bank, 1=Bar, 2=Karte, 3=Twint
+    reduction_reason = db.Column(db.Integer)  # 1=Skonto, 2=Reduktion, 3=Rundung, 4=Div, 5=Storno, 6=Teilstorno, 7=Verlust, 8=Gutschein
+    is_fully_payed = db.Column(db.Boolean, default=False)
+    payed_too_much = db.Column(db.Boolean, default=False)
+    is_from_file = db.Column(db.Boolean, default=False)  # Aus CAMT-Import
+    is_inkasso = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -1849,3 +1996,193 @@ class GroupAppointmentParticipant(db.Model):
     # Beziehungen
     patient = db.relationship('Patient')
     series = db.relationship('TreatmentSeries')
+
+
+# ============================================================
+# Benutzergruppen (Cenplex: EmployeeGroup)
+# ============================================================
+
+class EmployeeGroup(db.Model):
+    __tablename__ = 'employee_groups'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    user_rights_json = db.Column(db.Text)  # JSON: Gruppen-Berechtigungen
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EmployeeGroupMember(db.Model):
+    __tablename__ = 'employee_group_members'
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('employee_groups.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    group = db.relationship('EmployeeGroup', backref='members')
+    employee = db.relationship('Employee', backref='group_memberships')
+
+
+# ============================================================
+# Urlaubsantraege (Cenplex: VacationRequest)
+# ============================================================
+
+class VacationRequest(db.Model):
+    __tablename__ = 'vacation_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    is_halfday = db.Column(db.Boolean, default=False)
+    vacation_type = db.Column(db.Integer, default=0)  # 0=Urlaub, 1=Weiterbildung, 2=Krank, 3=Unfall, 4=Mutterschaft, 5=Militaer, 6=Unbezahlt, 7=Sonstiges
+    title = db.Column(db.String(200))
+    netto_days = db.Column(db.Numeric(5, 2))
+    netto_hours = db.Column(db.Numeric(6, 2))
+    approved_date = db.Column(db.DateTime)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    declined_date = db.Column(db.DateTime)
+    declined_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    decline_reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    employee = db.relationship('Employee', foreign_keys=[employee_id], backref='vacation_requests')
+    approved_by = db.relationship('Employee', foreign_keys=[approved_by_id])
+    declined_by = db.relationship('Employee', foreign_keys=[declined_by_id])
+
+
+# ============================================================
+# Urlaubs-Pensen (Cenplex: VacationAllotment)
+# ============================================================
+
+class VacationAllotment(db.Model):
+    __tablename__ = 'vacation_allotments'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    planned_year = db.Column(db.Integer, nullable=False)
+    days = db.Column(db.Numeric(5, 2))  # Urlaubstage pro Jahr
+    hours = db.Column(db.Numeric(6, 2))  # Oder Stunden
+    hours_per_day = db.Column(db.Numeric(4, 2))  # Stunden pro Tag
+    pensum = db.Column(db.Numeric(5, 2))  # Arbeitspensum %
+    pensum_details_json = db.Column(db.Text)  # JSON
+    allotments_json = db.Column(db.Text)  # JSON: Betraege pro Template
+    comments = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = db.relationship('Employee', backref='vacation_allotments')
+
+
+# ============================================================
+# Behandlungsplan (Cenplex: TreatmentPlan - eigenstaendig)
+# ============================================================
+
+class TreatmentPlan(db.Model):
+    """Eigenstaendiger Behandlungsplan (Cenplex TreatmentplanDto)"""
+    __tablename__ = 'treatment_plans'
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))
+    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'))
+    responsible_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    physician_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    title = db.Column(db.String(300))
+    diagnosis = db.Column(db.Text)
+    hypothesis = db.Column(db.Text)  # Arbeitshypothese
+    affected_side = db.Column(db.Integer, default=0)  # 0=bilateral, 1=rechts, 2=links
+    icd_codes_json = db.Column(db.Text)  # JSON: ICD-10 Codes
+    finding_id = db.Column(db.Integer, db.ForeignKey('clinical_findings.id'))
+    phase_template_id = db.Column(db.Integer)
+    start_date = db.Column(db.Date)
+    finished_date = db.Column(db.DateTime)
+    finished_reason = db.Column(db.Text)
+    flag_alerts_json = db.Column(db.Text)  # JSON
+    is_deleted = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    patient = db.relationship('Patient', backref='treatment_plans')
+    series = db.relationship('TreatmentSeries', backref='treatment_plans')
+    responsible = db.relationship('Employee', foreign_keys=[responsible_id])
+    created_by = db.relationship('Employee', foreign_keys=[created_by_id])
+    physician = db.relationship('Contact', foreign_keys=[physician_id])
+    finding = db.relationship('ClinicalFinding', foreign_keys=[finding_id])
+    phases = db.relationship('TreatmentPhase', backref='treatment_plan', cascade='all, delete-orphan')
+    assessments = db.relationship('Assessment', backref='treatment_plan', cascade='all, delete-orphan')
+
+
+# ============================================================
+# Behandlungsphasen (Cenplex: PhaseItem)
+# ============================================================
+
+class TreatmentPhase(db.Model):
+    __tablename__ = 'treatment_phases'
+    id = db.Column(db.Integer, primary_key=True)
+    treatment_plan_id = db.Column(db.Integer, db.ForeignKey('treatment_plans.id'), nullable=False)
+    title = db.Column(db.String(200))
+    position = db.Column(db.Integer)
+    default_duration_days = db.Column(db.Integer)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    finished_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    check_states_json = db.Column(db.Text)  # JSON
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    finished_by = db.relationship('Employee')
+
+
+# ============================================================
+# Assessments (Cenplex: AssessmentDto)
+# ============================================================
+
+class Assessment(db.Model):
+    __tablename__ = 'assessments'
+    id = db.Column(db.Integer, primary_key=True)
+    treatment_plan_id = db.Column(db.Integer, db.ForeignKey('treatment_plans.id'), nullable=False)
+    title = db.Column(db.String(300))
+    assessment_type = db.Column(db.Integer)  # Manual, Auto, etc.
+    assessment_template_id = db.Column(db.Integer)
+    survey_template_id = db.Column(db.Integer)
+    execution_count = db.Column(db.Integer)
+    start_phase_id = db.Column(db.Integer, db.ForeignKey('treatment_phases.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('Employee')
+    results = db.relationship('AssessmentResult', backref='assessment', cascade='all, delete-orphan')
+
+
+class AssessmentResult(db.Model):
+    __tablename__ = 'assessment_results'
+    id = db.Column(db.Integer, primary_key=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey('assessments.id'), nullable=False)
+    text_value = db.Column(db.Text)
+    sketch_value = db.Column(db.Text)  # SVG/JSON Zeichnung
+    calculated_value = db.Column(db.Numeric(10, 2))
+    sent_by_mail = db.Column(db.DateTime)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('Employee')
+
+
+# ============================================================
+# Abo-Pausen (Cenplex: AboBreak)
+# ============================================================
+
+class SubscriptionBreak(db.Model):
+    __tablename__ = 'subscription_breaks'
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.Text)
+    price = db.Column(db.Numeric(10, 2))  # Erstattung
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    subscription = db.relationship('Subscription', backref='breaks')
