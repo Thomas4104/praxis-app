@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Import-Ergebnis{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.zahlungen') }}">Zahlungen</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.import_payments') }}">Import</a>
+<span class="breadcrumb-sep">/</span>
+<span>Ergebnis</span>
+{% endblock %}
+
+{% block page_title %}Import-Ergebnis{% endblock %}
+
+{% block content %}
+{% if result.error %}
+<div class="card" style="border-left: 4px solid #e74c3c;">
+    <div style="padding: 20px;">
+        <h3 style="margin: 0 0 8px 0; color: #e74c3c;">Fehler beim Import</h3>
+        <p style="margin: 0;">{{ result.error }}</p>
+    </div>
+</div>
+{% else %}
+<!-- Zusammenfassung -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card" style="text-align: center; padding: 20px;">
+        <div style="font-size: 32px; font-weight: 700; color: var(--text-primary);">{{ result.total_parsed or (result.matched + result.unmatched) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Zahlungen erkannt</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <div style="font-size: 32px; font-weight: 700; color: #27ae60;">{{ result.matched }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Zugeordnet &amp; importiert</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <div style="font-size: 32px; font-weight: 700; color: {% if result.unmatched > 0 %}#e67e22{% else %}var(--text-secondary){% endif %};">{{ result.unmatched }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Nicht zugeordnet</div>
+    </div>
+</div>
+
+<!-- Detail-Tabelle -->
+{% if result.details %}
+<div class="card">
+    <div style="padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); font-size: 14px;">
+        <strong>Importierte Zahlungen</strong>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th style="text-align: right;">Betrag</th>
+                    <th>Referenz</th>
+                    <th>Zahler</th>
+                    <th>Rechnung</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in result.details %}
+                <tr>
+                    <td>{{ d.booking_date or '' }}</td>
+                    <td style="text-align: right; font-weight: 600;">CHF {{ '%.2f'|format(d.amount) }}</td>
+                    <td style="font-family: monospace; font-size: 12px;">{{ d.reference[:30] if d.reference else '' }}{% if d.reference and d.reference|length > 30 %}...{% endif %}</td>
+                    <td>{{ d.debtor or '' }}</td>
+                    <td>
+                        {% if d.matched and d.invoice_number %}
+                        <a href="{{ url_for('billing.detail', id=d.invoice_id) }}">{{ d.invoice_number }}</a>
+                        {% else %}
+                        <span style="color: var(--text-secondary);">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if d.matched %}
+                            {% if d.match_type == 'reference' %}
+                            <span class="badge badge-success">Referenz</span>
+                            {% elif d.match_type == 'reference_number' %}
+                            <span class="badge badge-success">Ref.-Nr.</span>
+                            {% elif d.match_type == 'amount_exact' %}
+                            <span class="badge badge-info">Betrag</span>
+                            {% else %}
+                            <span class="badge badge-success">Zugeordnet</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="badge badge-warning">Nicht zugeordnet</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div style="margin-top: 20px; display: flex; gap: 12px;">
+    <a href="{{ url_for('billing.import_payments') }}" class="btn btn-primary">Weitere Datei importieren</a>
+    <a href="{{ url_for('billing.zahlungen') }}" class="btn btn-secondary">Zur Zahlungsuebersicht</a>
+</div>
+{% endblock %}

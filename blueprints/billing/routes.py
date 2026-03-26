@@ -961,3 +961,46 @@ def delete_item(id, item_id):
     db.session.commit()
     flash('Position wurde geloescht.', 'success')
     return redirect(url_for('billing.detail', id=id))
+
+
+# ============================================================
+# CAMT/VESR-Import (Banking-Dateien)
+# ============================================================
+
+@billing_bp.route('/import-payments', methods=['GET', 'POST'])
+@login_required
+@require_permission('billing.record_payment')
+def import_payments():
+    """Zahlungen aus CAMT/VESR-Datei importieren"""
+    from services.banking_service import import_payments as do_import
+
+    if request.method == 'POST':
+        file = request.files.get('payment_file')
+        if not file:
+            flash('Bitte eine Datei auswaehlen.', 'error')
+            return redirect(url_for('billing.import_payments'))
+
+        file_content = file.read()
+        filename = file.filename.lower()
+
+        # Dateityp erkennen
+        if filename.endswith('.xml'):
+            file_type = 'camt054'
+        elif filename.endswith('.v11') or filename.endswith('.csv') or filename.endswith('.txt'):
+            file_type = 'vesr'
+        else:
+            flash('Unbekanntes Dateiformat. Bitte XML (CAMT) oder V11/TXT (VESR) verwenden.', 'error')
+            return redirect(url_for('billing.import_payments'))
+
+        org_id = get_org_id()
+        result = do_import(file_content, file_type, org_id)
+
+        if result.get('error'):
+            flash(f"Fehler beim Import: {result['error']}", 'error')
+        else:
+            flash(f"Import abgeschlossen: {result['imported']} Zahlungen importiert, "
+                  f"{result['matched']} zugeordnet, {result['unmatched']} nicht zugeordnet.", 'success')
+
+        return render_template('billing/import_result.html', result=result)
+
+    return render_template('billing/import_payments.html')

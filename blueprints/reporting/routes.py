@@ -387,3 +387,31 @@ def api_scorecard():
         return jsonify({'error': 'Therapeut nicht gefunden.'}), 404
 
     return jsonify(result)
+
+
+# ============================================================
+# Cenplex KPI-API
+# ============================================================
+
+@reporting_bp.route('/api/kpi', methods=['POST'])
+@login_required
+@require_permission('reporting.view')
+def api_kpi():
+    """API: KPI-Daten abrufen (Cenplex-kompatibel)"""
+    from services.reporting_service import get_kpi_data
+
+    data = request.get_json()
+    kpi_type = data.get('kpi_type', 'appointments')
+    date_from = datetime.strptime(data['date_from'], '%Y-%m-%d') if data.get('date_from') else datetime.now().replace(day=1)
+    date_to = datetime.strptime(data['date_to'], '%Y-%m-%d') if data.get('date_to') else datetime.now()
+
+    result = get_kpi_data(
+        org_id=current_user.organization_id,
+        kpi_type=kpi_type,
+        date_from=date_from,
+        date_to=date_to,
+        location_id=data.get('location_id'),
+        employee_id=data.get('employee_id')
+    )
+
+    return jsonify(result)

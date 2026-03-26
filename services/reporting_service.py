@@ -1241,3 +1241,242 @@ def get_chart_data_monthly(org_id, year, category='revenue'):
         'previous_year': data_previous,
         'year': year,
     }
+
+
+# ============================================================
+# Cenplex KPI-System
+# ============================================================
+
+def get_kpi_data(org_id, kpi_type, date_from, date_to, location_id=None, employee_id=None):
+    """
+    Berechnet KPI-Daten nach Cenplex-Vorbild.
+
+    kpi_type: 'appointments', 'billing', 'fitness', 'utilization', 'patients'
+    """
+    if kpi_type == 'appointments':
+        return _kpi_appointments(org_id, date_from, date_to, location_id, employee_id)
+    elif kpi_type == 'billing':
+        return _kpi_billing(org_id, date_from, date_to, location_id, employee_id)
+    elif kpi_type == 'utilization':
+        return _kpi_utilization(org_id, date_from, date_to, location_id, employee_id)
+    elif kpi_type == 'patients':
+        return _kpi_patients(org_id, date_from, date_to, location_id)
+    elif kpi_type == 'fitness':
+        return _kpi_fitness(org_id, date_from, date_to, location_id)
+    return {}
+
+
+def _kpi_appointments(org_id, date_from, date_to, location_id=None, employee_id=None):
+    """Termin-KPIs (Cenplex: KpiappointmentDto)"""
+    query = Appointment.query.join(
+        TreatmentSeries, Appointment.series_id == TreatmentSeries.id, isouter=True
+    ).filter(
+        Appointment.start_time >= date_from,
+        Appointment.start_time <= date_to
+    )
+
+    # Filter
+    if location_id:
+        query = query.filter(Appointment.location_id == location_id)
+    if employee_id:
+        query = query.filter(Appointment.employee_id == employee_id)
+
+    all_appts = query.all()
+
+    total = len(all_appts)
+    completed = sum(1 for a in all_appts if a.status == 'completed')
+    cancelled = sum(1 for a in all_appts if a.status == 'cancelled')
+    no_show = sum(1 for a in all_appts if a.status == 'no_show')
+    online_booked = sum(1 for a in all_appts if a.was_booked_online)
+
+    # Durchschnittliche Dauer
+    durations = [a.duration_minutes for a in all_appts if a.duration_minutes]
+    avg_duration = sum(durations) / len(durations) if durations else 0
+
+    # Ersttermine vs. Folgetermine
+    first_appts = sum(1 for a in all_appts if a.series_number == 1 or a.appointment_type == 'initial')
+
+    cancel_rate = (cancelled / total * 100) if total > 0 else 0
+    no_show_rate = (no_show / total * 100) if total > 0 else 0
+
+    return {
+        'total': total,
+        'completed': completed,
+        'cancelled': cancelled,
+        'no_show': no_show,
+        'cancel_rate': round(cancel_rate, 1),
+        'no_show_rate': round(no_show_rate, 1),
+        'online_booked': online_booked,
+        'avg_duration': round(avg_duration, 1),
+        'first_appointments': first_appts,
+        'follow_up': total - first_appts
+    }
+
+
+def _kpi_billing(org_id, date_from, date_to, location_id=None, employee_id=None):
+    """Abrechnungs-KPIs (Cenplex: KpisaleDto)"""
+    query = Invoice.query.filter(
+        Invoice.organization_id == org_id,
+        Invoice.created_at >= date_from,
+        Invoice.created_at <= date_to,
+        Invoice.is_deleted != True
+    )
+
+    if employee_id:
+        query = query.filter(Invoice.employee_id == employee_id)
+
+    invoices = query.all()
+
+    total_invoiced = sum(float(i.amount_total or 0) for i in invoices)
+    total_paid = sum(float(i.amount_paid or 0) for i in invoices)
+    total_open = sum(float(i.amount_open or 0) for i in invoices if i.status in ('sent', 'reminded'))
+    total_overdue = sum(float(i.amount_open or 0) for i in invoices
+                       if i.due_date and i.due_date < date.today() and i.status in ('sent', 'reminded'))
+
+    # Nach Typ gruppieren
+    by_type = {}
+    for inv in invoices:
+        type_key = inv.invoice_type or 0
+        if type_key not in by_type:
+            by_type[type_key] = {'count': 0, 'amount': 0}
+        by_type[type_key]['count'] += 1
+        by_type[type_key]['amount'] += float(inv.amount_total or 0)
+
+    # Nach BillingCase gruppieren
+    by_case = {}
+    for inv in invoices:
+        case_key = inv.billing_case or 0
+        if case_key not in by_case:
+            by_case[case_key] = {'count': 0, 'amount': 0}
+        by_case[case_key]['count'] += 1
+        by_case[case_key]['amount'] += float(inv.amount_total or 0)
+
+    return {
+        'total_invoiced': round(total_invoiced, 2),
+        'total_paid': round(total_paid, 2),
+        'total_open': round(total_open, 2),
+        'total_overdue': round(total_overdue, 2),
+        'invoice_count': len(invoices),
+        'avg_invoice': round(total_invoiced / len(invoices), 2) if invoices else 0,
+        'payment_ratio': round(total_paid / total_invoiced * 100, 1) if total_invoiced > 0 else 0,
+        'by_type': by_type,
+        'by_case': by_case
+    }
+
+
+def _kpi_utilization(org_id, date_from, date_to, location_id=None, employee_id=None):
+    """Auslastungs-KPIs (Cenplex: KpicontrollingDto)"""
+    employees_query = Employee.query.filter_by(organization_id=org_id, is_active=True)
+    if employee_id:
+        employees_query = employees_query.filter_by(id=employee_id)
+    employees = employees_query.all()
+
+    utilization = []
+    for emp in employees:
+        # Geplante Arbeitszeit berechnen
+        schedules = WorkSchedule.query.filter_by(employee_id=emp.id).all()
+        planned_minutes_per_week = sum(
+            (datetime.combine(date.today(), s.end_time) - datetime.combine(date.today(), s.start_time)).seconds / 60
+            for s in schedules if s.work_type in ('treatment', 'regular')
+        )
+
+        # Anzahl Wochen im Zeitraum
+        days = (date_to - date_from).days
+        weeks = max(1, days / 7)
+        total_planned = planned_minutes_per_week * weeks
+
+        # Tatsaechliche Behandlungszeit
+        appts = Appointment.query.filter(
+            Appointment.employee_id == emp.id,
+            Appointment.start_time >= date_from,
+            Appointment.start_time <= date_to,
+            Appointment.status.in_(['completed', 'scheduled'])
+        ).all()
+
+        total_actual = sum(a.duration_minutes or 30 for a in appts)
+
+        rate = (total_actual / total_planned * 100) if total_planned > 0 else 0
+
+        utilization.append({
+            'employee_id': emp.id,
+            'employee_name': f"{emp.user.first_name} {emp.user.last_name}" if emp.user else f"MA {emp.id}",
+            'planned_hours': round(total_planned / 60, 1),
+            'actual_hours': round(total_actual / 60, 1),
+            'utilization_rate': round(rate, 1),
+            'appointment_count': len(appts)
+        })
+
+    avg_rate = sum(u['utilization_rate'] for u in utilization) / len(utilization) if utilization else 0
+
+    return {
+        'employees': utilization,
+        'avg_utilization': round(avg_rate, 1),
+        'total_planned_hours': round(sum(u['planned_hours'] for u in utilization), 1),
+        'total_actual_hours': round(sum(u['actual_hours'] for u in utilization), 1)
+    }
+
+
+def _kpi_patients(org_id, date_from, date_to, location_id=None):
+    """Patienten-KPIs"""
+    new_patients = Patient.query.filter(
+        Patient.organization_id == org_id,
+        Patient.created_at >= date_from,
+        Patient.created_at <= date_to
+    ).count()
+
+    active_patients = Patient.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).count()
+
+    blacklisted = Patient.query.filter_by(
+        organization_id=org_id, blacklisted=True
+    ).count()
+
+    # Aktive Serien
+    active_series = TreatmentSeries.query.filter(
+        TreatmentSeries.organization_id == org_id,
+        TreatmentSeries.status == 'active'
+    ).count()
+
+    return {
+        'new_patients': new_patients,
+        'active_patients': active_patients,
+        'blacklisted': blacklisted,
+        'active_series': active_series
+    }
+
+
+def _kpi_fitness(org_id, date_from, date_to, location_id=None):
+    """Fitness-KPIs (Cenplex: KpifitnessDto)"""
+    from models import Subscription, FitnessVisit
+
+    active_abos = Subscription.query.filter(
+        Subscription.organization_id == org_id,
+        Subscription.status == 'active'
+    ).count()
+
+    new_abos = Subscription.query.filter(
+        Subscription.organization_id == org_id,
+        Subscription.created_at >= date_from,
+        Subscription.created_at <= date_to
+    ).count()
+
+    ended_abos = Subscription.query.filter(
+        Subscription.organization_id == org_id,
+        Subscription.end_date >= date_from,
+        Subscription.end_date <= date_to,
+        Subscription.status == 'expired'
+    ).count()
+
+    visits = FitnessVisit.query.filter(
+        FitnessVisit.organization_id == org_id,
+        FitnessVisit.check_in >= date_from,
+        FitnessVisit.check_in <= date_to
+    ).count()
+
+    return {
+        'active_abos': active_abos,
+        'new_abos': new_abos,
+        'ended_abos': ended_abos,
+        'visits': visits
+    }

@@ -1329,6 +1329,18 @@ class EmailTemplate(db.Model):
     body_html = db.Column(db.Text)
     placeholders_json = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    # Cenplex: Erweiterte Template-Felder
+    template_identifier = db.Column(db.String(50))  # z.B. 'appointment_reminder'
+    source_type = db.Column(db.String(30))  # Quelle: calendar, billing, etc.
+    content_json = db.Column(db.Text)  # JSON: [{language: 0, subject: '', message: '', appointment_line: ''}]
+    trigger_time = db.Column(db.Integer)  # Minuten/Stunden vor Termin (0=sofort)
+    trigger_unit = db.Column(db.String(10))  # 'minutes', 'hours', 'days'
+    is_sms = db.Column(db.Boolean, default=False)  # SMS statt E-Mail
+    send_to_guardian = db.Column(db.Boolean, default=False)  # An Erziehungsberechtigte
+    send_once_per_series = db.Column(db.Boolean, default=False)
+    resend_after_days = db.Column(db.Integer)  # Nach X Tagen erneut
+    is_deleted = db.Column(db.Boolean, default=False)
+    is_system = db.Column(db.Boolean, default=False)  # System-Template (nicht loeschbar)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     organization = db.relationship('Organization', backref=db.backref('email_templates', lazy='dynamic'))

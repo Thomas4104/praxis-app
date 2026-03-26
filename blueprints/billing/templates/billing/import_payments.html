@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Zahlungen importieren{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.zahlungen') }}">Zahlungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Import</span>
+{% endblock %}
+
+{% block page_title %}Zahlungen importieren{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 700px;">
+    <div style="padding: 20px;">
+        <h3 style="margin: 0 0 8px 0;">CAMT / VESR Import</h3>
+        <p style="color: var(--text-secondary); margin: 0 0 20px 0;">
+            Importieren Sie Zahlungsdateien von Ihrer Bank, um Zahlungseingaenge automatisch den offenen Rechnungen zuzuordnen.
+        </p>
+
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+            <strong style="display: block; margin-bottom: 8px;">Unterstuetzte Formate:</strong>
+            <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li><strong>CAMT.054</strong> (XML) &mdash; Bank-to-Customer Debit/Credit Notification</li>
+                <li><strong>VESR</strong> (V11/TXT/CSV) &mdash; Verguetungen mit Einzahlungsschein mit Referenznummer</li>
+            </ul>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="importForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Drag & Drop Zone -->
+            <div id="dropZone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 20px;"
+                 onclick="document.getElementById('fileInput').click();">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" style="margin-bottom: 12px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p style="margin: 0 0 8px 0; font-size: 16px; color: var(--text-primary);" id="dropText">
+                    Datei hierher ziehen oder klicken zum Auswaehlen
+                </p>
+                <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">
+                    XML, V11, TXT oder CSV
+                </p>
+            </div>
+
+            <input type="file" id="fileInput" name="payment_file" accept=".xml,.v11,.txt,.csv" style="display: none;"
+                   onchange="handleFileSelect(this);">
+
+            <div id="fileInfo" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <strong id="fileName"></strong>
+                        <span id="fileSize" style="color: var(--text-secondary); margin-left: 8px;"></span>
+                    </div>
+                    <button type="button" onclick="clearFile();" style="background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 18px;" title="Datei entfernen">&times;</button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitBtn" disabled style="width: 100%;">
+                Zahlungen importieren
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+// Drag & Drop Events
+['dragenter', 'dragover'].forEach(evt => {
+    dropZone.addEventListener(evt, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = 'var(--primary)';
+        dropZone.style.background = 'var(--bg-secondary)';
+    });
+});
+
+['dragleave', 'drop'].forEach(evt => {
+    dropZone.addEventListener(evt, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = 'var(--border)';
+        dropZone.style.background = 'transparent';
+    });
+});
+
+dropZone.addEventListener('drop', function(e) {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        handleFileSelect(fileInput);
+    }
+});
+
+function handleFileSelect(input) {
+    if (input.files.length > 0) {
+        const file = input.files[0];
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+        document.getElementById('fileInfo').style.display = 'block';
+        document.getElementById('dropZone').style.display = 'none';
+        document.getElementById('submitBtn').disabled = false;
+    }
+}
+
+function clearFile() {
+    fileInput.value = '';
+    document.getElementById('fileInfo').style.display = 'none';
+    document.getElementById('dropZone').style.display = 'block';
+    document.getElementById('submitBtn').disabled = true;
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+</script>
+{% endblock %}
