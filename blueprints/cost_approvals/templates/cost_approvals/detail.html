@@ -12,6 +12,12 @@
 
 {% block page_title %}
 Gutsprache {{ gutsprache.approval_number }}
+{% if gutsprache.kogu_type == 2 %}
+    <span class="badge badge-secondary">Blanko</span>
+{% endif %}
+{% if gutsprache.extension_of_id %}
+    <span class="badge badge-secondary">Verlängerung</span>
+{% endif %}
 {% if gutsprache.status == 'draft' %}
     <span class="badge badge-secondary">Erstellt</span>
 {% elif gutsprache.status == 'sent' %}
@@ -24,6 +30,9 @@ Gutsprache {{ gutsprache.approval_number }}
     <span class="badge badge-danger">Abgelehnt</span>
 {% elif gutsprache.status == 'cancelled' %}
     <span class="badge badge-secondary">Storniert</span>
+{% endif %}
+{% if gutsprache.is_storno %}
+    <span class="badge badge-danger">Storno</span>
 {% endif %}
 {% endblock %}
 
@@ -45,6 +54,14 @@ Gutsprache {{ gutsprache.approval_number }}
     </svg>
     Antwort erfassen
 </button>
+<button class="btn btn-secondary" onclick="showImportModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    XML importieren
+</button>
 {% endif %}
 {% if gutsprache.status in ('rejected', 'cancelled') %}
 <button class="btn btn-secondary" onclick="resendApproval()">
@@ -52,17 +69,30 @@ Gutsprache {{ gutsprache.approval_number }}
         <polyline points="23 4 23 10 17 10"></polyline>
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
     </svg>
-    Erneut senden
+    Wiederwägung
 </button>
 {% endif %}
-{% if gutsprache.patient and gutsprache.patient.email %}
-<a href="{{ url_for('mailing.compose', to=gutsprache.patient.email, patient_id=gutsprache.patient.id, subject='Gutsprache - ' ~ (gutsprache.diagnosis or '')) }}" class="btn btn-secondary">
+<!-- E-Mail an Versicherung (Cenplex: SendKoguEmailViewModel) -->
+<button class="btn btn-secondary" onclick="showEmailModal()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
         <polyline points="22,6 12,13 2,6"></polyline>
     </svg>
-    Per E-Mail senden
+    Per E-Mail
+</button>
+<!-- XML herunterladen -->
+{% if gutsprache.kogu_type != 2 %}
+<a href="{{ url_for('cost_approvals.download_xml', id=gutsprache.id) }}" class="btn btn-secondary" download>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+    </svg>
+    XML
 </a>
+{% endif %}
+<!-- Verlaengern -->
+{% if gutsprache.status in ('approved', 'partially_approved') %}
+<button class="btn btn-secondary" onclick="showExtendModal()">Verlängern</button>
 {% endif %}
 {% if gutsprache.status not in ('cancelled',) %}
 <button class="btn btn-danger" onclick="cancelApproval()">Stornieren</button>
@@ -79,6 +109,9 @@ Gutsprache {{ gutsprache.approval_number }}
             <p><strong>{{ gutsprache.patient.first_name }} {{ gutsprache.patient.last_name }}</strong></p>
             <p>Pat.-Nr.: {{ gutsprache.patient.patient_number }}</p>
             <p>Geb.: {{ gutsprache.patient.date_of_birth.strftime('%d.%m.%Y') if gutsprache.patient.date_of_birth else '-' }}</p>
+            {% if gutsprache.patient.insurance_number %}
+            <p>Vers.-Nr.: {{ gutsprache.patient.insurance_number }}</p>
+            {% endif %}
             {% else %}
             <p class="text-muted">Kein Patient zugeordnet</p>
             {% endif %}
@@ -87,23 +120,55 @@ Gutsprache {{ gutsprache.approval_number }}
 
     <!-- Versicherung -->
     <div class="card">
-        <div class="card-header"><h3>Versicherung</h3></div>
+        <div class="card-header"><h3>Versicherung / Kostenträger</h3></div>
         <div class="card-body">
             {% if gutsprache.insurance_provider %}
             <p><strong>{{ gutsprache.insurance_provider.name }}</strong></p>
             <p>{{ gutsprache.insurance_provider.address or '' }}</p>
             <p>{{ gutsprache.insurance_provider.zip_code or '' }} {{ gutsprache.insurance_provider.city or '' }}</p>
+            {% if gutsprache.insurance_provider.gln_number %}
+            <p>GLN: {{ gutsprache.insurance_provider.gln_number }}</p>
+            {% endif %}
+            {% if gutsprache.ca_receiver_email %}
+            <p>E-Mail: {{ gutsprache.ca_receiver_email }}</p>
+            {% endif %}
             {% else %}
             <p class="text-muted">Keine Versicherung zugeordnet</p>
             {% endif %}
         </div>
     </div>
 
-    <!-- Verordnung -->
+    <!-- Behandlungsdaten (Cenplex) -->
     <div class="card">
-        <div class="card-header"><h3>Verordnungsdaten</h3></div>
+        <div class="card-header"><h3>Behandlungsdaten</h3></div>
         <div class="card-body">
+            <p><strong>Behandlungsgrund:</strong>
+                {{ treatment_reasons.get(gutsprache.treatment_reason, '-') if gutsprache.treatment_reason is not none else '-' }}
+            </p>
+            <p><strong>Abrechnungsfall:</strong>
+                {{ billing_cases.get(gutsprache.ca_billing_case, '-') if gutsprache.ca_billing_case is not none else '-' }}
+            </p>
+            <p><strong>Tarif:</strong>
+                {% if gutsprache.tarif %}
+                    {{ gutsprache.tarif }} - {{ tarif_codes.get(gutsprache.tarif, '') }}
+                {% else %}
+                    -
+                {% endif %}
+            </p>
+            {% if gutsprache.treatment_title %}
+            <p><strong>Titel:</strong> {{ gutsprache.treatment_title }}</p>
+            {% endif %}
+            {% if gutsprache.measures %}
+            <p><strong>Massnahmen:</strong> {{ gutsprache.measures }}</p>
+            {% endif %}
             <p><strong>Diagnose:</strong> {{ gutsprache.diagnosis_code or '-' }} — {{ gutsprache.diagnosis_text or '-' }}</p>
+        </div>
+    </div>
+
+    <!-- Verordnung & Zeitdaten -->
+    <div class="card">
+        <div class="card-header"><h3>Verordnung & Zeitdaten</h3></div>
+        <div class="card-body">
             <p><strong>Verordnungsdatum:</strong> {{ gutsprache.prescription_date.strftime('%d.%m.%Y') if gutsprache.prescription_date else '-' }}</p>
             <p><strong>Typ:</strong> {{ 'Erstverordnung' if gutsprache.prescription_type == 'erst' else ('Folgeverordnung' if gutsprache.prescription_type == 'folge' else '-') }}</p>
             <p><strong>Arzt:</strong>
@@ -120,22 +185,36 @@ Gutsprache {{ gutsprache.approval_number }}
                     -
                 {% endif %}
             </p>
-        </div>
-    </div>
-
-    <!-- Daten -->
-    <div class="card">
-        <div class="card-header"><h3>Zeitdaten</h3></div>
-        <div class="card-body">
-            <p><strong>Erstellt:</strong> {{ gutsprache.created_at.strftime('%d.%m.%Y') if gutsprache.created_at else '-' }}</p>
+            <hr style="margin:0.5rem 0;">
+            <p><strong>Erstellt:</strong> {{ gutsprache.created_at.strftime('%d.%m.%Y %H:%M') if gutsprache.created_at else '-' }}</p>
             <p><strong>Gesendet:</strong> {{ gutsprache.sent_date.strftime('%d.%m.%Y') if gutsprache.sent_date else '-' }}</p>
             <p><strong>Antwort:</strong> {{ gutsprache.response_date.strftime('%d.%m.%Y') if gutsprache.response_date else '-' }}</p>
             <p><strong>Gültig bis:</strong> {{ gutsprache.valid_until.strftime('%d.%m.%Y') if gutsprache.valid_until else '-' }}</p>
+            {% if gutsprache.request_id %}
+            <p><strong>Request-ID:</strong> <code>{{ gutsprache.request_id }}</code></p>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<!-- Verlaengerung-Info (Cenplex: ExtensionOf) -->
+{% if gutsprache.extension_of %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Verlängerung von</h3></div>
+    <div class="card-body">
+        <p>
+            <a href="{{ url_for('cost_approvals.detail', id=gutsprache.extension_of.id) }}">
+                {{ gutsprache.extension_of.approval_number }}
+            </a>
+            — {{ status_labels.get(gutsprache.extension_of.status, gutsprache.extension_of.status) }}
+            — {{ gutsprache.extension_of.created_at.strftime('%d.%m.%Y') if gutsprache.extension_of.created_at else '' }}
+        </p>
+    </div>
+</div>
+{% endif %}
+
 <!-- Positionen -->
+{% if gutsprache.kogu_type != 2 %}
 <div class="card" style="margin-top:1rem;">
     <div class="card-header"><h3>Angefragte Positionen</h3></div>
     <div class="card-body">
@@ -168,7 +247,7 @@ Gutsprache {{ gutsprache.approval_number }}
                     <td colspan="2"><strong>Total</strong></td>
                     <td><strong>{{ gutsprache.requested_sessions or '-' }}</strong></td>
                     <td></td>
-                    <td><strong>{{ '%.2f'|format(gutsprache.total_amount or 0) }}</strong></td>
+                    <td><strong>CHF {{ '%.2f'|format(gutsprache.total_amount or 0) }}</strong></td>
                     <td></td>
                 </tr>
             </tfoot>
@@ -178,18 +257,26 @@ Gutsprache {{ gutsprache.approval_number }}
         {% endif %}
     </div>
 </div>
+{% else %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Blanko-Gutsprache</h3></div>
+    <div class="card-body">
+        <p class="text-muted">Bei einer Blanko-Gutsprache werden keine Positionen erfasst. Die Gutsprache wird ohne Detailpositionen an den Kostenträger gesendet.</p>
+    </div>
+</div>
+{% endif %}
 
 <!-- Begruendung -->
 {% if gutsprache.justification %}
 <div class="card" style="margin-top:1rem;">
     <div class="card-header"><h3>Begründung</h3></div>
     <div class="card-body">
-        <p>{{ gutsprache.justification }}</p>
+        <p style="white-space:pre-wrap;">{{ gutsprache.justification }}</p>
     </div>
 </div>
 {% endif %}
 
-<!-- Antwort-Bereich -->
+<!-- Antwort des Kostentraegers (einfache Antwort) -->
 {% if gutsprache.status in ('approved', 'partially_approved', 'rejected') %}
 <div class="card" style="margin-top:1rem;">
     <div class="card-header">
@@ -219,9 +306,151 @@ Gutsprache {{ gutsprache.approval_number }}
 </div>
 {% endif %}
 
+<!-- MediData-Antworten (Cenplex: MedidataresponseDto) -->
+{% if responses %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>MediData-Antworten</h3></div>
+    <div class="card-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Ergebnis</th>
+                    <th>Details</th>
+                    <th>Deckung</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for resp in responses %}
+                <tr>
+                    <td>{{ resp.received.strftime('%d.%m.%Y %H:%M') if resp.received else '-' }}</td>
+                    <td>
+                        {% if resp.result == 0 %}
+                            <span class="badge badge-success">Bewilligt</span>
+                        {% elif resp.result == 1 %}
+                            <span class="badge badge-warning">Hängig</span>
+                        {% elif resp.result == 2 %}
+                            <span class="badge badge-danger">Abgelehnt</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if resp.result == 0 and resp.accepted_explanation %}
+                            {{ resp.accepted_explanation[:100] }}{% if resp.accepted_explanation|length > 100 %}...{% endif %}
+                        {% elif resp.result == 1 and resp.pending_messages %}
+                            {% set msgs = resp.pending_messages %}
+                            {{ msgs[:80] }}{% if msgs|length > 80 %}...{% endif %}
+                        {% elif resp.result == 2 %}
+                            {% if resp.rejected_explanation %}
+                                {{ resp.rejected_explanation[:100] }}{% if resp.rejected_explanation|length > 100 %}...{% endif %}
+                            {% elif resp.rejected_error %}
+                                {% set errs = resp.rejected_error %}
+                                {{ errs[:80] }}{% if errs|length > 80 %}...{% endif %}
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if resp.coverage_type %}
+                            {{ resp.coverage_type }}
+                            {% if resp.coverage_begin %}ab {{ resp.coverage_begin.strftime('%d.%m.%Y') }}{% endif %}
+                            {% if resp.coverage_end %}bis {{ resp.coverage_end.strftime('%d.%m.%Y') }}{% endif %}
+                            {% if resp.coverage_units %}({{ resp.coverage_units }} Einh.){% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if resp.is_done %}
+                            <span class="badge badge-success">Erledigt</span>
+                        {% else %}
+                            <span class="badge badge-warning">Offen</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not resp.is_done %}
+                        <button class="btn btn-sm btn-secondary" onclick="markResponseDone({{ resp.id }})">Erledigt</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Verlängerungen (Cenplex: Extensions) -->
+{% if extensions %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Verlängerungen</h3></div>
+    <div class="card-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Status</th>
+                    <th>Erstellt</th>
+                    <th>Sitzungen</th>
+                    <th>Betrag</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ext in extensions %}
+                <tr onclick="window.location='{{ url_for('cost_approvals.detail', id=ext.id) }}'" style="cursor:pointer;">
+                    <td>{{ ext.approval_number }}</td>
+                    <td>{{ status_labels.get(ext.status, ext.status) }}</td>
+                    <td>{{ ext.created_at.strftime('%d.%m.%Y') if ext.created_at else '-' }}</td>
+                    <td>{{ ext.requested_sessions or '-' }}</td>
+                    <td>{{ '%.2f'|format(ext.total_amount or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tracking-Historie (Cenplex: MedidatatrackingDto) -->
+{% if trackings %}
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Verlauf</h3></div>
+    <div class="card-body">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Aktion</th>
+                    <th>Mitarbeiter</th>
+                    <th>Request-ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in trackings %}
+                <tr>
+                    <td>{{ t.action_date.strftime('%d.%m.%Y %H:%M') if t.action_date else '-' }}</td>
+                    <td>{{ action_labels.get(t.action_type, 'Aktion ' ~ t.action_type) }}</td>
+                    <td>
+                        {% if t.employee and t.employee.user %}
+                            {{ t.employee.user.first_name }} {{ t.employee.user.last_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td><code>{{ t.request_id or '-' }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <!-- Antwort-Modal -->
-<div id="responseModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+<div id="responseModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="background:var(--bg-primary); border-radius:8px; padding:2rem; width:550px; max-width:90vw; max-height:90vh; overflow-y:auto;">
         <h3 style="margin-bottom:1rem;">Antwort erfassen</h3>
         <div class="form-group" style="margin-bottom:1rem;">
             <label class="form-label">Ergebnis</label>
@@ -244,6 +473,14 @@ Gutsprache {{ gutsprache.approval_number }}
                 <label class="form-label">Gültig bis</label>
                 <input type="date" id="responseValidUntil" class="form-input">
             </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Deckungsart (Cenplex: coverage_type)</label>
+                <select id="responseCoverageType" class="form-input">
+                    <option value="">— Keine Angabe —</option>
+                    <option value="full">Voll</option>
+                    <option value="limited">Teilweise</option>
+                </select>
+            </div>
         </div>
         <div id="rejectionFields" style="display:none;">
             <div class="form-group" style="margin-bottom:1rem;">
@@ -262,35 +499,103 @@ Gutsprache {{ gutsprache.approval_number }}
     </div>
 </div>
 
+<!-- XML-Import-Modal (Cenplex: MediData Response Verarbeitung) -->
+<div id="importModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="background:var(--bg-primary); border-radius:8px; padding:2rem; width:550px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin-bottom:1rem;">MediData XML-Antwort importieren</h3>
+        <form id="importForm" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">XML-Datei hochladen</label>
+                <input type="file" name="xml_file" id="xmlFile" class="form-input" accept=".xml">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Oder XML direkt einfügen</label>
+                <textarea name="xml_content" id="xmlContent" class="form-input" rows="6" placeholder="&lt;response ...&gt;...&lt;/response&gt;"></textarea>
+            </div>
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideImportModal()">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="submitImport()">Importieren</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- E-Mail-Modal (Cenplex: SendKoguEmailViewModel) -->
+<div id="emailModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="background:var(--bg-primary); border-radius:8px; padding:2rem; width:450px; max-width:90vw;">
+        <h3 style="margin-bottom:1rem;">Gutsprache per E-Mail senden</h3>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Empfänger E-Mail</label>
+            <input type="email" id="emailReceiver" class="form-input"
+                   value="{{ gutsprache.ca_receiver_email or (gutsprache.insurance_provider.email if gutsprache.insurance_provider and gutsprache.insurance_provider.email else '') }}"
+                   placeholder="empfaenger@versicherung.ch">
+        </div>
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="hideEmailModal()">Abbrechen</button>
+            <button class="btn btn-primary" onclick="submitEmail()">Senden</button>
+        </div>
+    </div>
+</div>
+
+<!-- Verlängerung-Modal -->
+<div id="extendModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="background:var(--bg-primary); border-radius:8px; padding:2rem; width:450px; max-width:90vw;">
+        <h3 style="margin-bottom:1rem;">Gutsprache verlängern</h3>
+        <form method="POST" action="{{ url_for('cost_approvals.extend_approval', id=gutsprache.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Begründung</label>
+                <textarea name="justification" class="form-input" rows="3">{{ gutsprache.justification or '' }}</textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="form-label">Angefragte Sitzungen</label>
+                <input type="number" name="requested_sessions" class="form-input" value="{{ gutsprache.requested_sessions or 9 }}" min="1">
+            </div>
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="hideExtendModal()">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Verlängerung erstellen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+}
+</style>
+
 <script>
+// === Senden ===
 function sendApproval() {
     if (!confirm('Gutsprache jetzt senden?')) return;
     fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/send', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
-        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+        .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
 }
 
+// === Storno ===
 function cancelApproval() {
     if (!confirm('Gutsprache wirklich stornieren?')) return;
     fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
-        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+        .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
 }
 
+// === Wiedererwaegung ===
 function resendApproval() {
-    if (!confirm('Gutsprache erneut senden?')) return;
+    if (!confirm('Gutsprache zur Wiederwägung erneut senden?')) return;
     fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/resend', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(r => r.json())
-        .then(data => { if (data.success) location.reload(); else alert(data.error); });
+        .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
 }
 
-function showResponseModal() {
-    document.getElementById('responseModal').style.display = 'flex';
-}
-
-function hideResponseModal() {
-    document.getElementById('responseModal').style.display = 'none';
-}
+// === Antwort-Modal ===
+function showResponseModal() { document.getElementById('responseModal').style.display = 'flex'; }
+function hideResponseModal() { document.getElementById('responseModal').style.display = 'none'; }
 
 function toggleResponseFields() {
     const result = document.getElementById('responseResult').value;
@@ -306,12 +611,72 @@ function submitResponse() {
         approved_amount: parseFloat(document.getElementById('responseApprovedAmount').value) || 0,
         valid_until: document.getElementById('responseValidUntil').value,
         rejection_reason: document.getElementById('responseRejectionReason').value,
-        response_notes: document.getElementById('responseNotes').value
+        response_notes: document.getElementById('responseNotes').value,
+        coverage_type: document.getElementById('responseCoverageType').value,
     };
     fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/respond', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)
+    }).then(r => r.json())
+      .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
+}
+
+// === XML-Import-Modal ===
+function showImportModal() { document.getElementById('importModal').style.display = 'flex'; }
+function hideImportModal() { document.getElementById('importModal').style.display = 'none'; }
+
+function submitImport() {
+    const formData = new FormData();
+    const fileInput = document.getElementById('xmlFile');
+    const xmlContent = document.getElementById('xmlContent').value;
+
+    if (fileInput.files.length > 0) {
+        formData.append('xml_file', fileInput.files[0]);
+    }
+    formData.append('xml_content', xmlContent);
+
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/import-response', {
+        method: 'POST',
+        body: formData
+    }).then(r => r.json())
+      .then(data => {
+          if (data.success) {
+              alert(data.message);
+              location.reload();
+          } else {
+              alert(data.error || 'Import fehlgeschlagen');
+          }
+      });
+}
+
+// === E-Mail-Modal ===
+function showEmailModal() { document.getElementById('emailModal').style.display = 'flex'; }
+function hideEmailModal() { document.getElementById('emailModal').style.display = 'none'; }
+
+function submitEmail() {
+    const email = document.getElementById('emailReceiver').value;
+    if (!email) { alert('Bitte E-Mail-Adresse eingeben.'); return; }
+    fetchWithCSRF('/cost-approvals/api/{{ gutsprache.id }}/send-email', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({receiver_email: email})
+    }).then(r => r.json())
+      .then(data => {
+          if (data.success) { alert(data.message); hideEmailModal(); location.reload(); }
+          else { alert(data.error || 'Fehler'); }
+      });
+}
+
+// === Verlängerung-Modal ===
+function showExtendModal() { document.getElementById('extendModal').style.display = 'flex'; }
+function hideExtendModal() { document.getElementById('extendModal').style.display = 'none'; }
+
+// === MediData-Antwort als erledigt markieren ===
+function markResponseDone(responseId) {
+    fetchWithCSRF('/cost-approvals/api/response/' + responseId + '/done', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
     }).then(r => r.json())
       .then(data => { if (data.success) location.reload(); else alert(data.error || 'Fehler'); });
 }

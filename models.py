@@ -1360,8 +1360,70 @@ class CostApprovalItem(db.Model):
     description = db.Column(db.String(500))
     quantity = db.Column(db.Numeric(10, 2), default=1)
     amount = db.Column(db.Numeric(10, 2), default=0)
+    tax_point_value = db.Column(db.Numeric(10, 4))  # Taxpunktwert
     comment = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MedidataResponse(db.Model):
+    """MediData-Antworten auf Kostengutsprachen und Rechnungen (Cenplex: MedidataresponseDto)"""
+    __tablename__ = 'medidata_responses'
+    __table_args__ = (
+        db.Index('ix_medresp_kogu', 'cost_approval_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
+    cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
+    result = db.Column(db.Integer, default=1)  # 0=Accepted, 1=Pending, 2=Rejected
+    received = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Akzeptiert
+    accepted_explanation = db.Column(db.Text)
+    accepted_has_reimbursement = db.Column(db.Boolean, default=False)
+    coverage_type = db.Column(db.String(50))  # full, limited
+    coverage_begin = db.Column(db.Date)
+    coverage_end = db.Column(db.Date)
+    coverage_units = db.Column(db.Integer)
+    # Haengig
+    pending_explanation = db.Column(db.Text)
+    pending_messages = db.Column(db.Text)  # JSON: [{code, text}]
+    # Abgelehnt
+    rejected_explanation = db.Column(db.Text)
+    rejected_error = db.Column(db.Text)  # JSON: [{code, text, error_value, valid_value, record_id}]
+    # Dokument
+    response_document = db.Column(db.LargeBinary)  # Gezipptes XML
+    request_id = db.Column(db.String(100))
+    is_file_answer = db.Column(db.Boolean, default=False)
+    is_done = db.Column(db.Boolean, default=False)
+    file_key = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    invoice = db.relationship('Invoice', backref='medidata_responses')
+    cost_approval = db.relationship('CostApproval', backref=db.backref('medidata_responses', lazy='dynamic'))
+
+
+class MedidataTracking(db.Model):
+    """Audit-Trail fuer Kostengutsprache- und Rechnungsaktionen (Cenplex: MedidatatrackingDto)"""
+    __tablename__ = 'medidata_trackings'
+    __table_args__ = (
+        db.Index('ix_medtrack_kogu', 'cost_approval_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
+    cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
+    action_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    # Cenplex UserActionType: 19=Send, 20=Storno, 21=Prolong, 22=Reconsider, 35=Delete, 37=SendByEmail
+    action_type = db.Column(db.Integer)
+    original_document = db.Column(db.LargeBinary)  # Gezipptes Original-XML
+    log_file = db.Column(db.LargeBinary)  # Gezipptes Log
+    request_id = db.Column(db.String(100))
+    is_xml45 = db.Column(db.Boolean, default=False)
+    track_parameter = db.Column(db.Text)  # JSON mit zusaetzlichen Parametern
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    invoice = db.relationship('Invoice', backref='medidata_trackings')
+    cost_approval = db.relationship('CostApproval', backref=db.backref('medidata_trackings', lazy='dynamic'))
+    employee = db.relationship('Employee', foreign_keys=[employee_id])
 
 
 # ============================================================
@@ -2743,39 +2805,7 @@ class InvoiceToCredit(db.Model):
     credit = db.relationship('Credit', backref='invoice_assignments')
 
 
-class MedidataTracking(db.Model):
-    """MediData Versand-Tracking (Cenplex: MedidatatrackingDto)"""
-    __tablename__ = 'medidata_trackings'
-    id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
-    cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
-    tracking_type = db.Column(db.Integer)  # 0=Rechnung, 1=Kostengutsprache, 2=Storno
-    state = db.Column(db.Integer, default=0)  # 0=gesendet, 1=abgeholt, 2=fehler
-    transmission_reference = db.Column(db.String(100))
-    request_id = db.Column(db.String(50))
-    error_message = db.Column(db.Text)
-    sent_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    invoice = db.relationship('Invoice', backref='medidata_trackings')
-    cost_approval = db.relationship('CostApproval', backref='medidata_trackings')
-
-
-class MedidataResponse(db.Model):
-    """MediData Antworten (Cenplex: MedidataresponseDto)"""
-    __tablename__ = 'medidata_responses'
-    id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
-    cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
-    response_type = db.Column(db.Integer)
-    response_code = db.Column(db.String(20))
-    response_text = db.Column(db.Text)
-    xml_content = db.Column(db.Text)  # Original XML-Antwort
-    received_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    invoice = db.relationship('Invoice', backref='medidata_responses')
-    cost_approval = db.relationship('CostApproval', backref='medidata_responses')
+# MedidataTracking und MedidataResponse sind oben bei CostApproval definiert (Zeile ~1402)
 
 
 class EmailLog(db.Model):

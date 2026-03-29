@@ -22,8 +22,8 @@
 
 {% block content %}
 <div class="card">
-    <!-- Filter -->
-    <form class="filter-bar" method="GET" action="{{ url_for('cost_approvals.index') }}">
+    <!-- Erweiterte Filter (Cenplex: LocationFilter, TherapistFilter, KoguAnswerFilter) -->
+    <form class="filter-bar" method="GET" action="{{ url_for('cost_approvals.index') }}" style="flex-wrap:wrap;">
         <div class="filter-group">
             <input type="text" name="search" class="form-input" placeholder="Patient, Versicherung, Nr..." value="{{ search }}">
         </div>
@@ -38,6 +38,37 @@
                 <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Storniert</option>
             </select>
         </div>
+        <!-- Therapeut-Filter (Cenplex: TherapistFilter) -->
+        <div class="filter-group">
+            <select name="therapist_id" class="form-input">
+                <option value="">Alle Therapeuten</option>
+                {% for emp in therapeuten %}
+                {% if emp.user %}
+                <option value="{{ emp.id }}" {% if therapist_id == emp.id|string %}selected{% endif %}>
+                    {{ emp.user.first_name }} {{ emp.user.last_name }}
+                </option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <!-- Antwort-Filter (Cenplex: KoguAnswerFilter) -->
+        <div class="filter-group">
+            <select name="answer_filter" class="form-input">
+                <option value="">Alle Antworten</option>
+                <option value="exist" {% if answer_filter == 'exist' %}selected{% endif %}>Mit Antwort</option>
+                <option value="dont_exist" {% if answer_filter == 'dont_exist' %}selected{% endif %}>Ohne Antwort</option>
+                <option value="unchecked" {% if answer_filter == 'unchecked' %}selected{% endif %}>Ungeprüft</option>
+            </select>
+        </div>
+        <!-- Abrechnungsfall-Filter -->
+        <div class="filter-group">
+            <select name="billing_case" class="form-input">
+                <option value="">Alle Fälle</option>
+                {% for key, label in billing_cases.items() %}
+                <option value="{{ key }}" {% if billing_case == key|string %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="filter-group">
             <input type="date" name="date_from" class="form-input" value="{{ date_from }}" placeholder="Von">
         </div>
@@ -45,7 +76,7 @@
             <input type="date" name="date_to" class="form-input" value="{{ date_to }}" placeholder="Bis">
         </div>
         <button type="submit" class="btn btn-secondary">Filtern</button>
-        {% if search or status_filter or date_from or date_to %}
+        {% if search or status_filter or date_from or date_to or therapist_id or answer_filter or billing_case %}
         <a href="{{ url_for('cost_approvals.index') }}" class="btn btn-ghost">Zurücksetzen</a>
         {% endif %}
     </form>
@@ -60,18 +91,28 @@
                     <th>Patient</th>
                     <th>Versicherung</th>
                     <th>Therapeut</th>
+                    <th>Grund</th>
                     <th>Status</th>
                     <th>Datum</th>
                     <th>Sitzungen</th>
+                    <th style="text-align:right;">Betrag (CHF)</th>
                 </tr>
             </thead>
             <tbody>
                 {% for gs in gutsprachen %}
                 <tr onclick="window.location='{{ url_for('cost_approvals.detail', id=gs.id) }}'" style="cursor:pointer;">
-                    <td>{{ gs.approval_number or '-' }}</td>
+                    <td>
+                        {{ gs.approval_number or '-' }}
+                        {% if gs.kogu_type == 2 %}
+                            <span class="badge badge-secondary" style="font-size:0.65rem;">Blanko</span>
+                        {% endif %}
+                        {% if gs.extension_of_id %}
+                            <span class="badge badge-secondary" style="font-size:0.65rem;">Verl.</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if gs.patient %}
-                            {{ gs.patient.first_name }} {{ gs.patient.last_name }}
+                            {{ gs.patient.last_name }}, {{ gs.patient.first_name }}
                         {% else %}
                             -
                         {% endif %}
@@ -80,6 +121,13 @@
                     <td>
                         {% if gs.therapist and gs.therapist.user %}
                             {{ gs.therapist.user.first_name }} {{ gs.therapist.user.last_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if gs.treatment_reason is not none %}
+                            {{ {0:'Krankheit', 1:'Unfall', 2:'Mutterschaft', 3:'Prävention', 4:'Geburtsgebr.', 5:'Unbekannt'}.get(gs.treatment_reason, '-') }}
                         {% else %}
                             -
                         {% endif %}
@@ -100,6 +148,9 @@
                         {% else %}
                             <span class="badge">{{ gs.status }}</span>
                         {% endif %}
+                        {% if gs.is_storno %}
+                            <span class="badge badge-danger" style="font-size:0.6rem;">Storno</span>
+                        {% endif %}
                     </td>
                     <td>{{ gs.created_at.strftime('%d.%m.%Y') if gs.created_at else '-' }}</td>
                     <td>
@@ -109,10 +160,21 @@
                             {{ gs.requested_sessions or '-' }}
                         {% endif %}
                     </td>
+                    <td style="text-align:right;">
+                        {% if gs.status in ('approved', 'partially_approved') and gs.approved_amount %}
+                            <strong>{{ '%.2f'|format(gs.approved_amount) }}</strong>
+                            <small class="text-muted">/ {{ '%.2f'|format(gs.total_amount or 0) }}</small>
+                        {% else %}
+                            {{ '%.2f'|format(gs.total_amount or 0) }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    <div style="padding:0.5rem 1rem; color:var(--text-muted); font-size:0.85rem;">
+        {{ gutsprachen|length }} Gutsprache{{ 'n' if gutsprachen|length != 1 else '' }}
     </div>
     {% else %}
     <div class="empty-state">

@@ -13,8 +13,34 @@
 {% block page_title %}Neue Gutsprache erstellen{% endblock %}
 
 {% block content %}
-<form method="POST" action="{{ url_for('cost_approvals.create') }}" class="form-container">
+<form method="POST" action="{{ url_for('cost_approvals.create') }}" class="form-container" id="koguForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- KoGu-Typ: Normal oder Blanko (Cenplex: TypeDto) -->
+    <div class="card">
+        <div class="card-header"><h3>Art der Gutsprache</h3></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Typ</label>
+                    <select name="kogu_type" id="koguType" class="form-input" onchange="onKoguTypeChange(this.value)">
+                        <option value="0">Kostengutsprache (Standard)</option>
+                        <option value="2">Blanko-Gutsprache</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Abrechnungsfall <span class="required">*</span></label>
+                    <select name="ca_billing_case" id="billingCase" class="form-input" onchange="onBillingCaseChange(this.value)">
+                        {% for key, label in billing_cases.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Patientendaten -->
     <div class="card">
         <div class="card-header"><h3>Patientendaten</h3></div>
         <div class="card-body">
@@ -65,10 +91,49 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">E-Mail Empfänger (Versicherung)</label>
+                    <input type="email" name="ca_receiver_email" id="receiverEmail" class="form-input" placeholder="gutsprache@versicherung.ch">
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Behandlungsdaten (Cenplex: Pflichtfelder) -->
+    <div class="card">
+        <div class="card-header"><h3>Behandlungsdaten</h3></div>
+        <div class="card-body">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Behandlungsgrund <span class="required">*</span></label>
+                    <select name="treatment_reason" id="treatmentReason" class="form-input" required>
+                        <option value="">— Wählen —</option>
+                        {% for key, label in treatment_reasons.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tarif</label>
+                    <select name="tarif" id="tarifSelect" class="form-input">
+                        {% for key, label in tarif_codes.items() %}
+                        <option value="{{ key }}" {% if key == 312 %}selected{% endif %}>{{ key }} - {{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label class="form-label">Behandlungstitel</label>
+                    <input type="text" name="treatment_title" id="treatmentTitle" class="form-input" placeholder="z.B. 9 Sitzungen Physiotherapie">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label class="form-label">Massnahmen</label>
+                    <textarea name="measures" class="form-input" rows="2" placeholder="Geplante Massnahmen..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verordnungsdaten -->
     <div class="card">
         <div class="card-header"><h3>Verordnungsdaten</h3></div>
         <div class="card-body">
@@ -91,13 +156,29 @@
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
                     <label class="form-label">Diagnosetext</label>
-                    <input type="text" name="diagnosis_text" id="diagnosisText" class="form-input" placeholder="z.B. Kreuzschmerz">
+                    <input type="text" name="diagnosis_text" id="diagnosisText" class="form-input" placeholder="z.B. Kreuzschmerz" maxlength="350">
+                    <small class="form-hint" id="diagnosisHint"></small>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card">
+    <!-- Verlaengerung (Cenplex: Extension) -->
+    <div class="card" id="extensionCard">
+        <div class="card-header"><h3>Verlängerung</h3></div>
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label">Verlängerung von früherer Gutsprache</label>
+                <select name="extension_of_id" id="extensionSelect" class="form-input">
+                    <option value="">Keine Verlängerung (Neuantrag)</option>
+                </select>
+                <small class="form-hint">Wählen Sie eine frühere bewilligte Gutsprache, wenn dies eine Verlängerung ist.</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Positionen (nicht bei Blanko) -->
+    <div class="card" id="positionsCard">
         <div class="card-header">
             <h3>Angefragte Positionen</h3>
             <button type="button" class="btn btn-secondary btn-sm" onclick="addPosition()">
@@ -122,18 +203,27 @@
                 </thead>
                 <tbody id="positionsBody">
                     <tr class="position-row">
-                        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301"></td>
+                        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301" style="width:80px;"></td>
                         <td><input type="text" name="item_description[]" class="form-input" placeholder="Physiotherapie"></td>
-                        <td><input type="number" name="quantity[]" class="form-input" value="9" min="1" style="width:70px;"></td>
-                        <td><input type="number" name="amount[]" class="form-input" value="48.00" step="0.05" style="width:100px;"></td>
-                        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Begründung"></td>
-                        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">✕</button></td>
+                        <td><input type="number" name="quantity[]" class="form-input" value="9" min="1" style="width:70px;" onchange="calcTotal()"></td>
+                        <td><input type="number" name="amount[]" class="form-input" value="48.00" step="0.05" style="width:100px;" onchange="calcTotal()"></td>
+                        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Bemerkung"></td>
+                        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">&times;</button></td>
                     </tr>
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2"><strong>Total</strong></td>
+                        <td id="totalSessions"><strong>9</strong></td>
+                        <td id="totalAmount"><strong>432.00</strong></td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
 
+    <!-- Begruendung -->
     <div class="card">
         <div class="card-header"><h3>Begründung</h3></div>
         <div class="card-body">
@@ -151,6 +241,28 @@
 </form>
 
 <script>
+// === Blanko-KoGu Umschalten ===
+function onKoguTypeChange(val) {
+    const posCard = document.getElementById('positionsCard');
+    if (val === '2') {
+        posCard.style.display = 'none';
+    } else {
+        posCard.style.display = '';
+    }
+}
+
+// === Abrechnungsfall: UVG zeigt alte/neue Tarif-Auswahl ===
+function onBillingCaseChange(val) {
+    const tarifSel = document.getElementById('tarifSelect');
+    if (val === '1') {
+        // Suva/UVG: 311 oder 313
+        tarifSel.value = '313';
+    } else if (val === '0') {
+        tarifSel.value = '312';
+    }
+}
+
+// === Patient geaendert ===
 function onPatientChange(patientId) {
     if (!patientId) return;
 
@@ -170,6 +282,7 @@ function onPatientChange(patientId) {
                 opt.dataset.doctorId = s.doctor_id || '';
                 opt.dataset.prescriptionDate = s.prescription_date || '';
                 opt.dataset.prescriptionType = s.prescription_type || '';
+                opt.dataset.billingCase = s.billing_case || '0';
                 sel.appendChild(opt);
             });
             {% if preselect_series_id %}
@@ -186,8 +299,23 @@ function onPatientChange(patientId) {
                 document.getElementById('insuranceSelect').value = data.insurance_provider_id;
             }
         });
+
+    // Fruehere Gutsprachen fuer Verlaengerung laden
+    fetch(`/cost-approvals/api/patient/${patientId}/extensions`)
+        .then(r => r.json())
+        .then(data => {
+            const sel = document.getElementById('extensionSelect');
+            sel.innerHTML = '<option value="">Keine Verlängerung (Neuantrag)</option>';
+            data.extensions.forEach(ext => {
+                const opt = document.createElement('option');
+                opt.value = ext.id;
+                opt.textContent = `${ext.approval_number} (${ext.date}) - ${ext.sessions} Sitzungen - ${ext.status}`;
+                sel.appendChild(opt);
+            });
+        });
 }
 
+// === Serie geaendert ===
 function onSeriesChange(seriesId) {
     const sel = document.getElementById('seriesSelect');
     const opt = sel.options[sel.selectedIndex];
@@ -198,20 +326,22 @@ function onSeriesChange(seriesId) {
         if (opt.dataset.doctorId) document.getElementById('doctorSelect').value = opt.dataset.doctorId;
         if (opt.dataset.prescriptionDate) document.getElementById('prescriptionDate').value = opt.dataset.prescriptionDate;
         if (opt.dataset.prescriptionType) document.getElementById('prescriptionType').value = opt.dataset.prescriptionType;
+        if (opt.dataset.billingCase) document.getElementById('billingCase').value = opt.dataset.billingCase;
     }
 }
 
+// === Positionen verwalten ===
 function addPosition() {
     const tbody = document.getElementById('positionsBody');
     const row = document.createElement('tr');
     row.className = 'position-row';
     row.innerHTML = `
-        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301"></td>
+        <td><input type="text" name="tariff_code[]" class="form-input" placeholder="7301" style="width:80px;"></td>
         <td><input type="text" name="item_description[]" class="form-input" placeholder="Beschreibung"></td>
-        <td><input type="number" name="quantity[]" class="form-input" value="1" min="1" style="width:70px;"></td>
-        <td><input type="number" name="amount[]" class="form-input" value="0.00" step="0.05" style="width:100px;"></td>
-        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Begründung"></td>
-        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">✕</button></td>
+        <td><input type="number" name="quantity[]" class="form-input" value="1" min="1" style="width:70px;" onchange="calcTotal()"></td>
+        <td><input type="number" name="amount[]" class="form-input" value="0.00" step="0.05" style="width:100px;" onchange="calcTotal()"></td>
+        <td><input type="text" name="item_comment[]" class="form-input" placeholder="Bemerkung"></td>
+        <td><button type="button" class="btn btn-ghost btn-sm" onclick="removePosition(this)" title="Entfernen">&times;</button></td>
     `;
     tbody.appendChild(row);
 }
@@ -220,8 +350,36 @@ function removePosition(btn) {
     const tbody = document.getElementById('positionsBody');
     if (tbody.children.length > 1) {
         btn.closest('tr').remove();
+        calcTotal();
     }
 }
+
+function calcTotal() {
+    let totalSessions = 0;
+    let totalAmount = 0;
+    const quantities = document.querySelectorAll('input[name="quantity[]"]');
+    const amounts = document.querySelectorAll('input[name="amount[]"]');
+    for (let i = 0; i < quantities.length; i++) {
+        const qty = parseFloat(quantities[i].value) || 0;
+        const amt = parseFloat(amounts[i].value) || 0;
+        totalSessions += qty;
+        totalAmount += qty * amt;
+    }
+    document.getElementById('totalSessions').innerHTML = '<strong>' + totalSessions + '</strong>';
+    document.getElementById('totalAmount').innerHTML = '<strong>' + totalAmount.toFixed(2) + '</strong>';
+}
+
+// === Diagnosetext Laenge pruefen (Cenplex: max 350 Zeichen) ===
+document.getElementById('diagnosisText').addEventListener('input', function() {
+    const hint = document.getElementById('diagnosisHint');
+    const len = this.value.length;
+    if (len > 300) {
+        hint.textContent = `${len}/350 Zeichen`;
+        hint.style.color = len > 350 ? 'var(--danger)' : 'var(--warning)';
+    } else {
+        hint.textContent = '';
+    }
+});
 
 // Bei Seitenlade: Wenn Patient vorausgewaehlt
 {% if preselect_patient_id %}
@@ -229,5 +387,8 @@ document.addEventListener('DOMContentLoaded', function() {
     onPatientChange('{{ preselect_patient_id }}');
 });
 {% endif %}
+
+// Initialer Total berechnen
+document.addEventListener('DOMContentLoaded', calcTotal);
 </script>
 {% endblock %}
