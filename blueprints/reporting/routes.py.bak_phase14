@@ -1,10 +1,9 @@
 """Reporting Blueprint: Auswertungen, KPI-Dashboard, Therapeuten-Scorecard"""
 import json
-from datetime import date, timedelta, datetime, time
+from datetime import date, timedelta, datetime
 from flask import render_template, request, jsonify, Response
-from sqlalchemy import func
 from flask_login import login_required, current_user
-from models import db, SavedReport, Employee, Location, KpiDashboardConfig, KpiBoxDefinition, KpiBudget
+from models import db, SavedReport, Employee, Location
 from services.reporting_service import (
     REPORT_CATEGORIES, get_report_categories, get_category_filters,
     get_category_columns, run_report, calculate_kpis, calculate_kpi_comparison,
@@ -12,8 +11,7 @@ from services.reporting_service import (
     get_revenue_chart_data, get_revenue_by_therapist,
     get_revenue_by_insurance_type, get_utilization_by_therapist,
     get_new_patients_chart_data,
-    get_financial_kpis, get_appointment_kpis, get_chart_data_monthly,
-    get_controlling_kpis, get_controlling_trend, get_budget_comparison, save_budget
+    get_financial_kpis, get_appointment_kpis, get_chart_data_monthly
 )
 from blueprints.reporting import reporting_bp
 from utils.auth import check_org
@@ -39,17 +37,6 @@ def index():
 def kpis():
     """KPI-Dashboard"""
     return render_template('reporting/kpis.html')
-
-
-@reporting_bp.route('/controlling')
-@login_required
-@require_permission('reporting.view')
-def controlling():
-    """Controlling-Dashboard (Cenplex: KPI Controlling)"""
-    locations = Location.query.filter_by(
-        organization_id=current_user.organization_id, is_active=True
-    ).all()
-    return render_template('reporting/controlling.html', locations=locations)
 
 
 @reporting_bp.route('/scorecard')
@@ -400,179 +387,6 @@ def api_scorecard():
         return jsonify({'error': 'Therapeut nicht gefunden.'}), 404
 
     return jsonify(result)
-
-
-# ============================================================
-# Controlling-KPIs API (Cenplex: KpicontrollingDto)
-# ============================================================
-
-@reporting_bp.route('/api/controlling')
-@login_required
-@require_permission('reporting.view')
-def api_controlling():
-    """Controlling-KPIs laden"""
-    org_id = current_user.organization_id
-    period = request.args.get('period', 'month')
-    location_id = request.args.get('location_id', type=int)
-
-    today = date.today()
-    if period == 'week':
-        start = today - timedelta(days=today.weekday())
-    elif period == 'quarter':
-        q_month = ((today.month - 1) // 3) * 3 + 1
-        start = date(today.year, q_month, 1)
-    elif period == 'year':
-        start = date(today.year, 1, 1)
-    else:
-        start = today.replace(day=1)
-
-    controlling = get_controlling_kpis(org_id, start, today, location_id)
-    trend = get_controlling_trend(org_id, months=6, location_id=location_id)
-
-    return jsonify({
-        'controlling': controlling,
-        'trend': trend,
-        'period': period,
-        'period_start': start.isoformat(),
-        'period_end': today.isoformat(),
-    })
-
-
-# ============================================================
-# Budget-API (Cenplex: BudgetlinesDto)
-# ============================================================
-
-@reporting_bp.route('/api/budget')
-@login_required
-@require_permission('reporting.view')
-def api_budget():
-    """Budget-Vergleich laden"""
-    org_id = current_user.organization_id
-    year = request.args.get('year', date.today().year, type=int)
-    metric = request.args.get('metric', 'revenue')
-    location_id = request.args.get('location_id', type=int)
-    employee_id = request.args.get('employee_id', type=int)
-
-    result = get_budget_comparison(org_id, year, metric, location_id, employee_id)
-    return jsonify(result)
-
-
-@reporting_bp.route('/api/budget', methods=['POST'])
-@login_required
-@require_permission('reporting.view')
-def api_save_budget():
-    """Budget-Ziel speichern"""
-    data = request.get_json()
-    org_id = current_user.organization_id
-
-    save_budget(
-        org_id=org_id,
-        kpi_metric=data.get('metric', 'revenue'),
-        year=data.get('year', date.today().year),
-        month=data.get('month'),
-        target_value=data.get('target_value', 0),
-        location_id=data.get('location_id'),
-        employee_id=data.get('employee_id')
-    )
-    return jsonify({'success': True})
-
-
-# ============================================================
-# KPI-Dashboard-Konfiguration CRUD (Cenplex: KpidashboardconfigDto)
-# ============================================================
-
-@reporting_bp.route('/api/dashboard-configs')
-@login_required
-@require_permission('reporting.view')
-def api_dashboard_configs():
-    """Alle Dashboard-Konfigurationen laden"""
-    configs = KpiDashboardConfig.query.filter_by(
-        organization_id=current_user.organization_id
-    ).order_by(KpiDashboardConfig.name.asc()).all()
-
-    return jsonify([{
-        'id': c.id,
-        'name': c.name,
-        'kpi_type': c.kpi_type,
-        'columns': c.columns,
-        'is_default': c.is_default,
-        'boxes': [{
-            'id': b.id,
-            'name': b.name,
-            'position_x': b.position_x,
-            'position_y': b.position_y,
-            'width': b.width,
-            'height': b.height,
-            'graph_type': b.graph_type,
-            'kpi_metric': b.kpi_metric,
-            'data_config': json.loads(b.data_config_json) if b.data_config_json else {},
-            'time_filter': json.loads(b.time_filter_json) if b.time_filter_json else {}
-        } for b in c.boxes.all()]
-    } for c in configs])
-
-
-@reporting_bp.route('/api/dashboard-configs', methods=['POST'])
-@login_required
-@require_permission('reporting.view')
-def api_save_dashboard_config():
-    """Dashboard-Konfiguration speichern"""
-    data = request.get_json()
-    org_id = current_user.organization_id
-
-    config_id = data.get('id')
-    if config_id:
-        config = KpiDashboardConfig.query.get(config_id)
-        if not config or config.organization_id != org_id:
-            return jsonify({'error': 'Nicht gefunden.'}), 404
-    else:
-        config = KpiDashboardConfig(
-            organization_id=org_id,
-            user_id=current_user.id
-        )
-        db.session.add(config)
-
-    config.name = data.get('name', 'Neues Dashboard')
-    config.kpi_type = data.get('kpi_type', 'controlling')
-    config.columns = data.get('columns', 4)
-    config.is_default = data.get('is_default', False)
-
-    # Boxen aktualisieren
-    if 'boxes' in data:
-        # Bestehende Boxen entfernen
-        KpiBoxDefinition.query.filter_by(dashboard_id=config.id).delete() if config.id else None
-        db.session.flush()
-
-        for box_data in data['boxes']:
-            box = KpiBoxDefinition(
-                dashboard_id=config.id,
-                name=box_data.get('name', ''),
-                position_x=box_data.get('position_x', 0),
-                position_y=box_data.get('position_y', 0),
-                width=box_data.get('width', 1),
-                height=box_data.get('height', 1),
-                graph_type=box_data.get('graph_type', 'number'),
-                kpi_metric=box_data.get('kpi_metric', ''),
-                data_config_json=json.dumps(box_data.get('data_config', {})),
-                time_filter_json=json.dumps(box_data.get('time_filter', {}))
-            )
-            db.session.add(box)
-
-    db.session.commit()
-    return jsonify({'success': True, 'id': config.id})
-
-
-@reporting_bp.route('/api/dashboard-configs/<int:config_id>', methods=['DELETE'])
-@login_required
-@require_permission('reporting.view')
-def api_delete_dashboard_config(config_id):
-    """Dashboard-Konfiguration loeschen"""
-    config = KpiDashboardConfig.query.get(config_id)
-    if not config or config.organization_id != current_user.organization_id:
-        return jsonify({'error': 'Nicht gefunden.'}), 404
-
-    db.session.delete(config)
-    db.session.commit()
-    return jsonify({'success': True})
 
 
 # ============================================================

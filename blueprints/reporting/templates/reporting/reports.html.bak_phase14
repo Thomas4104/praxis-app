@@ -10,14 +10,6 @@
 
 {% block page_title %}Auswertungen{% endblock %}
 
-{% block page_actions %}
-<div style="display:flex; gap:8px;">
-    <a href="{{ url_for('reporting.kpis') }}" class="btn btn-sm btn-outline">Kennzahlen</a>
-    <a href="{{ url_for('reporting.controlling') }}" class="btn btn-sm btn-outline">Controlling</a>
-    <a href="{{ url_for('reporting.scorecard') }}" class="btn btn-sm btn-outline">Scorecard</a>
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .report-layout {
@@ -102,7 +94,7 @@
 /* Kategorie-Auswahl */
 .category-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
 }
 .category-btn {
@@ -579,10 +571,8 @@
             tbody.appendChild(tr);
         });
 
-        // Summenzeile (Cenplex: StatisticResultSum)
+        // Summenzeile
         if (result.totals && Object.keys(result.totals).length > 0) {
-            var rowCount = result.rows ? result.rows.length : 0;
-            // Summe
             var totalRow = document.createElement('tr');
             totalRow.className = 'totals-row';
             (result.col_keys || []).forEach(function(key, i) {
@@ -596,23 +586,6 @@
                 totalRow.appendChild(td);
             });
             tbody.appendChild(totalRow);
-            // Durchschnitt
-            if (rowCount > 0) {
-                var avgRow = document.createElement('tr');
-                avgRow.className = 'totals-row';
-                avgRow.style.fontStyle = 'italic';
-                (result.col_keys || []).forEach(function(key, i) {
-                    var td = document.createElement('td');
-                    if (key in result.totals && typeof result.totals[key] === 'number') {
-                        var avg = result.totals[key] / rowCount;
-                        td.textContent = avg.toLocaleString('de-CH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                    } else if (i === 0) {
-                        td.textContent = 'Ø Durchschnitt';
-                    }
-                    avgRow.appendChild(td);
-                });
-                tbody.appendChild(avgRow);
-            }
         }
 
         // Paginierung

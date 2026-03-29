@@ -1,31 +1,13 @@
 """Reporting-Service: Auswertungen, KPI-Berechnungen und Therapeuten-Scorecards"""
 import io
 import csv
-import json
 from datetime import datetime, date, timedelta
 from sqlalchemy import func, and_, or_, extract
 from models import (
     db, Patient, Appointment, TreatmentSeries, Invoice, InvoiceItem,
     Payment, Employee, Product, User, Location, InsuranceProvider,
-    WorkSchedule, DunningRecord, Contact, Resource, KpiBudget
+    WorkSchedule, DunningRecord
 )
-
-
-def _month_offset(ref_date, offset):
-    """Berechnet Datum mit Monats-Offset (korrekt, ohne timedelta-Rundungsfehler)"""
-    m = ref_date.month - offset
-    y = ref_date.year
-    while m <= 0:
-        m += 12
-        y -= 1
-    return date(y, m, 1)
-
-
-def _month_end(d):
-    """Letzter Tag des Monats"""
-    if d.month == 12:
-        return date(d.year + 1, 1, 1) - timedelta(days=1)
-    return date(d.year, d.month + 1, 1) - timedelta(days=1)
 
 
 # ============================================================
@@ -122,16 +104,10 @@ REPORT_CATEGORIES = {
         'filters': [
             {'key': 'date_from', 'label': 'Erstellt ab', 'type': 'date'},
             {'key': 'date_to', 'label': 'Erstellt bis', 'type': 'date'},
-            {'key': 'location_id', 'label': 'Standort', 'type': 'select', 'model': 'Location'},
-            {'key': 'employee_id', 'label': 'Therapeut', 'type': 'select', 'model': 'Employee'},
             {'key': 'status', 'label': 'Status', 'type': 'select',
              'options': [{'value': 'draft', 'label': 'Entwurf'}, {'value': 'sent', 'label': 'Gesendet'},
                          {'value': 'paid', 'label': 'Bezahlt'}, {'value': 'overdue', 'label': 'Überfällig'},
-                         {'value': 'partial', 'label': 'Teilbezahlt'}, {'value': 'cancelled', 'label': 'Storniert'}]},
-            {'key': 'insurance_type', 'label': 'Versicherungstyp', 'type': 'select',
-             'options': [{'value': 'KVG', 'label': 'KVG'}, {'value': 'UVG', 'label': 'UVG'},
-                         {'value': 'VVG', 'label': 'VVG (Privat)'}, {'value': 'IVG', 'label': 'IVG'},
-                         {'value': 'MVG', 'label': 'MVG'}]},
+                         {'value': 'cancelled', 'label': 'Storniert'}]},
             {'key': 'dunning_level', 'label': 'Mahnstufe', 'type': 'select',
              'options': [{'value': '0', 'label': 'Keine Mahnung'}, {'value': '1', 'label': '1. Mahnung'},
                          {'value': '2', 'label': '2. Mahnung'}, {'value': '3', 'label': '3. Mahnung'}]},
@@ -185,69 +161,6 @@ REPORT_CATEGORIES = {
             {'key': 'vat_rate', 'label': 'MwSt. (%)', 'numeric': True},
             {'key': 'stock_quantity', 'label': 'Bestand', 'numeric': True},
             {'key': 'supplier', 'label': 'Lieferant'},
-        ]
-    },
-    'payments': {
-        'label': 'Zahlungen',
-        'filters': [
-            {'key': 'date_from', 'label': 'Zahlung ab', 'type': 'date'},
-            {'key': 'date_to', 'label': 'Zahlung bis', 'type': 'date'},
-            {'key': 'payment_method', 'label': 'Zahlungsart', 'type': 'select',
-             'options': [{'value': 'bank_transfer', 'label': 'Banküberweisung'}, {'value': 'cash', 'label': 'Bar'},
-                         {'value': 'card', 'label': 'Karte'}, {'value': 'twint', 'label': 'TWINT'}]},
-            {'key': 'location_id', 'label': 'Standort', 'type': 'select', 'model': 'Location'},
-        ],
-        'columns': [
-            {'key': 'payment_date', 'label': 'Zahlungsdatum'},
-            {'key': 'invoice_number', 'label': 'Rechnungs-Nr.'},
-            {'key': 'patient_name', 'label': 'Patient'},
-            {'key': 'amount', 'label': 'Betrag (CHF)', 'numeric': True},
-            {'key': 'payment_method', 'label': 'Zahlungsart'},
-            {'key': 'reference', 'label': 'Referenz'},
-            {'key': 'invoice_total', 'label': 'Rechnungsbetrag (CHF)', 'numeric': True},
-            {'key': 'invoice_status', 'label': 'Rechnungsstatus'},
-        ]
-    },
-    'contacts': {
-        'label': 'Kontakte',
-        'filters': [
-            {'key': 'category', 'label': 'Kategorie', 'type': 'select',
-             'options': [{'value': 'doctor', 'label': 'Arzt'}, {'value': 'insurance', 'label': 'Versicherung'},
-                         {'value': 'supplier', 'label': 'Lieferant'}, {'value': 'other', 'label': 'Sonstige'}]},
-            {'key': 'is_active', 'label': 'Status', 'type': 'select',
-             'options': [{'value': '1', 'label': 'Aktiv'}, {'value': '0', 'label': 'Inaktiv'}]},
-            {'key': 'expertise', 'label': 'Fachgebiet', 'type': 'text'},
-            {'key': 'search', 'label': 'Freitext-Suche', 'type': 'text'},
-        ],
-        'columns': [
-            {'key': 'category', 'label': 'Kategorie'},
-            {'key': 'company_name', 'label': 'Firma'},
-            {'key': 'last_name', 'label': 'Nachname'},
-            {'key': 'first_name', 'label': 'Vorname'},
-            {'key': 'expertise', 'label': 'Fachgebiet'},
-            {'key': 'city', 'label': 'Ort'},
-            {'key': 'zip_code', 'label': 'PLZ'},
-            {'key': 'phone', 'label': 'Telefon'},
-            {'key': 'email', 'label': 'E-Mail'},
-        ]
-    },
-    'resources': {
-        'label': 'Ressourcen',
-        'filters': [
-            {'key': 'resource_type', 'label': 'Typ', 'type': 'select',
-             'options': [{'value': 'room', 'label': 'Raum'}, {'value': 'device', 'label': 'Gerät'},
-                         {'value': 'equipment', 'label': 'Ausstattung'}]},
-            {'key': 'location_id', 'label': 'Standort', 'type': 'select', 'model': 'Location'},
-            {'key': 'is_active', 'label': 'Status', 'type': 'select',
-             'options': [{'value': '1', 'label': 'Aktiv'}, {'value': '0', 'label': 'Inaktiv'}]},
-        ],
-        'columns': [
-            {'key': 'name', 'label': 'Bezeichnung'},
-            {'key': 'resource_type', 'label': 'Typ'},
-            {'key': 'location_name', 'label': 'Standort'},
-            {'key': 'capacity', 'label': 'Kapazität', 'numeric': True},
-            {'key': 'is_active', 'label': 'Status'},
-            {'key': 'description', 'label': 'Beschreibung'},
         ]
     }
 }
@@ -308,12 +221,6 @@ def run_report(category, filters, columns, org_id, page=1, per_page=50, sort_by=
         return _run_employees_report(filters, selected_cols, org_id, page, per_page, sort_by, sort_dir)
     elif category == 'products':
         return _run_products_report(filters, selected_cols, org_id, page, per_page, sort_by, sort_dir)
-    elif category == 'payments':
-        return _run_payments_report(filters, selected_cols, org_id, page, per_page, sort_by, sort_dir)
-    elif category == 'contacts':
-        return _run_contacts_report(filters, selected_cols, org_id, page, per_page, sort_by, sort_dir)
-    elif category == 'resources':
-        return _run_resources_report(filters, selected_cols, org_id, page, per_page, sort_by, sort_dir)
 
     return {'headers': [], 'rows': [], 'totals': {}, 'total_count': 0}
 
@@ -557,15 +464,6 @@ def _run_invoices_report(filters, cols, org_id, page, per_page, sort_by, sort_di
         query = query.filter(Invoice.dunning_level == int(filters['dunning_level']))
     if filters.get('billing_model'):
         query = query.filter(Invoice.billing_model == filters['billing_model'])
-    if filters.get('location_id'):
-        query = query.filter(Invoice.location_id == int(filters['location_id']))
-    # Join TreatmentSeries nur einmal, wenn employee_id oder insurance_type gefiltert wird
-    if filters.get('employee_id') or filters.get('insurance_type'):
-        query = query.join(TreatmentSeries, Invoice.series_id == TreatmentSeries.id, isouter=True)
-        if filters.get('employee_id'):
-            query = query.filter(TreatmentSeries.therapist_id == int(filters['employee_id']))
-        if filters.get('insurance_type'):
-            query = query.filter(TreatmentSeries.insurance_type == filters['insurance_type'])
 
     total_count = query.count()
     query = query.order_by(Invoice.created_at.desc())
@@ -707,170 +605,6 @@ def _run_products_report(filters, cols, org_id, page, per_page, sort_by, sort_di
                 totals[key] = totals.get(key, 0) + val
             elif key == 'supplier':
                 row.append(p.supplier or '')
-            else:
-                row.append('')
-        rows.append(row)
-
-    return {'headers': headers, 'col_keys': col_keys, 'rows': rows, 'totals': totals, 'total_count': total_count}
-
-
-def _run_payments_report(filters, cols, org_id, page, per_page, sort_by, sort_dir):
-    """Zahlungen-Auswertung (Cenplex: Payments StatisticMaster)"""
-    query = Payment.query.join(Invoice).filter(Invoice.organization_id == org_id)
-
-    date_from = _parse_date(filters.get('date_from'))
-    date_to = _parse_date(filters.get('date_to'))
-    if date_from:
-        query = query.filter(Payment.payment_date >= date_from)
-    if date_to:
-        query = query.filter(Payment.payment_date <= date_to)
-    if filters.get('payment_method'):
-        query = query.filter(Payment.payment_method == filters['payment_method'])
-    if filters.get('location_id'):
-        query = query.filter(Invoice.location_id == int(filters['location_id']))
-
-    total_count = query.count()
-    query = query.order_by(Payment.payment_date.desc())
-    payments = query.offset((page - 1) * per_page).limit(per_page).all()
-
-    headers = [c['label'] for c in cols]
-    col_keys = [c['key'] for c in cols]
-    rows = []
-    totals = {}
-
-    method_labels = {'bank_transfer': 'Banküberweisung', 'cash': 'Bar', 'card': 'Karte', 'twint': 'TWINT'}
-    status_labels = {'draft': 'Entwurf', 'sent': 'Gesendet', 'paid': 'Bezahlt', 'overdue': 'Überfällig',
-                     'cancelled': 'Storniert', 'partial': 'Teilbezahlt'}
-
-    for p in payments:
-        inv = p.invoice if hasattr(p, 'invoice') else Invoice.query.get(p.invoice_id)
-        row = []
-        for key in col_keys:
-            if key == 'payment_date':
-                row.append(p.payment_date.strftime('%d.%m.%Y') if p.payment_date else '')
-            elif key == 'invoice_number':
-                row.append(inv.invoice_number if inv else '')
-            elif key == 'patient_name':
-                pat = inv.patient if inv else None
-                row.append(f"{pat.last_name}, {pat.first_name}" if pat else '')
-            elif key == 'amount':
-                val = round(float(p.amount or 0), 2)
-                row.append(val)
-                totals[key] = totals.get(key, 0) + val
-            elif key == 'payment_method':
-                row.append(method_labels.get(p.payment_method, p.payment_method or ''))
-            elif key == 'reference':
-                row.append(p.reference or '')
-            elif key == 'invoice_total':
-                val = round(float(inv.amount_total or 0), 2) if inv else 0
-                row.append(val)
-                totals[key] = totals.get(key, 0) + val
-            elif key == 'invoice_status':
-                row.append(status_labels.get(inv.status, inv.status or '') if inv else '')
-            else:
-                row.append('')
-        rows.append(row)
-
-    for k in totals:
-        totals[k] = round(totals[k], 2)
-
-    return {'headers': headers, 'col_keys': col_keys, 'rows': rows, 'totals': totals, 'total_count': total_count}
-
-
-def _run_contacts_report(filters, cols, org_id, page, per_page, sort_by, sort_dir):
-    """Kontakte-Auswertung (Cenplex: Contacts StatisticMaster)"""
-    query = Contact.query.filter_by(organization_id=org_id)
-
-    if filters.get('category'):
-        query = query.filter(Contact.category == filters['category'])
-    if filters.get('is_active') is not None and filters.get('is_active') != '':
-        query = query.filter(Contact.is_active == (filters['is_active'] in ('1', True, 1)))
-    if filters.get('expertise'):
-        query = query.filter(Contact.expertise.ilike(f"%{filters['expertise']}%"))
-    if filters.get('search'):
-        s = f"%{filters['search']}%"
-        query = query.filter(or_(
-            Contact.first_name.ilike(s), Contact.last_name.ilike(s),
-            Contact.company_name.ilike(s), Contact.email.ilike(s)))
-
-    total_count = query.count()
-    query = query.order_by(Contact.last_name.asc())
-    contacts = query.offset((page - 1) * per_page).limit(per_page).all()
-
-    headers = [c['label'] for c in cols]
-    col_keys = [c['key'] for c in cols]
-    rows = []
-
-    cat_labels = {'doctor': 'Arzt', 'insurance': 'Versicherung', 'supplier': 'Lieferant', 'other': 'Sonstige'}
-
-    for c in contacts:
-        row = []
-        for key in col_keys:
-            if key == 'category':
-                row.append(cat_labels.get(c.category, c.category or ''))
-            elif key == 'company_name':
-                row.append(c.company_name or '')
-            elif key == 'last_name':
-                row.append(c.last_name or '')
-            elif key == 'first_name':
-                row.append(c.first_name or '')
-            elif key == 'expertise':
-                row.append(c.expertise or '')
-            elif key == 'city':
-                row.append(c.city or '')
-            elif key == 'zip_code':
-                row.append(c.zip_code or '')
-            elif key == 'phone':
-                row.append(c.phone or '')
-            elif key == 'email':
-                row.append(c.email or '')
-            else:
-                row.append('')
-        rows.append(row)
-
-    return {'headers': headers, 'col_keys': col_keys, 'rows': rows, 'totals': {}, 'total_count': total_count}
-
-
-def _run_resources_report(filters, cols, org_id, page, per_page, sort_by, sort_dir):
-    """Ressourcen-Auswertung (Cenplex: Resources StatisticMaster)"""
-    query = Resource.query.filter_by(organization_id=org_id)
-
-    if filters.get('resource_type'):
-        query = query.filter(Resource.resource_type == filters['resource_type'])
-    if filters.get('location_id'):
-        query = query.filter(Resource.location_id == int(filters['location_id']))
-    if filters.get('is_active') is not None and filters.get('is_active') != '':
-        query = query.filter(Resource.is_active == (filters['is_active'] in ('1', True, 1)))
-
-    total_count = query.count()
-    query = query.order_by(Resource.name.asc())
-    resources = query.offset((page - 1) * per_page).limit(per_page).all()
-
-    headers = [c['label'] for c in cols]
-    col_keys = [c['key'] for c in cols]
-    rows = []
-    totals = {}
-
-    type_labels = {'room': 'Raum', 'device': 'Gerät', 'equipment': 'Ausstattung'}
-
-    for r in resources:
-        row = []
-        for key in col_keys:
-            if key == 'name':
-                row.append(r.name or '')
-            elif key == 'resource_type':
-                row.append(type_labels.get(r.resource_type, r.resource_type or ''))
-            elif key == 'location_name':
-                loc = Location.query.get(r.location_id) if r.location_id else None
-                row.append(loc.name if loc else '')
-            elif key == 'capacity':
-                val = r.capacity or 0
-                row.append(val)
-                totals[key] = totals.get(key, 0) + val
-            elif key == 'is_active':
-                row.append('Aktiv' if r.is_active else 'Inaktiv')
-            elif key == 'description':
-                row.append(r.description or '')
             else:
                 row.append('')
         rows.append(row)
@@ -1107,8 +841,12 @@ def get_revenue_chart_data(org_id, months=12):
     today = date.today()
     data = []
     for i in range(months - 1, -1, -1):
-        m_from = _month_offset(today, i)
-        m_to = _month_end(m_from)
+        m_date = today.replace(day=1) - timedelta(days=i * 30)
+        m_from = m_date.replace(day=1)
+        if m_from.month == 12:
+            m_to = m_from.replace(year=m_from.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            m_to = m_from.replace(month=m_from.month + 1, day=1) - timedelta(days=1)
 
         amount = float(Invoice.query.filter(
             Invoice.organization_id == org_id,
@@ -1206,8 +944,12 @@ def get_new_patients_chart_data(org_id, months=12):
     data = []
     monat_namen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
     for i in range(months - 1, -1, -1):
-        m_from = _month_offset(today, i)
-        m_to = _month_end(m_from)
+        m_date = today.replace(day=1) - timedelta(days=i * 30)
+        m_from = m_date.replace(day=1)
+        if m_from.month == 12:
+            m_to = m_from.replace(year=m_from.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            m_to = m_from.replace(month=m_from.month + 1, day=1) - timedelta(days=1)
 
         count = Patient.query.filter(
             Patient.organization_id == org_id,
@@ -1311,13 +1053,13 @@ def calculate_therapist_scorecard(employee_id, date_from, date_to, org_id):
 
     # Trend (letzte 3 Monate)
     trend = []
-    monat_namen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
     for i in range(2, -1, -1):
-        m_from = _month_offset(d_to, i)
-        m_to_trend = _month_end(m_from)
-        m_kpis = calculate_kpis(m_from, m_to_trend, org_id, employee_id=employee_id)
+        m_to = d_to - timedelta(days=i * 30)
+        m_from = m_to - timedelta(days=29)
+        m_kpis = calculate_kpis(m_from, m_to, org_id, employee_id=employee_id)
+        monat_namen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
         trend.append({
-            'label': f"{monat_namen[m_from.month - 1]} {m_from.year}",
+            'label': f"{monat_namen[m_to.month - 1]} {m_to.year}",
             'behandlungen': m_kpis['behandlungen'],
             'auslastung': m_kpis['auslastung'],
             'no_show_rate': m_kpis['no_show_rate']
@@ -1754,210 +1496,3 @@ def _kpi_fitness(org_id, date_from, date_to, location_id=None):
         'ended_abos': ended_abos,
         'visits': visits
     }
-
-
-# ============================================================
-# Controlling-KPIs (Cenplex: KpicontrollingDto)
-# ============================================================
-
-def get_controlling_kpis(org_id, date_from, date_to, location_id=None):
-    """Controlling-KPIs: Erstellte/Versendete/Bezahlte Rechnungen, Offene Debitoren
-    (Cenplex: StartedWork, OpenDebitors, CreatedInvoices, SentInvoices, PayedInvoices)"""
-    dt_from = datetime.combine(date_from, datetime.min.time()) if isinstance(date_from, date) else date_from
-    dt_to = datetime.combine(date_to, datetime.max.time()) if isinstance(date_to, date) else date_to
-
-    base_filter = [Invoice.organization_id == org_id]
-    if location_id:
-        base_filter.append(Invoice.location_id == location_id)
-
-    # Erstellte Rechnungen im Zeitraum
-    created_query = Invoice.query.filter(*base_filter, Invoice.created_at.between(dt_from, dt_to))
-    created_count = created_query.count()
-    created_sum = float(created_query.with_entities(func.coalesce(func.sum(Invoice.amount_total), 0)).scalar())
-
-    # Versendete Rechnungen im Zeitraum
-    sent_filter = base_filter + [Invoice.status.in_(['sent', 'paid', 'overdue', 'partial'])]
-    sent_query = Invoice.query.filter(*sent_filter, Invoice.created_at.between(dt_from, dt_to))
-    sent_count = sent_query.count()
-    sent_sum = float(sent_query.with_entities(func.coalesce(func.sum(Invoice.amount_total), 0)).scalar())
-
-    # Bezahlte Rechnungen im Zeitraum
-    paid_query = Payment.query.join(Invoice).filter(
-        Invoice.organization_id == org_id,
-        Payment.payment_date >= date_from,
-        Payment.payment_date <= date_to
-    )
-    paid_sum = float(paid_query.with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar())
-    paid_count = paid_query.with_entities(func.count(func.distinct(Payment.invoice_id))).scalar()
-
-    # Offene Debitoren (alle offenen Rechnungen, nicht zeitraumabhaengig)
-    open_debitors = float(Invoice.query.filter(
-        Invoice.organization_id == org_id,
-        Invoice.status.in_(['sent', 'overdue', 'partial']),
-        Invoice.amount_open > 0
-    ).with_entities(func.coalesce(func.sum(Invoice.amount_open), 0)).scalar())
-
-    # Ueberfaellige Debitoren
-    overdue_debitors = float(Invoice.query.filter(
-        Invoice.organization_id == org_id,
-        Invoice.status.in_(['overdue']),
-        Invoice.amount_open > 0
-    ).with_entities(func.coalesce(func.sum(Invoice.amount_open), 0)).scalar())
-
-    # Durchschnittliche Zahlungsfrist im Zeitraum
-    paid_invoices = Invoice.query.filter(
-        Invoice.organization_id == org_id,
-        Invoice.status == 'paid',
-        Invoice.paid_at.between(dt_from, dt_to),
-        Invoice.paid_at.isnot(None), Invoice.created_at.isnot(None)
-    ).all()
-    if paid_invoices:
-        payment_days = [(inv.paid_at.date() - inv.created_at.date()).days for inv in paid_invoices
-                        if inv.paid_at and inv.created_at]
-        avg_payment_days = round(sum(payment_days) / len(payment_days), 1) if payment_days else 0
-    else:
-        avg_payment_days = 0
-
-    return {
-        'created_invoices': {'count': created_count, 'sum': round(created_sum, 2)},
-        'sent_invoices': {'count': sent_count, 'sum': round(sent_sum, 2)},
-        'paid_invoices': {'count': paid_count, 'sum': round(paid_sum, 2)},
-        'open_debitors': round(open_debitors, 2),
-        'overdue_debitors': round(overdue_debitors, 2),
-        'avg_payment_days': avg_payment_days,
-        'collection_rate': round(paid_sum / sent_sum * 100, 1) if sent_sum > 0 else 0
-    }
-
-
-def get_controlling_trend(org_id, months=6, location_id=None):
-    """Controlling-Trend ueber mehrere Monate (fuer Charts)"""
-    today = date.today()
-    trend = []
-    monat_namen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-
-    for i in range(months - 1, -1, -1):
-        m_from = _month_offset(today, i)
-        m_to = _month_end(m_from)
-
-        kpis = get_controlling_kpis(org_id, m_from, m_to, location_id)
-        trend.append({
-            'label': f"{monat_namen[m_from.month - 1]} {m_from.year}",
-            'month': m_from.month,
-            'year': m_from.year,
-            'created': kpis['created_invoices']['sum'],
-            'sent': kpis['sent_invoices']['sum'],
-            'paid': kpis['paid_invoices']['sum'],
-            'open_debitors': kpis['open_debitors'],
-        })
-    return trend
-
-
-# ============================================================
-# Budget-Vergleich (Cenplex: BudgetlinesDto)
-# ============================================================
-
-def get_budget_comparison(org_id, year, kpi_metric='revenue', location_id=None, employee_id=None):
-    """Vergleicht Ist-Werte mit Budget-Zielen"""
-    budget_query = KpiBudget.query.filter_by(
-        organization_id=org_id,
-        year=year,
-        kpi_metric=kpi_metric
-    )
-    if location_id:
-        budget_query = budget_query.filter(
-            or_(KpiBudget.location_id == location_id, KpiBudget.location_id.is_(None)))
-    if employee_id:
-        budget_query = budget_query.filter(
-            or_(KpiBudget.employee_id == employee_id, KpiBudget.employee_id.is_(None)))
-
-    budgets = budget_query.all()
-    budget_by_month = {}
-    for b in budgets:
-        if b.month:
-            budget_by_month[b.month] = float(b.target_value)
-        else:
-            # Jahresbudget gleichmaessig verteilen
-            monthly = float(b.target_value) / 12
-            for m in range(1, 13):
-                budget_by_month.setdefault(m, 0)
-                budget_by_month[m] += monthly
-
-    monat_namen = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-    result = []
-    for month in range(1, 13):
-        m_from = date(year, month, 1)
-        if month == 12:
-            m_to = date(year + 1, 1, 1) - timedelta(days=1)
-        else:
-            m_to = date(year, month + 1, 1) - timedelta(days=1)
-
-        # Ist-Wert berechnen
-        if kpi_metric == 'revenue':
-            actual = float(db.session.query(func.coalesce(func.sum(Payment.amount), 0)).join(Invoice).filter(
-                Invoice.organization_id == org_id,
-                Payment.payment_date >= m_from, Payment.payment_date <= m_to
-            ).scalar())
-        elif kpi_metric == 'appointments':
-            actual = Appointment.query.join(Employee).filter(
-                Employee.organization_id == org_id,
-                Appointment.start_time >= datetime.combine(m_from, datetime.min.time()),
-                Appointment.start_time <= datetime.combine(m_to, datetime.max.time()),
-                Appointment.status.in_(['completed', 'appeared'])
-            ).count()
-        elif kpi_metric == 'new_patients':
-            actual = Patient.query.filter(
-                Patient.organization_id == org_id,
-                Patient.created_at >= datetime.combine(m_from, datetime.min.time()),
-                Patient.created_at <= datetime.combine(m_to, datetime.max.time())
-            ).count()
-        else:
-            actual = 0
-
-        target = budget_by_month.get(month, 0)
-        deviation = actual - target if target > 0 else 0
-        deviation_pct = round(deviation / target * 100, 1) if target > 0 else 0
-
-        result.append({
-            'label': monat_namen[month - 1],
-            'month': month,
-            'actual': round(actual, 2),
-            'target': round(target, 2),
-            'deviation': round(deviation, 2),
-            'deviation_pct': deviation_pct
-        })
-
-    return {
-        'year': year,
-        'metric': kpi_metric,
-        'months': result,
-        'total_actual': round(sum(m['actual'] for m in result), 2),
-        'total_target': round(sum(m['target'] for m in result), 2)
-    }
-
-
-def save_budget(org_id, kpi_metric, year, month, target_value, location_id=None, employee_id=None):
-    """Speichert oder aktualisiert ein Budget-Ziel"""
-    existing = KpiBudget.query.filter_by(
-        organization_id=org_id,
-        kpi_metric=kpi_metric,
-        year=year,
-        month=month,
-        location_id=location_id,
-        employee_id=employee_id
-    ).first()
-
-    if existing:
-        existing.target_value = target_value
-    else:
-        budget = KpiBudget(
-            organization_id=org_id,
-            name=f"{kpi_metric}_{year}_{month or 'year'}",
-            kpi_metric=kpi_metric,
-            year=year,
-            month=month,
-            target_value=target_value,
-            location_id=location_id,
-            employee_id=employee_id
-        )
-        db.session.add(budget)
-    db.session.commit()

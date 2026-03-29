@@ -2161,70 +2161,6 @@ class SavedReport(db.Model):
     user = db.relationship('User', backref=db.backref('saved_reports', lazy='dynamic'))
 
 
-class KpiDashboardConfig(db.Model):
-    """KPI-Dashboard-Konfiguration (Cenplex: KpidashboardconfigDto)"""
-    __tablename__ = 'kpi_dashboard_configs'
-    id = db.Column(db.Integer, primary_key=True)
-    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    name = db.Column(db.String(200), nullable=False)
-    kpi_type = db.Column(db.String(50), nullable=False)  # controlling, sales, appointments, patients
-    columns = db.Column(db.Integer, default=4)  # Spalten im Grid (4-8)
-    is_default = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    organization = db.relationship('Organization', backref=db.backref('kpi_dashboards', lazy='dynamic'))
-    user = db.relationship('User', backref=db.backref('kpi_dashboards', lazy='dynamic'))
-    boxes = db.relationship('KpiBoxDefinition', backref='dashboard', lazy='dynamic', cascade='all, delete-orphan')
-
-    __table_args__ = (
-        db.Index('ix_kpi_dashboard_org', 'organization_id'),
-    )
-
-
-class KpiBoxDefinition(db.Model):
-    """KPI-Box in einem Dashboard (Cenplex: KpiboxdefinitionDto)"""
-    __tablename__ = 'kpi_box_definitions'
-    id = db.Column(db.Integer, primary_key=True)
-    dashboard_id = db.Column(db.Integer, db.ForeignKey('kpi_dashboard_configs.id'), nullable=False)
-    name = db.Column(db.String(200), nullable=False)
-    position_x = db.Column(db.Integer, default=0)  # X-Position im Grid
-    position_y = db.Column(db.Integer, default=0)  # Y-Position im Grid
-    width = db.Column(db.Integer, default=1)  # Breite in Grid-Einheiten
-    height = db.Column(db.Integer, default=1)  # Hoehe in Grid-Einheiten
-    graph_type = db.Column(db.String(20), default='number')  # number, line, bar, pie, doughnut
-    kpi_metric = db.Column(db.String(100))  # z.B. revenue, open_debitors, appointments_count
-    data_config_json = db.Column(db.Text)  # JSON: Filter, Datenlinien, Budget-Vergleich
-    time_filter_json = db.Column(db.Text)  # JSON: Zeitraum-Konfiguration
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    __table_args__ = (
-        db.Index('ix_kpi_box_dashboard', 'dashboard_id'),
-    )
-
-
-class KpiBudget(db.Model):
-    """Budget-Ziele fuer KPI-Vergleich (Cenplex: BudgetlinesDto)"""
-    __tablename__ = 'kpi_budgets'
-    id = db.Column(db.Integer, primary_key=True)
-    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
-    name = db.Column(db.String(200), nullable=False)
-    kpi_metric = db.Column(db.String(100), nullable=False)  # revenue, appointments, etc.
-    year = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer)  # 1-12, null = ganzes Jahr
-    target_value = db.Column(db.Numeric(12, 2), nullable=False)
-    location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    organization = db.relationship('Organization', backref=db.backref('kpi_budgets', lazy='dynamic'))
-
-    __table_args__ = (
-        db.Index('ix_kpi_budget_org_year', 'organization_id', 'year'),
-    )
-
-
 # ============================================================
 # Fitness & Abonnemente
 # ============================================================
@@ -3545,6 +3481,36 @@ class PhysiotecTrainingPlan(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('physiotec_plans', lazy='dynamic'))
+
+
+class KpiDashboardConfig(db.Model):
+    """KPI Dashboard-Konfiguration (Cenplex: KpidashboardconfigDto)"""
+    __tablename__ = 'kpi_dashboard_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    kpi_type = db.Column(db.Integer, default=0)
+    columns = db.Column(db.Integer, default=2)
+    name = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    employee = db.relationship('Employee', backref='kpi_dashboard_configs')
+
+
+class KpiSetting(db.Model):
+    """KPI-Einstellungen (Cenplex: KpisettingDto)"""
+    __tablename__ = 'kpi_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    kpi_type = db.Column(db.Integer, default=0)
+    graph_type = db.Column(db.Integer, default=0)
+    data_grouping_type = db.Column(db.Integer, default=0)
+    name = db.Column(db.String(200))
+    data_lines_json = db.Column(db.Text)
+    time_filters_json = db.Column(db.Text)
+    budget_lines_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    employee = db.relationship('Employee', backref='kpi_settings')
 
 
 class AboAction(db.Model):

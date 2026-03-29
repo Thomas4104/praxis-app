@@ -12,17 +12,6 @@
 
 {% block page_title %}Kennzahlen{% endblock %}
 
-{% block page_actions %}
-<div style="display:flex; gap:8px;">
-    <a href="{{ url_for('reporting.controlling') }}" class="btn btn-sm btn-outline">Controlling</a>
-    <a href="{{ url_for('reporting.scorecard') }}" class="btn btn-sm btn-outline">Scorecard</a>
-    <button class="btn btn-sm btn-secondary" onclick="toggleDashboardConfig()">
-        <svg style="width:14px;height:14px;vertical-align:middle;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-        Dashboard konfigurieren
-    </button>
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .kpi-controls {
@@ -152,61 +141,6 @@
 .chart-toggle-btn.active { background: #4a90d9; color: white; border-color: #4a90d9; }
 .chart-toggle-btn:hover:not(.active) { background: #f8fafc; }
 
-/* Dashboard-Konfigurations-Panel */
-.dash-config-panel {
-    display: none;
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-    border: 2px solid #e2e8f0;
-}
-.dash-config-panel.visible { display: block; }
-.dash-config-panel h3 { font-size: 14px; font-weight: 600; margin: 0 0 12px 0; }
-.dash-config-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px;
-    margin-bottom: 12px;
-}
-.dash-config-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dash-config-item:hover { border-color: #4a90d9; }
-.dash-config-item.selected { background: #eff6ff; border-color: #4a90d9; }
-.dash-config-item input[type="checkbox"] { margin: 0; }
-.dash-config-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid #f1f5f9;
-}
-
-/* Standort-/Mitarbeiter-Filter */
-.kpi-filters {
-    display: flex;
-    gap: 8px;
-    margin-left: auto;
-    align-items: center;
-}
-.kpi-filters select {
-    padding: 6px 10px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    font-size: 13px;
-    background: white;
-}
-
 @media (max-width: 768px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .charts-row-main, .charts-row-bottom { grid-template-columns: 1fr; }
@@ -215,16 +149,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Dashboard-Konfigurations-Panel -->
-<div class="dash-config-panel" id="dashConfigPanel">
-    <h3>Dashboard konfigurieren — KPI-Karten auswählen</h3>
-    <div class="dash-config-grid" id="dashConfigGrid"></div>
-    <div class="dash-config-actions">
-        <button class="btn btn-sm btn-secondary" onclick="resetDashConfig()">Zurücksetzen</button>
-        <button class="btn btn-sm btn-primary" onclick="saveDashConfig()">Übernehmen</button>
-    </div>
-</div>
-
 <!-- Zeitraum-Auswahl -->
 <div class="kpi-controls">
     <button class="period-btn" data-period="day" onclick="setPeriod('day', this)">Tag</button>
@@ -332,68 +256,6 @@
 
     var chartColors = ['#4a90d9', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#2c3e50'];
 
-    // Dashboard-Konfiguration: Welche KPI-Karten angezeigt werden
-    var allKpiDefs = [
-        {key: 'umsatz', label: 'Umsatz', format: 'chf', category: 'controlling'},
-        {key: 'offene_posten', label: 'Offene Posten', format: 'chf', category: 'controlling'},
-        {key: 'neupatienten', label: 'Neupatienten', format: 'number', category: 'patients'},
-        {key: 'behandlungen', label: 'Behandlungen', format: 'number', category: 'appointments'},
-        {key: 'auslastung', label: 'Auslastung', format: 'pct', category: 'appointments'},
-        {key: 'no_show_rate', label: 'No-Show-Rate', format: 'pct', category: 'appointments'},
-        {key: 'absagequote', label: 'Absagequote', format: 'pct', category: 'appointments'},
-        {key: 'avg_seriendauer', label: 'Durchschn. Seriendauer', format: 'days', category: 'patients'},
-        {key: 'umsatz_pro_therapeut', label: 'Umsatz pro Therapeut', format: 'chf', category: 'controlling'},
-        {key: 'patienten_pro_therapeut', label: 'Patienten pro Therapeut', format: 'number', category: 'patients'},
-        {key: 'mahnquote', label: 'Mahnquote', format: 'pct', category: 'controlling'},
-        {key: 'avg_zahlungsfrist', label: 'Durchschn. Zahlungsfrist', format: 'days', category: 'controlling'}
-    ];
-
-    // Lade gespeicherte Konfiguration aus localStorage
-    var dashConfig = JSON.parse(localStorage.getItem('omnia_kpi_config') || 'null');
-    var activeKpis = dashConfig || allKpiDefs.map(function(d) { return d.key; });
-
-    // Dashboard-Konfigurations-Panel
-    window.toggleDashboardConfig = function() {
-        var panel = document.getElementById('dashConfigPanel');
-        panel.classList.toggle('visible');
-        if (panel.classList.contains('visible')) {
-            renderDashConfigGrid();
-        }
-    };
-
-    function renderDashConfigGrid() {
-        var grid = document.getElementById('dashConfigGrid');
-        var categoryLabels = {controlling: 'Controlling', appointments: 'Termine', patients: 'Patienten'};
-        grid.innerHTML = '';
-
-        allKpiDefs.forEach(function(def) {
-            var isActive = activeKpis.indexOf(def.key) >= 0;
-            var item = document.createElement('label');
-            item.className = 'dash-config-item' + (isActive ? ' selected' : '');
-            item.innerHTML = '<input type="checkbox" value="' + def.key + '"' + (isActive ? ' checked' : '') + ' />' +
-                '<span>' + def.label + '</span>';
-            item.querySelector('input').addEventListener('change', function() {
-                item.classList.toggle('selected', this.checked);
-            });
-            grid.appendChild(item);
-        });
-    }
-
-    window.saveDashConfig = function() {
-        var checks = document.querySelectorAll('#dashConfigGrid input[type="checkbox"]');
-        activeKpis = [];
-        checks.forEach(function(c) { if (c.checked) activeKpis.push(c.value); });
-        localStorage.setItem('omnia_kpi_config', JSON.stringify(activeKpis));
-        document.getElementById('dashConfigPanel').classList.remove('visible');
-        loadKPIs({period: currentPeriod});
-    };
-
-    window.resetDashConfig = function() {
-        activeKpis = allKpiDefs.map(function(d) { return d.key; });
-        localStorage.removeItem('omnia_kpi_config');
-        renderDashConfigGrid();
-    };
-
     window.setPeriod = function(period, btn) {
         currentPeriod = period;
         document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -447,11 +309,23 @@
     }
 
     function renderKPIs(data) {
+        var kpiDefs = [
+            {key: 'umsatz', label: 'Umsatz', format: 'chf'},
+            {key: 'offene_posten', label: 'Offene Posten', format: 'chf'},
+            {key: 'neupatienten', label: 'Neupatienten', format: 'number'},
+            {key: 'behandlungen', label: 'Behandlungen', format: 'number'},
+            {key: 'auslastung', label: 'Auslastung', format: 'pct'},
+            {key: 'no_show_rate', label: 'No-Show-Rate', format: 'pct'},
+            {key: 'absagequote', label: 'Absagequote', format: 'pct'},
+            {key: 'avg_seriendauer', label: 'Durchschn. Seriendauer', format: 'days'},
+            {key: 'umsatz_pro_therapeut', label: 'Umsatz pro Therapeut', format: 'chf'},
+            {key: 'patienten_pro_therapeut', label: 'Patienten pro Therapeut', format: 'number'},
+            {key: 'mahnquote', label: 'Mahnquote', format: 'pct'},
+            {key: 'avg_zahlungsfrist', label: 'Durchschn. Zahlungsfrist', format: 'days'}
+        ];
+
         var grid = document.getElementById('kpiGrid');
         grid.innerHTML = '';
-
-        // Nur aktive KPIs anzeigen (basierend auf Dashboard-Konfiguration)
-        var kpiDefs = allKpiDefs.filter(function(d) { return activeKpis.indexOf(d.key) >= 0; });
 
         kpiDefs.forEach(function(def) {
             var d = data[def.key];
