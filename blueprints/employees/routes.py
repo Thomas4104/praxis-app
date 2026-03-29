@@ -779,3 +779,316 @@ def api_rooms_by_location(location_id):
     ).order_by(Resource.name).all()
 
     return jsonify([{'id': r.id, 'name': r.name} for r in rooms])
+
+
+# ============================================================
+# Cenplex Phase 4: Kapazitaets-Management
+# ============================================================
+
+@employees_bp.route('/<int:employee_id>/capacities')
+@login_required
+def api_capacities(employee_id):
+    """Mitarbeiter-Kapazitaeten laden (Cenplex: GetCapacities)"""
+    from models import EmployeeCapacity
+    employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
+
+    caps = EmployeeCapacity.query.filter_by(
+        employee_id=employee.id, is_deleted=False
+    ).order_by(EmployeeCapacity.valid_from.desc()).all()
+
+    return jsonify([{
+        'id': c.id,
+        'capacity': c.capacity,
+        'valid_from': c.valid_from.isoformat() if c.valid_from else '',
+    } for c in caps])
+
+
+@employees_bp.route('/<int:employee_id>/capacities', methods=['POST'])
+@login_required
+def save_capacity(employee_id):
+    """Kapazitaet aendern/erstellen (Cenplex: ChangeCapacity)"""
+    from models import EmployeeCapacity
+    employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
+
+    data = request.get_json() if request.is_json else request.form
+    capacity_id = data.get('id')
+    capacity_val = int(data.get('capacity', 100))
+    valid_from_str = data.get('valid_from')
+
+    if not valid_from_str:
+        return jsonify({'error': 'valid_from ist Pflicht'}), 400
+
+    from datetime import datetime as dt
+    try:
+        valid_from = dt.strptime(valid_from_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Ungültiges Datum'}), 400
+
+    if capacity_id:
+        cap = EmployeeCapacity.query.get_or_404(int(capacity_id))
+        cap.capacity = capacity_val
+        cap.valid_from = valid_from
+    else:
+        cap = EmployeeCapacity(
+            employee_id=employee.id,
+            capacity=capacity_val,
+            valid_from=valid_from
+        )
+        db.session.add(cap)
+
+    db.session.commit()
+    return jsonify({'success': True, 'id': cap.id})
+
+
+@employees_bp.route('/<int:employee_id>/capacities/<int:cap_id>', methods=['DELETE'])
+@login_required
+def delete_capacity(employee_id, cap_id):
+    """Kapazitaet loeschen"""
+    from models import EmployeeCapacity
+    employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
+    cap = EmployeeCapacity.query.get_or_404(cap_id)
+    cap.is_deleted = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 4: Arbeitsplan-Verwaltung (Workplans)
+# ============================================================
+
+@employees_bp.route('/<int:employee_id>/workplans')
+@login_required
+def api_workplans(employee_id):
+    """Arbeitsplaene laden (Cenplex: EmployeeWorkplan)"""
+    from models import EmployeeWorkplan
+    employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
+
+    plans = EmployeeWorkplan.query.filter_by(employee_id=employee.id) \
+        .order_by(EmployeeWorkplan.from_date.desc()).all()
+    return jsonify([{
+        'id': p.id,
+        'name': p.name or '',
+        'from_date': p.from_date.isoformat() if p.from_date else '',
+        'to_date': p.to_date.isoformat() if p.to_date else '',
+        'planned_date': p.planned_date.isoformat() if p.planned_date else '',
+        'work_schedule_json': p.work_schedule_json
+    } for p in plans])
+
+
+@employees_bp.route('/<int:employee_id>/workplans', methods=['POST'])
+@login_required
+def save_workplan(employee_id):
+    """Arbeitsplan erstellen/aktualisieren"""
+    from models import EmployeeWorkplan
+    employee = Employee.query.get_or_404(employee_id)
+    check_org(employee)
+
+    data = request.get_json()
+    plan_id = data.get('id')
+
+    if plan_id:
+        plan = EmployeeWorkplan.query.get_or_404(int(plan_id))
+    else:
+        plan = EmployeeWorkplan(employee_id=employee.id)
+
+    plan.name = data.get('name', '')
+    from datetime import datetime as dt
+    plan.from_date = dt.strptime(data['from_date'], '%Y-%m-%d').date() if data.get('from_date') else None
+    plan.to_date = dt.strptime(data['to_date'], '%Y-%m-%d').date() if data.get('to_date') else None
+    plan.planned_date = dt.strptime(data['planned_date'], '%Y-%m-%d').date() if data.get('planned_date') else None
+    plan.work_schedule_json = json.dumps(data.get('work_schedule')) if data.get('work_schedule') else None
+
+    if not plan_id:
+        db.session.add(plan)
+    db.session.commit()
+    return jsonify({'success': True, 'id': plan.id})
+
+
+# ============================================================
+# Cenplex Phase 4: Urlaubskontingente (Vacation Allotments)
+# ============================================================
+
+@employees_bp.route('/api/vacation-allotments')
+@login_required
+def api_vacation_allotments():
+    """Urlaubskontingente laden (Cenplex: GetAllotments)"""
+    from models import VacationAllotment
+    year = request.args.get('year', type=int, default=date.today().year)
+    employee_ids = request.args.get('employee_ids', '')
+
+    org_id = current_user.organization_id
+    query = VacationAllotment.query.filter_by(
+        organization_id=org_id, planned_year=year
+    )
+
+    if employee_ids:
+        try:
+            ids = [int(x) for x in employee_ids.split(',') if x.strip()]
+            if ids:
+                query = query.filter(VacationAllotment.employee_id.in_(ids))
+        except ValueError:
+            pass
+
+    allotments = query.all()
+    return jsonify([{
+        'id': a.id,
+        'employee_id': a.employee_id,
+        'planned_year': a.planned_year,
+        'days': float(a.days) if a.days else None,
+        'hours': float(a.hours) if a.hours else None,
+        'hours_per_day': float(a.hours_per_day) if a.hours_per_day else None,
+        'pensum': float(a.pensum) if a.pensum else None,
+        'comments': a.comments or ''
+    } for a in allotments])
+
+
+@employees_bp.route('/api/vacation-allotments', methods=['POST'])
+@login_required
+def save_vacation_allotments():
+    """Urlaubskontingente speichern (Cenplex: SaveAllotments)"""
+    from models import VacationAllotment
+    data = request.get_json()
+    if not data or not isinstance(data, list):
+        return jsonify({'error': 'Array von Allotments erwartet'}), 400
+
+    org_id = current_user.organization_id
+    for item in data:
+        allot_id = item.get('id')
+        if allot_id:
+            allot = VacationAllotment.query.get(allot_id)
+        else:
+            allot = VacationAllotment(
+                organization_id=org_id,
+                employee_id=item['employee_id'],
+                planned_year=item['planned_year']
+            )
+            db.session.add(allot)
+
+        if allot:
+            allot.days = item.get('days')
+            allot.hours = item.get('hours')
+            allot.hours_per_day = item.get('hours_per_day')
+            allot.pensum = item.get('pensum')
+            allot.comments = item.get('comments', '')
+
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 4: Ueberstunden-Berechnung
+# ============================================================
+
+@employees_bp.route('/api/overtime')
+@login_required
+def api_overtime():
+    """Ueberstunden laden (Cenplex: GetOvertimes)"""
+    from models import OvertimeHistory
+    month_str = request.args.get('month')
+    employee_ids = request.args.get('employee_ids', '')
+
+    if month_str:
+        from datetime import datetime as dt
+        try:
+            month_date = dt.strptime(month_str, '%Y-%m').date().replace(day=1)
+        except ValueError:
+            month_date = date.today().replace(day=1)
+    else:
+        month_date = date.today().replace(day=1)
+
+    query = OvertimeHistory.query.filter_by(month=month_date)
+
+    if employee_ids:
+        try:
+            ids = [int(x) for x in employee_ids.split(',') if x.strip()]
+            if ids:
+                query = query.filter(OvertimeHistory.employee_id.in_(ids))
+        except ValueError:
+            pass
+
+    entries = query.all()
+    return jsonify([{
+        'id': e.id,
+        'employee_id': e.employee_id,
+        'month': e.month.isoformat(),
+        'planned_worktime': float(e.planned_worktime or 0),
+        'treatment_time': float(e.treatment_time or 0),
+        'admin_time': float(e.admin_time or 0),
+        'overtime': float(e.overtime or 0)
+    } for e in entries])
+
+
+# ============================================================
+# Cenplex Phase 4: Benutzergruppen (Employee Groups)
+# ============================================================
+
+@employees_bp.route('/api/groups')
+@login_required
+def api_employee_groups():
+    """Benutzergruppen laden (Cenplex: GetUserGroups)"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    org_id = current_user.organization_id
+    groups = EmployeeGroup.query.filter_by(organization_id=org_id).all()
+    result = []
+    for g in groups:
+        members = EmployeeGroupMember.query.filter_by(group_id=g.id).all()
+        result.append({
+            'id': g.id,
+            'title': g.title,
+            'description': g.description or '',
+            'member_count': len(members),
+            'member_ids': [m.employee_id for m in members]
+        })
+    return jsonify(result)
+
+
+@employees_bp.route('/api/groups', methods=['POST'])
+@login_required
+def save_employee_group():
+    """Benutzergruppe erstellen/aktualisieren"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    data = request.get_json()
+    org_id = current_user.organization_id
+
+    group_id = data.get('id')
+    if group_id:
+        group = EmployeeGroup.query.get_or_404(int(group_id))
+    else:
+        group = EmployeeGroup(organization_id=org_id)
+
+    group.title = data.get('title', '')
+    group.description = data.get('description', '')
+    group.user_rights_json = json.dumps(data.get('user_rights')) if data.get('user_rights') else None
+
+    if not group_id:
+        db.session.add(group)
+        db.session.flush()
+
+    # Mitglieder aktualisieren
+    if 'member_ids' in data:
+        EmployeeGroupMember.query.filter_by(group_id=group.id).delete()
+        for emp_id in data['member_ids']:
+            member = EmployeeGroupMember(group_id=group.id, employee_id=int(emp_id))
+            db.session.add(member)
+
+    db.session.commit()
+    return jsonify({'success': True, 'id': group.id})
+
+
+@employees_bp.route('/api/groups/<int:group_id>', methods=['DELETE'])
+@login_required
+def delete_employee_group(group_id):
+    """Benutzergruppe loeschen"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    group = EmployeeGroup.query.get_or_404(group_id)
+    if group.organization_id != current_user.organization_id:
+        return jsonify({'error': 'Nicht erlaubt'}), 403
+
+    EmployeeGroupMember.query.filter_by(group_id=group.id).delete()
+    db.session.delete(group)
+    db.session.commit()
+    return jsonify({'success': True})
