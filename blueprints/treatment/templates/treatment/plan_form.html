@@ -1,21 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Behandlungsplan erstellen{% endblock %}
+{% block title %}{% if edit_mode %}Behandlungsplan bearbeiten{% else %}Behandlungsplan erstellen{% endif %}{% endblock %}
 
 {% block breadcrumbs %}
 <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
 <span class="breadcrumb-sep">/</span>
 <a href="{{ url_for('treatment.index') }}">Behandlung</a>
 <span class="breadcrumb-sep">/</span>
+{% if series %}
 <a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}">Serie #{{ series.id }}</a>
 <span class="breadcrumb-sep">/</span>
-<span>Behandlungsplan erstellen</span>
+{% endif %}
+<span>{% if edit_mode %}Behandlungsplan bearbeiten{% else %}Behandlungsplan erstellen{% endif %}</span>
 {% endblock %}
 
-{% block page_title %}Behandlungsplan erstellen{% endblock %}
+{% block page_title %}{% if edit_mode %}Behandlungsplan bearbeiten{% else %}Behandlungsplan erstellen{% endif %}{% endblock %}
 
 {% block page_actions %}
+{% if edit_mode and plan %}
+<a href="{{ url_for('treatment.plan_detail', plan_id=plan.id) }}" class="btn btn-outline">Zurueck zum Plan</a>
+{% elif series %}
 <a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}" class="btn btn-outline">Zurueck zur Serie</a>
+{% endif %}
 {% endblock %}
 
 {% block extra_css %}
@@ -35,7 +41,7 @@
 
 {% block content %}
 <div class="plan-form">
-    <form method="POST" action="{{ url_for('treatment.create_plan', series_id=series.id) }}">
+    <form method="POST" action="{% if edit_mode %}{{ url_for('treatment.edit_plan', plan_id=plan.id) }}{% else %}{{ url_for('treatment.create_plan', series_id=series.id) }}{% endif %}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Grunddaten -->
@@ -48,41 +54,41 @@
                     <div class="form-group">
                         <label for="title">Titel</label>
                         <input type="text" id="title" name="title" class="form-control"
-                               value="{{ series.title or series.diagnosis_text or '' }}"
+                               value="{% if edit_mode %}{{ plan.title or '' }}{% elif series %}{{ series.title or series.diagnosis_text or '' }}{% endif %}"
                                placeholder="Titel des Behandlungsplans">
                     </div>
                     <div class="form-group">
                         <label for="start_date">Startdatum</label>
                         <input type="date" id="start_date" name="start_date" class="form-control"
-                               value="{{ today if today else '' }}">
+                               value="{% if edit_mode and plan.start_date %}{{ plan.start_date.strftime('%Y-%m-%d') }}{% endif %}">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label for="diagnosis">Diagnose</label>
                     <textarea id="diagnosis" name="diagnosis" class="form-control" rows="3"
-                              placeholder="Diagnose beschreiben">{{ series.diagnosis_text or '' }}</textarea>
+                              placeholder="Diagnose beschreiben">{% if edit_mode %}{{ plan.diagnosis or '' }}{% elif series %}{{ series.diagnosis_text or '' }}{% endif %}</textarea>
                 </div>
 
                 <div class="form-group">
                     <label for="hypothesis">Arbeitshypothese</label>
                     <textarea id="hypothesis" name="hypothesis" class="form-control" rows="3"
-                              placeholder="Arbeitshypothese formulieren"></textarea>
+                              placeholder="Arbeitshypothese formulieren">{% if edit_mode %}{{ plan.hypothesis or '' }}{% endif %}</textarea>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="affected_side">Betroffene Seite</label>
                         <select id="affected_side" name="affected_side" class="form-control">
-                            <option value="0">Bilateral</option>
-                            <option value="1">Rechts</option>
-                            <option value="2">Links</option>
+                            <option value="0" {% if edit_mode and plan.affected_side == 0 %}selected{% endif %}>Bilateral</option>
+                            <option value="1" {% if edit_mode and plan.affected_side == 1 %}selected{% endif %}>Rechts</option>
+                            <option value="2" {% if edit_mode and plan.affected_side == 2 %}selected{% endif %}>Links</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="icd_codes">ICD-10 Codes</label>
                         <input type="text" id="icd_codes" name="icd_codes" class="form-control"
-                               value="{{ series.diagnosis_code or '' }}"
+                               value="{% if edit_mode %}{{ plan.icd_codes_json or '' }}{% elif series %}{{ series.diagnosis_code or '' }}{% endif %}"
                                placeholder="z.B. M54.5, S83.5">
                     </div>
                 </div>
@@ -93,7 +99,8 @@
                         <select id="responsible_id" name="responsible_id" class="form-control">
                             <option value="">-- Therapeut waehlen --</option>
                             {% for emp in employees %}
-                            <option value="{{ emp.id }}" {% if series.therapist_id == emp.id %}selected{% endif %}>
+                            <option value="{{ emp.id }}"
+                                {% if edit_mode and plan.responsible_id == emp.id %}selected{% elif not edit_mode and series and series.therapist_id == emp.id %}selected{% endif %}>
                                 {{ emp.user.first_name if emp.user else '' }} {{ emp.user.last_name if emp.user else 'MA ' ~ emp.id }}
                             </option>
                             {% endfor %}
@@ -104,7 +111,7 @@
                         <select id="physician_id" name="physician_id" class="form-control">
                             <option value="">-- Arzt waehlen (optional) --</option>
                             {% for doc in doctors %}
-                            <option value="{{ doc.id }}">
+                            <option value="{{ doc.id }}" {% if edit_mode and plan.physician_id == doc.id %}selected{% endif %}>
                                 {{ doc.first_name }} {{ doc.last_name }}
                             </option>
                             {% endfor %}
@@ -114,7 +121,8 @@
             </div>
         </div>
 
-        <!-- Phasen -->
+        {% if not edit_mode %}
+        <!-- Phasen (nur bei Erstellung) -->
         <div class="card" style="margin-top: 1.5rem;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3>Behandlungsphasen</h3>
@@ -125,7 +133,6 @@
                     Definieren Sie die einzelnen Phasen des Behandlungsplans (z.B. Akutphase, Aufbauphase, Stabilisierung).
                 </p>
                 <div id="phaseContainer" class="phase-list">
-                    <!-- Standardmaessig eine Phase -->
                     <div class="phase-row" id="phase-0">
                         <div class="form-group phase-title">
                             <input type="text" name="phase_title[]" class="form-control" placeholder="Phasenbezeichnung (z.B. Akutphase)">
@@ -138,15 +145,22 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Aktionen -->
         <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+            {% if edit_mode %}
+            <a href="{{ url_for('treatment.plan_detail', plan_id=plan.id) }}" class="btn btn-outline">Abbrechen</a>
+            <button type="submit" class="btn btn-primary">Aenderungen speichern</button>
+            {% else %}
             <a href="{{ url_for('treatment.serie_detail', serie_id=series.id) }}" class="btn btn-outline">Abbrechen</a>
             <button type="submit" class="btn btn-primary">Behandlungsplan erstellen</button>
+            {% endif %}
         </div>
     </form>
 </div>
 
+{% if not edit_mode %}
 <script>
 let phaseCount = 1;
 
@@ -174,12 +188,10 @@ function removePhaseRow(btn) {
     if (container.children.length > 1) {
         row.remove();
     } else {
-        // Letzte Zeile nur leeren, nicht entfernen
         row.querySelectorAll('input').forEach(input => input.value = '');
     }
 }
 
-// Startdatum auf heute setzen falls leer
 document.addEventListener('DOMContentLoaded', function() {
     const startDate = document.getElementById('start_date');
     if (!startDate.value) {
@@ -187,4 +199,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% endif %}
 {% endblock %}
