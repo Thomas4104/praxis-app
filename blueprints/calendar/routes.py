@@ -1147,3 +1147,455 @@ def api_get_resources():
         'location_id': r.location_id,
         'resource_type': r.resource_type,
     } for r in resources])
+
+
+# ============================================================
+# Cenplex Phase 3: Blocker-Planung (wiederkehrende Sperrzeiten)
+# ============================================================
+
+@calendar_bp.route('/api/blockers', methods=['POST'])
+@login_required
+def api_create_blocker():
+    """Blocker erstellen (einzeln oder wiederkehrend)
+    Cenplex: BlockerPlanerDialogViewModel, BlockerPlanInfo"""
+    from models import AppointmentBlocker
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten'}), 400
+
+    org_id = current_user.organization_id
+    employee_ids = data.get('employee_ids', [])
+    title = data.get('title', '')
+    blocker_type = data.get('blocker_type', 0)
+    start_date_str = data.get('start_date')
+    end_date_str = data.get('end_date')
+    start_time_str = data.get('start_time', '08:00')
+    end_time_str = data.get('end_time', '17:00')
+    interval_type = data.get('interval_type', 'once')  # once, daily, weekly, biweekly
+    location_id = data.get('location_id')
+    resource_id = data.get('resource_id')
+
+    if not start_date_str or not end_date_str:
+        return jsonify({'error': 'Start- und Enddatum sind Pflicht'}), 400
+    if not employee_ids and not resource_id:
+        return jsonify({'error': 'Mindestens ein Mitarbeiter oder eine Ressource'}), 400
+
+    try:
+        start_d = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_d = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        start_t = time.fromisoformat(start_time_str)
+        end_t = time.fromisoformat(end_time_str)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Ungültiges Datumsformat'}), 400
+
+    if start_d > end_d:
+        return jsonify({'error': 'Startdatum muss vor Enddatum liegen'}), 400
+
+    # Termine berechnen basierend auf Intervalltyp
+    dates = []
+    current_d = start_d
+    while current_d <= end_d:
+        if current_d.weekday() < 5:  # Mo-Fr
+            dates.append(current_d)
+        if interval_type == 'once':
+            break
+        elif interval_type == 'daily':
+            current_d += timedelta(days=1)
+        elif interval_type == 'weekly':
+            current_d += timedelta(weeks=1)
+        elif interval_type == 'biweekly':
+            current_d += timedelta(weeks=2)
+        else:
+            current_d += timedelta(days=1)
+
+    created = []
+    for d in dates:
+        for emp_id in (employee_ids or [None]):
+            blocker_start = datetime.combine(d, start_t)
+            blocker_end = datetime.combine(d, end_t)
+
+            # Cenplex: Pruefen ob bereits Blocker existiert
+            existing = AppointmentBlocker.query.filter(
+                AppointmentBlocker.organization_id == org_id,
+                AppointmentBlocker.employee_id == emp_id if emp_id else True,
+                AppointmentBlocker.start_time == blocker_start,
+                AppointmentBlocker.end_time == blocker_end,
+                AppointmentBlocker.is_deleted == False
+            ).first()
+
+            if existing:
+                continue
+
+            blocker = AppointmentBlocker(
+                organization_id=org_id,
+                employee_id=emp_id,
+                resource_id=resource_id,
+                location_id=location_id,
+                start_time=blocker_start,
+                end_time=blocker_end,
+                title=title,
+                blocker_type=blocker_type,
+                is_recurring=interval_type != 'once'
+            )
+            if interval_type != 'once':
+                blocker.recurrence_json = json.dumps({
+                    'type': interval_type,
+                    'start_date': start_date_str,
+                    'end_date': end_date_str
+                })
+            db.session.add(blocker)
+            created.append({'date': d.isoformat(), 'employee_id': emp_id})
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'created_count': len(created),
+        'blockers': created
+    })
+
+
+@calendar_bp.route('/api/blockers')
+@login_required
+def api_get_blockers():
+    """Blocker laden fuer Zeitraum"""
+    from models import AppointmentBlocker
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    employee_ids_str = request.args.get('employee_ids', '')
+
+    org_id = current_user.organization_id
+    query = AppointmentBlocker.query.filter_by(
+        organization_id=org_id, is_deleted=False
+    )
+
+    if start_str and end_str:
+        try:
+            start_dt = datetime.fromisoformat(start_str)
+            end_dt = datetime.fromisoformat(end_str)
+            query = query.filter(
+                AppointmentBlocker.start_time < end_dt,
+                AppointmentBlocker.end_time > start_dt
+            )
+        except ValueError:
+            pass
+
+    if employee_ids_str:
+        try:
+            emp_ids = [int(x) for x in employee_ids_str.split(',') if x.strip()]
+            if emp_ids:
+                query = query.filter(AppointmentBlocker.employee_id.in_(emp_ids))
+        except ValueError:
+            pass
+
+    blockers = query.all()
+    return jsonify([{
+        'id': b.id,
+        'employee_id': b.employee_id,
+        'resource_id': b.resource_id,
+        'start_time': b.start_time.isoformat(),
+        'end_time': b.end_time.isoformat(),
+        'title': b.title or '',
+        'blocker_type': b.blocker_type,
+        'is_recurring': b.is_recurring
+    } for b in blockers])
+
+
+@calendar_bp.route('/api/blockers/<int:blocker_id>', methods=['DELETE'])
+@login_required
+def api_delete_blocker(blocker_id):
+    """Blocker loeschen (Soft-Delete)"""
+    from models import AppointmentBlocker
+    blocker = AppointmentBlocker.query.get_or_404(blocker_id)
+    if blocker.organization_id != current_user.organization_id:
+        abort(403)
+    blocker.is_deleted = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 3: Raum-Konflikterkennung
+# ============================================================
+
+@calendar_bp.route('/api/check-room-availability')
+@login_required
+def api_check_room_availability():
+    """Raumverfuegbarkeit pruefen (Cenplex: Resource availability check)"""
+    resource_id = request.args.get('resource_id', type=int)
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    exclude_appointment_id = request.args.get('exclude_appointment_id', type=int)
+
+    if not resource_id or not start_str or not end_str:
+        return jsonify({'error': 'resource_id, start, end sind Pflicht'}), 400
+
+    try:
+        start_dt = datetime.fromisoformat(start_str)
+        end_dt = datetime.fromisoformat(end_str)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Ungültiges Datumsformat'}), 400
+
+    # Pruefen ob Raum-Buchungen kollidieren
+    query = ResourceBooking.query.filter(
+        ResourceBooking.resource_id == resource_id,
+        ResourceBooking.start_time < end_dt,
+        ResourceBooking.end_time > start_dt
+    )
+    if exclude_appointment_id:
+        query = query.filter(ResourceBooking.appointment_id != exclude_appointment_id)
+
+    conflict = query.first()
+
+    # Auch AppointmentBlocker fuer Ressourcen pruefen
+    from models import AppointmentBlocker
+    blocker_conflict = AppointmentBlocker.query.filter(
+        AppointmentBlocker.resource_id == resource_id,
+        AppointmentBlocker.is_deleted == False,
+        AppointmentBlocker.start_time < end_dt,
+        AppointmentBlocker.end_time > start_dt
+    ).first()
+
+    available = not conflict and not blocker_conflict
+    result = {'available': available, 'resource_id': resource_id}
+
+    if conflict:
+        result['conflict'] = {
+            'appointment_id': conflict.appointment_id,
+            'start_time': conflict.start_time.isoformat(),
+            'end_time': conflict.end_time.isoformat()
+        }
+    if blocker_conflict:
+        result['blocker_conflict'] = {
+            'blocker_id': blocker_conflict.id,
+            'title': blocker_conflict.title or 'Gesperrt'
+        }
+
+    return jsonify(result)
+
+
+# ============================================================
+# Cenplex Phase 3: Erweiterte Termin-Felder setzen
+# ============================================================
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/details', methods=['PATCH'])
+@login_required
+def api_patch_appointment_details(appointment_id):
+    """Erweiterte Terminfelder setzen (Cenplex-spezifisch)"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten'}), 400
+
+    # Cenplex-spezifische Flags
+    cenplex_fields = {
+        'is_remote': 'is_remote', 'is_mtt': 'is_mtt',
+        'is_pauschal': 'is_pauschal', 'is_emr': 'is_emr',
+        'is_ergo': 'is_ergo', 'is_billable': 'is_billable',
+        'is_on_waitlist': 'is_on_waitlist', 'is_virtual': 'is_virtual',
+        'is_private': 'is_private', 'is_hidden': 'is_hidden',
+        'was_booked_online': 'was_booked_online',
+        'confirmed_by_patient': 'confirmed_by_patient',
+        'bill_state': 'bill_state',
+        'cost_unit_id': 'cost_unit_id',
+        'treatment_site_id': 'treatment_site_id',
+        'member_of_group_id': 'member_of_group_id',
+        'pauschal_price': 'pauschal_price',
+        'pauschal_name': 'pauschal_name',
+        'therapy': 'therapy',
+        'effort_notes': 'effort_notes',
+        'public_notes': 'public_notes',
+        'flags': 'flags',
+        'additional_employees_json': 'additional_employees_json',
+        'booking_messages_json': 'booking_messages_json',
+        'treatment_history_json': 'treatment_history_json'
+    }
+
+    for json_key, model_attr in cenplex_fields.items():
+        if json_key in data:
+            setattr(appointment, model_attr, data[json_key])
+
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 3: Serien-Suche
+# ============================================================
+
+@calendar_bp.route('/api/series/search')
+@login_required
+def api_search_series():
+    """Laufende Serien suchen (Cenplex: FindRunningSeries)"""
+    q = request.args.get('q', '').strip()
+    status = request.args.get('status', 'active')
+    employee_id = request.args.get('employee_id', type=int)
+    patient_id = request.args.get('patient_id', type=int)
+    org_id = current_user.organization_id
+
+    query = TreatmentSeries.query.filter(
+        TreatmentSeries.patient.has(organization_id=org_id)
+    )
+
+    if status:
+        query = query.filter_by(status=status)
+    if employee_id:
+        query = query.filter_by(therapist_id=employee_id)
+    if patient_id:
+        query = query.filter_by(patient_id=patient_id)
+    if q:
+        query = query.filter(
+            db.or_(
+                TreatmentSeries.title.ilike(f'%{q}%'),
+                TreatmentSeries.diagnosis_text.ilike(f'%{q}%'),
+                TreatmentSeries.patient.has(
+                    db.or_(
+                        Patient.first_name.ilike(f'%{q}%'),
+                        Patient.last_name.ilike(f'%{q}%')
+                    )
+                )
+            )
+        )
+
+    series = query.order_by(TreatmentSeries.created_at.desc()).limit(50).all()
+
+    result = []
+    for s in series:
+        appt_count = Appointment.query.filter_by(series_id=s.id).count()
+        max_appts = s.template.num_appointments if s.template else 0
+        result.append({
+            'id': s.id,
+            'title': s.title or (s.template.name if s.template else ''),
+            'patient_name': f'{s.patient.last_name}, {s.patient.first_name}' if s.patient else '',
+            'patient_id': s.patient_id,
+            'therapist_name': f'{s.therapist.user.first_name} {s.therapist.user.last_name}' if s.therapist and s.therapist.user else '',
+            'status': s.status,
+            'progress': f'{appt_count}/{max_appts}',
+            'billing_model': s.billing_model or '',
+            'diagnosis': s.diagnosis_text or '',
+            'created_at': s.created_at.isoformat() if s.created_at else ''
+        })
+    return jsonify(result)
+
+
+# ============================================================
+# Cenplex Phase 3: Kilometerberechnung
+# ============================================================
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/mileage')
+@login_required
+def api_calculate_mileage(appointment_id):
+    """Kilometerberechnung fuer Domizilbesuche
+    (Cenplex: MileageCalculationViewModel)"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    if not appointment.patient:
+        return jsonify({'error': 'Kein Patient zugeordnet'}), 400
+
+    patient = appointment.patient
+    patient_address = f'{patient.address or ""}, {patient.zip_code or ""} {patient.city or ""}'.strip(', ')
+
+    if not patient_address or patient_address == ',':
+        return jsonify({'error': 'Keine Patientenadresse hinterlegt'}), 400
+
+    # Praxis-Adresse bestimmen
+    from models import Organization
+    org = Organization.query.get(current_user.organization_id)
+    practice_address = f'{org.address or ""}, {org.zip_code or ""} {org.city or ""}'.strip(', ')
+
+    # Vorherigen Termin finden (fuer Route-Berechnung)
+    previous = Appointment.query.filter(
+        Appointment.employee_id == appointment.employee_id,
+        Appointment.start_time < appointment.start_time,
+        Appointment.status.notin_(['cancelled', 'no_show']),
+        Appointment.is_domicile == True
+    ).order_by(Appointment.start_time.desc()).first()
+
+    from_address = practice_address
+    if previous and previous.patient:
+        prev_patient = previous.patient
+        prev_addr = f'{prev_patient.address or ""}, {prev_patient.zip_code or ""} {prev_patient.city or ""}'.strip(', ')
+        if prev_addr and prev_addr != ',':
+            from_address = prev_addr
+
+    # Behandlungsort pruefen (Cenplex: TreatmentSite)
+    if appointment.treatment_site_id:
+        from models import TreatmentSite
+        site = TreatmentSite.query.get(appointment.treatment_site_id)
+        if site and site.distance_km:
+            return jsonify({
+                'from_address': practice_address,
+                'to_address': f'{site.name}, {site.address or ""}',
+                'distance_km': float(site.distance_km),
+                'source': 'treatment_site'
+            })
+
+    return jsonify({
+        'from_address': from_address,
+        'to_address': patient_address,
+        'previous_appointment': {
+            'patient_name': f'{previous.patient.first_name} {previous.patient.last_name}' if previous and previous.patient else '',
+            'start_time': previous.start_time.isoformat() if previous else ''
+        } if previous else None,
+        'note': 'Distanz muss manuell oder per Google Maps API berechnet werden',
+        'source': 'calculated'
+    })
+
+
+# ============================================================
+# Cenplex Phase 3: Buchungsnachrichten (Online Booking Messages)
+# ============================================================
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/booking-messages')
+@login_required
+def api_get_booking_messages(appointment_id):
+    """Buchungsnachrichten abrufen (Cenplex: BookingMessage)"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    messages = []
+    if appointment.booking_messages_json:
+        try:
+            messages = json.loads(appointment.booking_messages_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return jsonify(messages)
+
+
+@calendar_bp.route('/api/appointments/<int:appointment_id>/booking-messages', methods=['POST'])
+@login_required
+def api_add_booking_message(appointment_id):
+    """Buchungsnachricht hinzufuegen"""
+    appointment = Appointment.query.get_or_404(appointment_id)
+    emp = Employee.query.get_or_404(appointment.employee_id)
+    check_org(emp)
+
+    data = request.get_json()
+    message_text = data.get('message', '').strip()
+    if not message_text:
+        return jsonify({'error': 'Nachricht ist leer'}), 400
+
+    messages = []
+    if appointment.booking_messages_json:
+        try:
+            messages = json.loads(appointment.booking_messages_json)
+        except (json.JSONDecodeError, TypeError):
+            messages = []
+
+    new_msg = {
+        'id': len(messages) + 1,
+        'message': message_text,
+        'created': datetime.now().isoformat(),
+        'read': None
+    }
+    messages.append(new_msg)
+    appointment.booking_messages_json = json.dumps(messages)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': new_msg})
