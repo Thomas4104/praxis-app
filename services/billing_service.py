@@ -850,3 +850,177 @@ def generate_invoice_pdf(invoice_id):
     db.session.commit()
 
     return pdf_path, None
+
+
+# ============================================================
+# Phase 5: Erweiterte Billing-Funktionen (Cenplex-Abgleich)
+# ============================================================
+
+def stop_reminder(invoice_id):
+    """Mahnstopp fuer eine Rechnung setzen (Cenplex: ReminderstopDto)"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+    invoice.reminder_stop = date.today()
+    db.session.commit()
+    return invoice, None
+
+
+def resume_reminder(invoice_id):
+    """Mahnstopp aufheben"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+    invoice.reminder_stop = None
+    db.session.commit()
+    return invoice, None
+
+
+def escalate_to_inkasso(invoice_id):
+    """Eskalation zu Inkasso nach 3. Mahnung (Cenplex: IsinkassoDto)"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+    if (invoice.dunning_level or 0) < 3:
+        return None, 'Inkasso erst nach 3. Mahnung moeglich.'
+    invoice.is_inkasso = True
+    db.session.commit()
+    return invoice, None
+
+
+def toggle_discount(invoice_id, exclude_discount):
+    """Rabatt ein-/ausschalten (Cenplex: ChangeDiscount)"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+    invoice.exclude_discount = exclude_discount
+    db.session.commit()
+    return invoice, None
+
+
+def delete_payment(payment_id):
+    """Zahlung loeschen und Rechnungsbetraege zurueckrechnen (Cenplex: DeletePayment)"""
+    payment = Payment.query.get(payment_id)
+    if not payment:
+        return None, 'Zahlung nicht gefunden.'
+
+    invoice = Invoice.query.get(payment.invoice_id)
+    if not invoice:
+        return None, 'Zugehoerige Rechnung nicht gefunden.'
+
+    # Betraege zurueckrechnen
+    amount = float(payment.amount or 0)
+    invoice.amount_paid = round(float(invoice.amount_paid or 0) - amount, 2)
+    if invoice.amount_paid < 0:
+        invoice.amount_paid = 0
+    invoice.amount_open = round(float(invoice.amount_total or 0) - float(invoice.amount_paid), 2)
+
+    # Status anpassen
+    if invoice.amount_paid <= 0:
+        if invoice.sent_at:
+            invoice.status = 'sent'
+        else:
+            invoice.status = 'draft'
+        invoice.paid_at = None
+    else:
+        invoice.status = 'partially_paid'
+
+    db.session.delete(payment)
+    db.session.commit()
+    return invoice, None
+
+
+def create_credit_note(invoice_id, org_id, reason=''):
+    """Gutschrift/Korrekturrechnung erstellen (Cenplex: ProductCreditInvoice)"""
+    original = Invoice.query.get(invoice_id)
+    if not original:
+        return None, 'Originalrechnung nicht gefunden.'
+
+    invoice_number = generate_invoice_number(org_id)
+    items = InvoiceItem.query.filter_by(invoice_id=invoice_id).all()
+    total = sum(float(i.amount or 0) + float(i.vat_amount or 0) for i in items)
+
+    credit = Invoice(
+        organization_id=org_id,
+        patient_id=original.patient_id,
+        insurance_provider_id=original.insurance_provider_id,
+        invoice_number=invoice_number,
+        invoice_type=2,  # Gutschrift
+        amount_total=-total,
+        amount_paid=0,
+        amount_open=-total,
+        status='draft',
+        billing_type=original.billing_type,
+        billing_model=original.billing_model,
+        billing_case=original.billing_case,
+        tax_point_value=original.tax_point_value,
+        due_date=date.today() + timedelta(days=30),
+        notes=reason or f'Gutschrift zu Rechnung {original.invoice_number}',
+        internal_comment=f'Automatische Gutschrift zu Rechnung {original.invoice_number} (ID: {original.id})',
+        credit_receiver_id=original.id,
+    )
+    db.session.add(credit)
+    db.session.flush()
+
+    # Positionen als Negativbetraege uebernehmen
+    for item in items:
+        credit_item = InvoiceItem(
+            invoice_id=credit.id,
+            position=item.position,
+            tariff_code=item.tariff_code,
+            description=f'Gutschrift: {item.description}',
+            quantity=item.quantity,
+            tax_points=item.tax_points,
+            tax_point_value=item.tax_point_value,
+            amount=-float(item.amount or 0),
+            vat_rate=item.vat_rate,
+            vat_amount=-float(item.vat_amount or 0),
+            is_credit=True,
+        )
+        db.session.add(credit_item)
+
+    db.session.commit()
+    return credit, None
+
+
+def create_invoice_fix(invoice_id, fix_type, description, amount, employee_id):
+    """Rechnungskorrektur erstellen (Cenplex: InvoicefixDto)"""
+    from models import InvoiceFix
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+
+    fix = InvoiceFix(
+        invoice_id=invoice_id,
+        fix_type=fix_type,
+        description=description,
+        amount=amount,
+        created_by_id=employee_id,
+    )
+    db.session.add(fix)
+
+    # Bei Storno: Betrag vom Total abziehen
+    if fix_type in (1, 2) and amount:  # 1=Storno, 2=Gutschrift
+        invoice.amount_total = round(float(invoice.amount_total or 0) - abs(float(amount)), 2)
+        invoice.amount_open = round(float(invoice.amount_total) - float(invoice.amount_paid or 0), 2)
+
+    db.session.commit()
+    return fix, None
+
+
+def update_invoice_comments(invoice_id, comment=None, internal_comment=None):
+    """Kommentare aktualisieren (Cenplex: CommentDto / InternalcommentDto)"""
+    invoice = Invoice.query.get(invoice_id)
+    if not invoice:
+        return None, 'Rechnung nicht gefunden.'
+    if comment is not None:
+        invoice.inv_comment = comment
+    if internal_comment is not None:
+        invoice.internal_comment = internal_comment
+    db.session.commit()
+    return invoice, None
+
+
+def swiss_commercial_round(amount):
+    """Schweizer kaufmaennische Rundung auf 5 Rappen"""
+    return round(round(amount * 20) / 20, 2)

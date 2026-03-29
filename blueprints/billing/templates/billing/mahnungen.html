@@ -41,16 +41,18 @@
                 <tr>
                     <th>Nr.</th>
                     <th>Patient</th>
+                    <th>Empfänger</th>
                     <th style="text-align:right;">Betrag</th>
                     <th style="text-align:right;">Offen</th>
                     <th>Fällig seit</th>
                     <th>Mahnstufe</th>
+                    <th>Status</th>
                     <th>Aktion</th>
                 </tr>
             </thead>
             <tbody>
                 {% for r in ueberfaellige %}
-                <tr>
+                <tr {% if r.reminder_stop %}style="opacity: 0.6;"{% endif %}>
                     <td>
                         <a href="{{ url_for('billing.detail', id=r.id) }}">
                             <strong>{{ r.invoice_number }}</strong>
@@ -60,6 +62,13 @@
                         {% if r.patient %}
                             {{ r.patient.first_name }} {{ r.patient.last_name }}
                         {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if r.billing_model == 'tiers_payant' %}
+                            <span class="badge" style="background:#17a2b8;color:#fff;font-size:10px;">TP</span>
+                        {% elif r.billing_model == 'tiers_garant' %}
+                            <span class="badge" style="background:#ffc107;color:#333;font-size:10px;">TG</span>
+                        {% endif %}
                     </td>
                     <td style="text-align:right;">CHF {{ '%.2f'|format(r.amount_total) }}</td>
                     <td style="text-align:right; color: #e74c3c; font-weight: 600;">CHF {{ '%.2f'|format(r.amount_open) }}</td>
@@ -77,16 +86,43 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if (r.dunning_level or 0) < 3 %}
-                        <form method="POST" action="{{ url_for('billing.send_dunning', id=r.id) }}" style="display:inline;">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;"
-                                    onclick="return confirm('{{ (r.dunning_level or 0) + 1 }}. Mahnung senden?')">
-                                {{ (r.dunning_level or 0) + 1 }}. Mahnung
-                            </button>
-                        </form>
-                        {% else %}
-                            <span style="font-size: 12px; color: #721c24;">Max. erreicht</span>
+                        {% if r.is_inkasso %}
+                            <span class="badge" style="background:#721c24;color:#fff;font-size:10px;">Inkasso</span>
+                        {% elif r.reminder_stop %}
+                            <span class="badge" style="background:#6c757d;color:#fff;font-size:10px;">Mahnstopp</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">
+                        {% if r.reminder_stop %}
+                            <form method="POST" action="{{ url_for('billing.reminder_resume', id=r.id) }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-ghost" style="padding:4px 8px;font-size:11px;">Fortsetzen</button>
+                            </form>
+                        {% elif r.is_inkasso %}
+                            <span style="font-size: 12px; color: #721c24;">Im Inkasso</span>
+                        {% elif (r.dunning_level or 0) < 3 %}
+                            <form method="POST" action="{{ url_for('billing.send_dunning', id=r.id) }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-secondary" style="padding: 4px 12px; font-size: 12px;"
+                                        onclick="return confirm('{{ (r.dunning_level or 0) + 1 }}. Mahnung senden?')">
+                                    {{ (r.dunning_level or 0) + 1 }}. Mahnung
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('billing.reminder_stop', id=r.id) }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" title="Mahnstopp">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="6" y="4" width="4" height="16"></rect>
+                                        <rect x="14" y="4" width="4" height="16"></rect>
+                                    </svg>
+                                </button>
+                            </form>
+                        {% elif (r.dunning_level or 0) >= 3 and not r.is_inkasso %}
+                            <form method="POST" action="{{ url_for('billing.inkasso', id=r.id) }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-ghost" style="padding:4px 8px;font-size:11px;color:#721c24;"
+                                        onclick="return confirm('An Inkasso übergeben?')">Inkasso</button>
+                            </form>
                         {% endif %}
                     </td>
                 </tr>
@@ -94,8 +130,13 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Mahngebühren-Info -->
+    <div style="padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);">
+        Mahngebühren werden nur bei Tiers Garant (TG) berechnet. Konfiguration unter Einstellungen > Abrechnung.
+    </div>
     {% else %}
-    <div class="empty-state">
+    <div class="empty-state" style="padding: 40px;">
         <p>Keine überfälligen Rechnungen. Alles im grünen Bereich!</p>
     </div>
     {% endif %}

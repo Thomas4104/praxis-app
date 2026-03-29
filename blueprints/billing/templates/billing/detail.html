@@ -30,8 +30,15 @@ Rechnung {{ invoice.invoice_number }}
     <span class="badge badge-danger" style="font-size:14px;vertical-align:middle;margin-left:8px;">Überfällig</span>
 {% elif invoice.status == 'cancelled' %}
     <span class="badge badge-secondary" style="font-size:14px;vertical-align:middle;margin-left:8px;">Storniert</span>
-{% elif invoice.status == 'inkasso' %}
-    <span class="badge" style="background:#721c24;color:#fff;font-size:14px;vertical-align:middle;margin-left:8px;">Im Inkasso</span>
+{% endif %}
+{% if invoice.is_inkasso %}
+    <span class="badge" style="background:#721c24;color:#fff;font-size:14px;vertical-align:middle;margin-left:4px;">Inkasso</span>
+{% endif %}
+{% if invoice.reminder_stop %}
+    <span class="badge" style="background:#6c757d;color:#fff;font-size:12px;vertical-align:middle;margin-left:4px;">Mahnstopp</span>
+{% endif %}
+{% if invoice.invoice_type == 2 %}
+    <span class="badge" style="background:#17a2b8;color:#fff;font-size:12px;vertical-align:middle;margin-left:4px;">Gutschrift</span>
 {% endif %}
 {% endblock %}
 
@@ -52,10 +59,13 @@ Rechnung {{ invoice.invoice_number }}
 {% if invoice.status not in ('paid', 'cancelled') %}
     <button type="button" class="btn btn-secondary" onclick="document.getElementById('paymentModal').style.display='flex'">Zahlung erfassen</button>
 {% endif %}
-{% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 %}
+{% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 and not invoice.reminder_stop %}
     <form method="POST" action="{{ url_for('billing.send_dunning', id=invoice.id) }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-secondary" onclick="return confirm('Mahnung Stufe {{ (invoice.dunning_level or 0) + 1 }} senden?')">Mahnung senden</button>
+        <button type="submit" class="btn btn-secondary" onclick="return confirm('Mahnung Stufe {{ (invoice.dunning_level or 0) + 1 }} senden?')"
+            {% if (invoice.dunning_level or 0) >= 3 %}disabled{% endif %}>
+            {% if (invoice.dunning_level or 0) >= 3 %}Max. erreicht{% else %}Mahnung senden{% endif %}
+        </button>
     </form>
 {% endif %}
 <a href="{{ url_for('billing.generate_pdf', id=invoice.id) }}" class="btn btn-secondary">PDF</a>
@@ -71,12 +81,23 @@ Rechnung {{ invoice.invoice_number }}
         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
         <polyline points="22,6 12,13 2,6"></polyline>
     </svg>
-    Per E-Mail senden
+    Per E-Mail
 </a>
+{% endif %}
+<!-- Gutschrift erstellen -->
+{% if invoice.status in ('sent', 'paid', 'overdue', 'partially_paid') and invoice.invoice_type != 2 %}
+    <button type="button" class="btn btn-ghost" onclick="document.getElementById('creditNoteModal').style.display='flex'">Gutschrift</button>
 {% endif %}
 {% if invoice.status != 'cancelled' %}
     <form method="POST" action="{{ url_for('billing.cancel_invoice', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-ghost" style="color:#e74c3c;" onclick="return confirm('Rechnung wirklich stornieren?')">Stornieren</button>
+    </form>
+{% endif %}
+{% if invoice.status in ('sent', 'overdue', 'checked') %}
+    <form method="POST" action="{{ url_for('billing.reset_invoice', id=invoice.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost" onclick="return confirm('Rechnung auf Entwurf zurücksetzen?')">Zurücksetzen</button>
     </form>
 {% endif %}
 {% endblock %}
@@ -85,7 +106,7 @@ Rechnung {{ invoice.invoice_number }}
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
     <!-- Linke Seite -->
     <div>
-        <!-- Betragsübersicht -->
+        <!-- Betragsuebersicht -->
         <div class="card" style="margin-bottom: 20px;">
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 20px;">
                 <div style="text-align: center;">
@@ -101,6 +122,16 @@ Rechnung {{ invoice.invoice_number }}
                     <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if invoice.amount_open > 0 else 'var(--text-secondary)' }};">CHF {{ '%.2f'|format(invoice.amount_open) }}</div>
                 </div>
             </div>
+            {% if totals.dunning_fees > 0 %}
+            <div style="padding: 0 20px 8px; font-size: 13px; color: var(--text-secondary); text-align: right;">
+                inkl. Mahngebühren: CHF {{ '%.2f'|format(totals.dunning_fees) }}
+            </div>
+            {% endif %}
+            {% if totals.is_overpaid %}
+            <div style="padding: 0 20px 8px; font-size: 13px; color: #17a2b8; text-align: right;">
+                Überzahlung: CHF {{ '%.2f'|format(totals.overpaid_amount) }}
+            </div>
+            {% endif %}
             {% if invoice.amount_total > 0 %}
             <div style="padding: 0 20px 16px;">
                 <div style="height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden;">
@@ -112,8 +143,11 @@ Rechnung {{ invoice.invoice_number }}
 
         <!-- Positionen -->
         <div class="card" style="margin-bottom: 20px;">
-            <div class="card-header">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <h3>Positionen</h3>
+                {% if invoice.status in ('draft', 'checked') %}
+                <button type="button" class="btn btn-ghost" style="font-size:12px;padding:4px 10px;" onclick="document.getElementById('addItemModal').style.display='flex'">+ Position</button>
+                {% endif %}
             </div>
             <div class="table-responsive">
                 <table class="data-table">
@@ -127,6 +161,9 @@ Rechnung {{ invoice.invoice_number }}
                             <th style="text-align:right;">TP-Wert</th>
                             <th style="text-align:right;">Betrag</th>
                             <th style="text-align:right;">MwSt</th>
+                            {% if invoice.status in ('draft', 'checked') %}
+                            <th style="width:60px;"></th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -136,12 +173,20 @@ Rechnung {{ invoice.invoice_number }}
                         <tr>
                             <td>{{ item.position }}</td>
                             <td><code>{{ item.tariff_code }}</code></td>
-                            <td>{{ item.description }}</td>
+                            <td>{{ item.description }}{% if item.is_credit %} <span class="badge" style="background:#17a2b8;color:#fff;font-size:10px;">Gutschrift</span>{% endif %}</td>
                             <td style="text-align:right;">{{ item.quantity|int if item.quantity == item.quantity|int else '%.1f'|format(item.quantity) }}</td>
                             <td style="text-align:right;">{{ '%.1f'|format(item.tax_points) }}</td>
                             <td style="text-align:right;">{{ '%.2f'|format(item.tax_point_value) }}</td>
                             <td style="text-align:right;">CHF {{ '%.2f'|format(item.amount) }}</td>
                             <td style="text-align:right;">{{ '%.1f'|format(item.vat_rate) }}%</td>
+                            {% if invoice.status in ('draft', 'checked') %}
+                            <td>
+                                <form method="POST" action="{{ url_for('billing.delete_item', id=invoice.id, item_id=item.id) }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-ghost" style="padding:2px 6px;font-size:12px;color:#e74c3c;" onclick="return confirm('Position löschen?')">×</button>
+                                </form>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% set subtotal.val = subtotal.val + item.amount %}
                         {% set total_vat.val = total_vat.val + (item.vat_amount or 0) %}
@@ -152,18 +197,21 @@ Rechnung {{ invoice.invoice_number }}
                             <td colspan="6" style="text-align:right;">Subtotal:</td>
                             <td style="text-align:right;">CHF {{ '%.2f'|format(subtotal.val) }}</td>
                             <td></td>
+                            {% if invoice.status in ('draft', 'checked') %}<td></td>{% endif %}
                         </tr>
                         {% if total_vat.val > 0 %}
                         <tr>
                             <td colspan="6" style="text-align:right;">MwSt:</td>
                             <td style="text-align:right;">CHF {{ '%.2f'|format(total_vat.val) }}</td>
                             <td></td>
+                            {% if invoice.status in ('draft', 'checked') %}<td></td>{% endif %}
                         </tr>
                         {% endif %}
                         <tr style="font-weight: 700;">
                             <td colspan="6" style="text-align:right;">Total:</td>
                             <td style="text-align:right;">CHF {{ '%.2f'|format(invoice.amount_total) }}</td>
                             <td></td>
+                            {% if invoice.status in ('draft', 'checked') %}<td></td>{% endif %}
                         </tr>
                     </tfoot>
                 </table>
@@ -185,6 +233,7 @@ Rechnung {{ invoice.invoice_number }}
                             <th style="text-align:right;">Betrag</th>
                             <th>Referenz</th>
                             <th>Bemerkung</th>
+                            <th style="width:60px;"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -192,16 +241,33 @@ Rechnung {{ invoice.invoice_number }}
                         <tr>
                             <td>{{ p.payment_date.strftime('%d.%m.%Y') if p.payment_date else '-' }}</td>
                             <td>
-                                {% if p.payment_method == 'bank_transfer' %}Überweisung
+                                {% if p.payment_type is not none %}
+                                    {{ get_payment_type_label(p.payment_type) }}
+                                {% elif p.payment_method == 'bank_transfer' %}Überweisung
                                 {% elif p.payment_method == 'credit_card' %}Kreditkarte
                                 {% elif p.payment_method == 'twint' %}TWINT
                                 {% elif p.payment_method == 'cash' %}Bar
                                 {% elif p.payment_method == 'esr_qr' %}ESR/QR
+                                {% elif p.payment_method == 'reduction' %}Reduktion
                                 {% else %}{{ p.payment_method or '-' }}{% endif %}
+                                {% if p.reduction_reason %}
+                                    <span class="badge badge-secondary" style="font-size:10px;margin-left:4px;">{{ get_reduction_reason_label(p.reduction_reason) }}</span>
+                                {% endif %}
+                                {% if p.is_from_file %}
+                                    <span class="badge" style="background:#17a2b8;color:#fff;font-size:10px;margin-left:4px;">Import</span>
+                                {% endif %}
                             </td>
                             <td style="text-align:right; color: #27ae60; font-weight: 600;">CHF {{ '%.2f'|format(p.amount) }}</td>
                             <td>{{ p.reference or '-' }}</td>
                             <td>{{ p.notes or '-' }}</td>
+                            <td>
+                                {% if invoice.status not in ('cancelled',) %}
+                                <form method="POST" action="{{ url_for('billing.delete_payment_route', id=invoice.id, payment_id=p.id) }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-ghost" style="padding:2px 6px;font-size:12px;color:#e74c3c;" onclick="return confirm('Zahlung von CHF {{ '%.2f'|format(p.amount) }} wirklich stornieren?')">×</button>
+                                </form>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -216,7 +282,7 @@ Rechnung {{ invoice.invoice_number }}
 
         <!-- Mahn-History -->
         {% if dunnings %}
-        <div class="card">
+        <div class="card" style="margin-bottom: 20px;">
             <div class="card-header">
                 <h3>Mahnungshistorie</h3>
             </div>
@@ -246,6 +312,112 @@ Rechnung {{ invoice.invoice_number }}
             </div>
         </div>
         {% endif %}
+
+        <!-- Korrekturen (Cenplex: InvoiceFix) -->
+        {% if fixes %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Korrekturen</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Typ</th>
+                            <th>Beschreibung</th>
+                            <th style="text-align:right;">Betrag</th>
+                            <th>Erstellt von</th>
+                            <th>Datum</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in fixes %}
+                        <tr>
+                            <td>
+                                {% if f.fix_type == 0 %}<span class="badge badge-primary">Korrektur</span>
+                                {% elif f.fix_type == 1 %}<span class="badge badge-danger">Storno</span>
+                                {% elif f.fix_type == 2 %}<span class="badge" style="background:#17a2b8;color:#fff;">Gutschrift</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ f.description }}</td>
+                            <td style="text-align:right;">{% if f.amount %}CHF {{ '%.2f'|format(f.amount) }}{% else %}-{% endif %}</td>
+                            <td>{{ f.created_by.user.first_name ~ ' ' ~ f.created_by.user.last_name if f.created_by and f.created_by.user else '-' }}</td>
+                            <td>{{ f.created_at.strftime('%d.%m.%Y %H:%M') if f.created_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- MediData-Tracking -->
+        {% if medidata_trackings or medidata_responses %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>MediData</h3>
+            </div>
+            <div style="padding: 16px;">
+                {% if invoice.medidata_state is not none %}
+                <div style="margin-bottom: 12px;">
+                    <strong>Status:</strong>
+                    {% if invoice.medidata_state == 0 %}<span class="badge" style="background:#ffc107;color:#333;">Ausstehend</span>
+                    {% elif invoice.medidata_state == 1 %}<span class="badge badge-success">Abgeholt</span>
+                    {% elif invoice.medidata_state == 2 %}<span class="badge badge-danger">Fehler</span>
+                    {% endif %}
+                    {% if invoice.medidata_state_changed %}
+                    <small style="color:var(--text-secondary);margin-left:8px;">{{ invoice.medidata_state_changed.strftime('%d.%m.%Y %H:%M') }}</small>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if medidata_trackings %}
+                <h4 style="margin: 12px 0 8px; font-size: 13px;">Versand-Tracking</h4>
+                {% for t in medidata_trackings %}
+                <div style="padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 13px;">
+                    <span class="badge {% if t.state == 1 %}badge-success{% elif t.state == 2 %}badge-danger{% else %}badge-secondary{% endif %}" style="font-size:10px;">
+                        {% if t.state == 0 %}Gesendet{% elif t.state == 1 %}Abgeholt{% else %}Fehler{% endif %}
+                    </span>
+                    {{ t.created_at.strftime('%d.%m.%Y %H:%M') if t.created_at else '' }}
+                    {% if t.error_message %}<div style="color:#e74c3c;margin-top:4px;">{{ t.error_message }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if medidata_responses %}
+                <h4 style="margin: 12px 0 8px; font-size: 13px;">Antworten</h4>
+                {% for r in medidata_responses %}
+                <div style="padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 13px;">
+                    <span class="badge {% if r.response_code == '0' %}badge-success{% elif r.response_code == '2' %}badge-danger{% else %}badge-warning{% endif %}" style="font-size:10px;">
+                        {% if r.response_code == '0' %}Akzeptiert{% elif r.response_code == '1' %}Hängig{% elif r.response_code == '2' %}Abgelehnt{% else %}{{ r.response_code }}{% endif %}
+                    </span>
+                    {{ r.received_at.strftime('%d.%m.%Y %H:%M') if r.received_at else '' }}
+                    {% if r.response_text %}<div style="margin-top:4px;">{{ r.response_text }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Kommentare (Cenplex: CommentDto / InternalcommentDto) -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Kommentare</h3>
+            </div>
+            <form method="POST" action="{{ url_for('billing.update_comments', id=invoice.id) }}" style="padding: 16px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label class="form-label">Öffentlicher Kommentar</label>
+                    <textarea name="inv_comment" class="form-input" rows="2" placeholder="Wird auf der Rechnung angezeigt...">{{ invoice.inv_comment or '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Interner Kommentar</label>
+                    <textarea name="internal_comment" class="form-input" rows="2" placeholder="Nur intern sichtbar...">{{ invoice.internal_comment or '' }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-ghost" style="font-size:13px;">Kommentare speichern</button>
+            </form>
+        </div>
     </div>
 
     <!-- Rechte Seite: Details -->
@@ -270,22 +442,33 @@ Rechnung {{ invoice.invoice_number }}
                     </div>
                     <div>
                         <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungstyp</div>
-                        <div>{{ invoice.billing_type or '-' }}</div>
+                        <div>
+                            {{ invoice.billing_type or '-' }}
+                            {% if invoice_type_label %}
+                                <span class="badge badge-secondary" style="font-size:10px;margin-left:4px;">{{ invoice_type_label }}</span>
+                            {% endif %}
+                        </div>
                     </div>
+                    {% if billing_case_label %}
                     <div>
-                        <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungsmodell / Empfaenger</div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungsfall</div>
+                        <div>{{ billing_case_label }}</div>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Abrechnungsmodell / Empfänger</div>
                         <div>
                             {% if invoice.billing_model == 'tiers_payant' %}
                                 <span class="badge" style="background:#17a2b8;color:#fff;font-size:11px;">TP</span>
                                 Tiers Payant
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-                                    Empfaenger: <strong>{{ invoice.insurance_provider.name if invoice.insurance_provider else 'Versicherer' }}</strong>
+                                    Empfänger: <strong>{{ invoice.insurance_provider.name if invoice.insurance_provider else 'Versicherer' }}</strong>
                                 </div>
                             {% elif invoice.billing_model == 'tiers_garant' %}
                                 <span class="badge" style="background:#ffc107;color:#333;font-size:11px;">TG</span>
                                 Tiers Garant
                                 <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-                                    Empfaenger: <strong>{{ invoice.patient.first_name ~ ' ' ~ invoice.patient.last_name if invoice.patient else 'Patient' }}</strong>
+                                    Empfänger: <strong>{{ invoice.patient.first_name ~ ' ' ~ invoice.patient.last_name if invoice.patient else 'Patient' }}</strong>
                                 </div>
                             {% else %}
                                 {{ invoice.billing_model or '-' }}
@@ -296,6 +479,12 @@ Rechnung {{ invoice.invoice_number }}
                         <div style="color: var(--text-secondary); font-size: 12px;">Taxpunktwert</div>
                         <div>{{ '%.2f'|format(invoice.tax_point_value) if invoice.tax_point_value else '-' }}</div>
                     </div>
+                    {% if invoice.reference_number %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Referenznummer</div>
+                        <div><code>{{ invoice.reference_number }}</code></div>
+                    </div>
+                    {% endif %}
                     <div>
                         <div style="color: var(--text-secondary); font-size: 12px;">Erstellt am</div>
                         <div>{{ invoice.created_at.strftime('%d.%m.%Y %H:%M') if invoice.created_at else '-' }}</div>
@@ -321,6 +510,12 @@ Rechnung {{ invoice.invoice_number }}
                         <div>{{ invoice.paid_at.strftime('%d.%m.%Y %H:%M') }}</div>
                     </div>
                     {% endif %}
+                    {% if invoice.closed_date %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Abgeschlossen am</div>
+                        <div>{{ invoice.closed_date.strftime('%d.%m.%Y %H:%M') }}</div>
+                    </div>
+                    {% endif %}
                     {% if invoice.dunning_level and invoice.dunning_level > 0 %}
                     <div>
                         <div style="color: var(--text-secondary); font-size: 12px;">Mahnstufe</div>
@@ -333,6 +528,12 @@ Rechnung {{ invoice.invoice_number }}
                         <div><a href="{{ url_for('treatment.serie_detail', serie_id=invoice.series.id) }}">{{ invoice.series.template.name if invoice.series.template else 'Serie' }} #{{ invoice.series.id }}</a></div>
                     </div>
                     {% endif %}
+                    {% if invoice.therapist %}
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 12px;">Therapeut</div>
+                        <div>{{ invoice.therapist.user.first_name if invoice.therapist.user else '' }} {{ invoice.therapist.user.last_name if invoice.therapist.user else '' }}</div>
+                    </div>
+                    {% endif %}
                     {% if invoice.notes %}
                     <div>
                         <div style="color: var(--text-secondary); font-size: 12px;">Bemerkungen</div>
@@ -342,6 +543,169 @@ Rechnung {{ invoice.invoice_number }}
                 </div>
             </div>
         </div>
+
+        <!-- Genehmigung (Cenplex: ApproveInvoice) -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Genehmigung</h3>
+            </div>
+            <div style="padding: 16px;">
+                {% if invoice.approved_by_id %}
+                    <div style="margin-bottom: 8px;">
+                        <span class="badge badge-success">Genehmigt</span>
+                        <div style="font-size: 13px; margin-top: 4px;">
+                            von <strong>{{ invoice.approved_by.user.first_name ~ ' ' ~ invoice.approved_by.user.last_name if invoice.approved_by and invoice.approved_by.user else 'Mitarbeiter #' ~ invoice.approved_by_id }}</strong><br>
+                            am {{ invoice.approved_date.strftime('%d.%m.%Y %H:%M') if invoice.approved_date else '-' }}
+                        </div>
+                    </div>
+                    {% if invoice.status in ('draft', 'checked') %}
+                    <form method="POST" action="{{ url_for('billing.disapprove', id=invoice.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost" style="font-size:12px;color:#e74c3c;" onclick="return confirm('Genehmigung wirklich zurückziehen?')">Genehmigung zurückziehen</button>
+                    </form>
+                    {% endif %}
+                {% elif invoice.was_disapproved %}
+                    <span class="badge badge-danger">Abgelehnt</span>
+                    <div style="font-size: 13px; margin-top: 4px; color: var(--text-secondary);">Genehmigung wurde zurückgezogen</div>
+                {% else %}
+                    {% if invoice.status in ('draft', 'checked') %}
+                    <form method="POST" action="{{ url_for('billing.approve', id=invoice.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group" style="margin-bottom:8px;">
+                            <select name="employee_id" class="form-input" required style="font-size:13px;">
+                                <option value="">Genehmiger wählen...</option>
+                                {% for e in employees %}
+                                <option value="{{ e.id }}">{{ e.user.first_name if e.user else '' }} {{ e.user.last_name if e.user else '' }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="font-size:12px;width:100%;">Genehmigen</button>
+                    </form>
+                    {% else %}
+                    <span class="badge badge-secondary">Nicht genehmigt</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Abschluss (Cenplex: CloseInvoice) -->
+        {% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Rechnung abschliessen</h3>
+            </div>
+            <form method="POST" action="{{ url_for('billing.close', id=invoice.id) }}" style="padding: 16px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+                    Offener Betrag: <strong style="color:#e74c3c;">CHF {{ '%.2f'|format(invoice.amount_open) }}</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label class="form-label" style="font-size:12px;">Reduktionsgrund</label>
+                    <select name="reduction_reason" class="form-input" style="font-size:13px;">
+                        <option value="">Kein Grund</option>
+                        <option value="1">Skonto</option>
+                        <option value="2">Reduktion</option>
+                        <option value="3">Rundung</option>
+                        <option value="4">Diverses</option>
+                        <option value="5">Storno</option>
+                        <option value="6">Teilstorno</option>
+                        <option value="7">Verlust</option>
+                        <option value="8">Gutschein</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-ghost" style="width:100%;font-size:12px;" onclick="return confirm('Rechnung abschliessen? Offener Betrag (CHF {{ '%.2f'|format(invoice.amount_open) }}) wird abgeschrieben.')">Abschliessen</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Mahnstopp / Inkasso -->
+        {% if invoice.status in ('sent', 'overdue', 'partially_paid') %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Mahnwesen</h3>
+            </div>
+            <div style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+                {% if invoice.reminder_stop %}
+                    <div style="padding:8px 12px;background:#fff3cd;border-radius:6px;font-size:13px;">
+                        Mahnstopp seit {{ invoice.reminder_stop.strftime('%d.%m.%Y') }}
+                    </div>
+                    <form method="POST" action="{{ url_for('billing.reminder_resume', id=invoice.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost" style="width:100%;font-size:12px;">Mahnstopp aufheben</button>
+                    </form>
+                {% else %}
+                    <form method="POST" action="{{ url_for('billing.reminder_stop', id=invoice.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost" style="width:100%;font-size:12px;" onclick="return confirm('Mahnungen für diese Rechnung stoppen?')">Mahnstopp setzen</button>
+                    </form>
+                {% endif %}
+
+                {% if (invoice.dunning_level or 0) >= 3 and not invoice.is_inkasso %}
+                <form method="POST" action="{{ url_for('billing.inkasso', id=invoice.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost" style="width:100%;font-size:12px;color:#721c24;" onclick="return confirm('Rechnung an Inkasso übergeben?')">An Inkasso übergeben</button>
+                </form>
+                {% endif %}
+
+                {% if invoice.is_inkasso %}
+                <div style="padding:8px 12px;background:#f8d7da;border-radius:6px;font-size:13px;color:#721c24;">
+                    Im Inkasso
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Rabatt (Cenplex: ChangeDiscount) -->
+        {% if invoice.status in ('draft', 'checked') %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Rabatt</h3>
+            </div>
+            <div style="padding: 16px;">
+                <form method="POST" action="{{ url_for('billing.toggle_discount_route', id=invoice.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                        {% if invoice.exclude_discount %}
+                            <input type="hidden" name="exclude_discount" value="0">
+                            <span class="badge badge-secondary">Rabatte ausgeschlossen</span>
+                            <button type="submit" class="btn btn-ghost" style="font-size:12px;">Rabatte aktivieren</button>
+                        {% else %}
+                            <input type="hidden" name="exclude_discount" value="1">
+                            <span class="badge badge-success" style="font-size:10px;">Rabatte aktiv</span>
+                            <button type="submit" class="btn btn-ghost" style="font-size:12px;">Rabatte ausschliessen</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Korrektur hinzufuegen -->
+        {% if invoice.status not in ('cancelled',) %}
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3>Korrektur erfassen</h3>
+            </div>
+            <form method="POST" action="{{ url_for('billing.add_fix', id=invoice.id) }}" style="padding: 16px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group" style="margin-bottom:8px;">
+                    <select name="fix_type" class="form-input" style="font-size:13px;">
+                        <option value="0">Korrektur</option>
+                        <option value="1">Storno</option>
+                        <option value="2">Gutschrift</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <input type="text" name="fix_description" class="form-input" placeholder="Beschreibung..." required style="font-size:13px;">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <input type="number" name="fix_amount" class="form-input" placeholder="Betrag (CHF)" step="0.01" style="font-size:13px;">
+                </div>
+                <button type="submit" class="btn btn-ghost" style="width:100%;font-size:12px;">Korrektur speichern</button>
+            </form>
+        </div>
+        {% endif %}
 
         <!-- TP-Rechnungskopie Status (bei Tiers Payant) -->
         {% if invoice.billing_model == 'tiers_payant' %}
@@ -401,7 +765,7 @@ Rechnung {{ invoice.invoice_number }}
                 <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="send_via" value="medidata">
-                    <button type="submit" class="btn btn-ghost" style="width:100%;">MediData (Platzhalter)</button>
+                    <button type="submit" class="btn btn-ghost" style="width:100%;">Via MediData</button>
                 </form>
             </div>
         </div>
@@ -447,6 +811,75 @@ Rechnung {{ invoice.invoice_number }}
             <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
                 <button type="button" class="btn btn-ghost" onclick="document.getElementById('paymentModal').style.display='none'">Abbrechen</button>
                 <button type="submit" class="btn btn-primary">Zahlung verbuchen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Position hinzufuegen Modal -->
+<div id="addItemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div class="card" style="width: 540px; max-width: 90vw;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Position hinzufügen</h3>
+            <button type="button" onclick="document.getElementById('addItemModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-secondary);">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('billing.add_item', id=invoice.id) }}" style="padding: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Tarifziffer *</label>
+                    <input type="text" name="tariff_code" class="form-input" required placeholder="z.B. 7301">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Beschreibung</label>
+                    <input type="text" name="description" class="form-input" placeholder="Leistungsbeschreibung">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+                <div class="form-group">
+                    <label class="form-label">Anzahl</label>
+                    <input type="number" name="quantity" class="form-input" value="1" min="1" step="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Taxpunkte</label>
+                    <input type="number" name="tax_points" class="form-input" value="48" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">TP-Wert</label>
+                    <input type="number" name="tp_value" class="form-input" value="1.00" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">MwSt %</label>
+                    <input type="number" name="vat_rate" class="form-input" value="0" step="0.1">
+                </div>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('addItemModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Hinzufügen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Gutschrift-Modal -->
+<div id="creditNoteModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div class="card" style="width: 480px; max-width: 90vw;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Gutschrift erstellen</h3>
+            <button type="button" onclick="document.getElementById('creditNoteModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-secondary);">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('billing.create_credit_note_route', id=invoice.id) }}" style="padding: 16px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+                Es wird eine Gutschrift über den Gesamtbetrag von <strong>CHF {{ '%.2f'|format(invoice.amount_total) }}</strong> erstellt.
+            </div>
+            <div class="form-group">
+                <label class="form-label">Grund</label>
+                <textarea name="reason" class="form-input" rows="2" placeholder="Grund für die Gutschrift..."></textarea>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('creditNoteModal').style.display='none'">Abbrechen</button>
+                <button type="submit" class="btn btn-primary" onclick="return confirm('Gutschrift erstellen?')">Gutschrift erstellen</button>
             </div>
         </form>
     </div>

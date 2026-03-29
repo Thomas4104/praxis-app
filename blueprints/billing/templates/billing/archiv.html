@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Rechnungsarchiv{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-sep">/</span>
+<span>Archiv</span>
+{% endblock %}
+
+{% block page_title %}Rechnungsarchiv{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('billing.index') }}" class="btn btn-secondary">Zurück zur Übersicht</a>
+{% endblock %}
+
+{% block content %}
+<!-- Suchfilter -->
+<div class="card" style="margin-bottom: 20px;">
+    <form method="GET" action="{{ url_for('billing.archiv') }}" style="padding: 16px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom:0;flex:2;">
+                <label class="form-label" style="font-size:12px;">Suche</label>
+                <input type="text" name="search" class="form-input" value="{{ search }}" placeholder="Rechnungsnr., Patient, Referenz...">
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1;">
+                <label class="form-label" style="font-size:12px;">Von</label>
+                <input type="date" name="date_from" class="form-input" value="{{ date_from }}">
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1;">
+                <label class="form-label" style="font-size:12px;">Bis</label>
+                <input type="date" name="date_to" class="form-input" value="{{ date_to }}">
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1;">
+                <label class="form-label" style="font-size:12px;">Rechnungstyp</label>
+                <select name="invoice_type" class="form-input">
+                    <option value="">Alle</option>
+                    <option value="0" {{ 'selected' if invoice_type == '0' }}>Therapie</option>
+                    <option value="1" {{ 'selected' if invoice_type == '1' }}>Produkt</option>
+                    <option value="2" {{ 'selected' if invoice_type == '2' }}>Gutschrift</option>
+                    <option value="3" {{ 'selected' if invoice_type == '3' }}>Pauschale</option>
+                    <option value="4" {{ 'selected' if invoice_type == '4' }}>Privat</option>
+                    <option value="8" {{ 'selected' if invoice_type == '8' }}>EMR</option>
+                    <option value="12" {{ 'selected' if invoice_type == '12' }}>Ergotherapie</option>
+                    <option value="14" {{ 'selected' if invoice_type == '14' }}>UVG</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Suchen</button>
+            <a href="{{ url_for('billing.archiv') }}" class="btn btn-ghost">Zurücksetzen</a>
+        </div>
+    </form>
+</div>
+
+<!-- Ergebnisse -->
+<div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>{{ total }} Rechnungen im Archiv</h3>
+    </div>
+    {% if rechnungen %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Patient</th>
+                    <th>Typ</th>
+                    <th style="text-align:right;">Total</th>
+                    <th style="text-align:right;">Bezahlt</th>
+                    <th>Status</th>
+                    <th>Datum</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rechnungen %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('billing.detail', id=r.id) }}" style="font-weight:600;">{{ r.invoice_number }}</a>
+                    </td>
+                    <td>
+                        {% if r.patient %}
+                            {{ r.patient.last_name }}, {{ r.patient.first_name }}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if r.invoice_type is not none %}
+                            <span class="badge badge-secondary" style="font-size:10px;">{{ get_invoice_type_label(r.invoice_type) }}</span>
+                        {% else %}
+                            {{ r.billing_type or '-' }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right;">CHF {{ '%.2f'|format(r.amount_total) }}</td>
+                    <td style="text-align:right;color:#27ae60;">CHF {{ '%.2f'|format(r.amount_paid) }}</td>
+                    <td>
+                        {% if r.status == 'paid' %}
+                            <span class="badge badge-success">Bezahlt</span>
+                        {% elif r.status == 'cancelled' %}
+                            <span class="badge badge-secondary">Storniert</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="padding: 16px; display: flex; justify-content: center; gap: 8px;">
+        {% if page > 1 %}
+        <a href="{{ url_for('billing.archiv', page=page-1, search=search, date_from=date_from, date_to=date_to, invoice_type=invoice_type) }}" class="btn btn-ghost">&laquo;</a>
+        {% endif %}
+        <span style="padding: 8px 12px; font-size: 14px;">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('billing.archiv', page=page+1, search=search, date_from=date_from, date_to=date_to, invoice_type=invoice_type) }}" class="btn btn-ghost">&raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state" style="padding: 40px;">
+        <p>Keine archivierten Rechnungen gefunden.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

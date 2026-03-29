@@ -1,12 +1,12 @@
 """Routen fuer Abrechnung: Rechnungen, Zahlungen, Mahnungen"""
 import os
 from datetime import datetime, date, timedelta
-from flask import render_template, request, jsonify, redirect, url_for, flash, send_file
+from flask import render_template, request, jsonify, redirect, url_for, flash, send_file, abort
 from flask_login import login_required, current_user
 from blueprints.billing import billing_bp
 from models import (db, Invoice, InvoiceItem, Payment, TaxPointValue, BankAccount,
                     TreatmentSeries, TreatmentSeriesTemplate, Patient, InsuranceProvider,
-                    Organization, DunningRecord, Appointment, Employee)
+                    Organization, DunningRecord, Appointment, Employee, InvoiceFix)
 from services.billing_service import (
     calculate_invoice_from_series, create_invoice_from_series,
     generate_invoice_number, record_payment, process_dunning,
@@ -14,7 +14,10 @@ from services.billing_service import (
     get_invoice_type_label, get_billing_case_label, get_payment_type_label,
     get_reduction_reason_label, calculate_invoice_totals,
     approve_invoice, disapprove_invoice, close_invoice,
-    generate_reference_number
+    generate_reference_number,
+    stop_reminder, resume_reminder, escalate_to_inkasso,
+    toggle_discount, delete_payment as service_delete_payment,
+    create_credit_note, create_invoice_fix, update_invoice_comments
 )
 from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
@@ -314,13 +317,24 @@ def detail(id):
     # Mitarbeiter fuer Genehmigung laden
     employees = Employee.query.filter_by(
         organization_id=invoice.organization_id, is_active=True
-    ).order_by(Employee.last_name).all()
+    ).all()
+
+    # Korrekturen laden
+    fixes = InvoiceFix.query.filter_by(invoice_id=id).order_by(InvoiceFix.created_at.desc()).all()
+
+    # MediData-Tracking laden
+    from models import MedidataTracking, MedidataResponse
+    medidata_trackings = MedidataTracking.query.filter_by(invoice_id=id).order_by(MedidataTracking.created_at.desc()).all()
+    medidata_responses = MedidataResponse.query.filter_by(invoice_id=id).order_by(MedidataResponse.created_at.desc()).all()
 
     return render_template('billing/detail.html',
                            invoice=invoice,
                            items=items,
                            payments=payments,
                            dunnings=dunnings,
+                           fixes=fixes,
+                           medidata_trackings=medidata_trackings,
+                           medidata_responses=medidata_responses,
                            today=date.today(),
                            invoice_type_label=invoice_type_label,
                            billing_case_label=billing_case_label,
@@ -1007,7 +1021,281 @@ def import_payments():
 
 
 # ============================================================
-# Cenplex Phase 5: Fehlende Billing-Features
+# Phase 5: Archiv, Mahnstopp, Inkasso, Rabatt, Korrekturen
+# ============================================================
+
+@billing_bp.route('/archiv')
+@login_required
+@require_permission('billing.view')
+def archiv():
+    """Rechnungsarchiv: Abgeschlossene und stornierte Rechnungen (Cenplex: InvoiceArchiveViewModel)"""
+    org_id = current_user.organization_id
+    search = request.args.get('search', '').strip()
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    invoice_type = request.args.get('invoice_type', '')
+
+    query = Invoice.query.filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['paid', 'cancelled'])
+    )
+
+    if search:
+        query = query.join(Patient, Invoice.patient_id == Patient.id, isouter=True)\
+            .filter(db.or_(
+                Patient.first_name.ilike(f'%{search}%'),
+                Patient.last_name.ilike(f'%{search}%'),
+                Invoice.invoice_number.ilike(f'%{search}%'),
+                Invoice.reference_number.ilike(f'%{search}%')
+            ))
+
+    if date_from:
+        try:
+            df = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Invoice.created_at >= datetime.combine(df, datetime.min.time()))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt = datetime.strptime(date_to, '%Y-%m-%d').date()
+            query = query.filter(Invoice.created_at <= datetime.combine(dt, datetime.max.time()))
+        except ValueError:
+            pass
+    if invoice_type:
+        query = query.filter(Invoice.invoice_type == int(invoice_type))
+
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    total = query.count()
+    rechnungen = query.order_by(Invoice.updated_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    total_pages = (total + per_page - 1) // per_page
+
+    return render_template('billing/archiv.html',
+                           rechnungen=rechnungen,
+                           search=search,
+                           date_from=date_from,
+                           date_to=date_to,
+                           invoice_type=invoice_type,
+                           page=page,
+                           total_pages=total_pages,
+                           total=total,
+                           get_invoice_type_label=get_invoice_type_label)
+
+
+@billing_bp.route('/validierungen')
+@login_required
+@require_permission('billing.view')
+def validierungen():
+    """Rechnungsvalidierungen: Serien pruefen (Cenplex: InvoiceValidationViewModel)"""
+    org_id = current_user.organization_id
+
+    active_series = TreatmentSeries.query.filter_by(status='active').filter(
+        TreatmentSeries.patient.has(organization_id=org_id)
+    ).all()
+
+    validations = []
+    for s in active_series:
+        appt_count = Appointment.query.filter_by(series_id=s.id).filter(
+            Appointment.status.notin_(['cancelled', 'no_show'])
+        ).count()
+        max_appts = s.template.num_appointments if s.template else 0
+
+        issues = []
+        # Serie vollstaendig
+        if max_appts > 0 and appt_count >= max_appts:
+            issues.append({'type': 'ready', 'text': 'Serie vollständig - bereit zur Abrechnung'})
+        # Auto-Abrechnung faellig
+        if s.template and getattr(s.template, 'auto_billing_after', None) and appt_count >= s.template.auto_billing_after:
+            issues.append({'type': 'auto', 'text': f'Auto-Abrechnung nach {s.template.auto_billing_after} Terminen fällig'})
+        # Bereits abgerechnet pruefen
+        existing_invoice = Invoice.query.filter_by(series_id=s.id).filter(
+            Invoice.status.notin_(['cancelled'])
+        ).first()
+        if existing_invoice:
+            issues.append({'type': 'billed', 'text': f'Bereits abgerechnet: {existing_invoice.invoice_number}'})
+        # Patient ohne Versicherung
+        if s.patient and not s.patient.insurance_provider_id:
+            issues.append({'type': 'warning', 'text': 'Patient hat keine Versicherung hinterlegt'})
+
+        if issues:
+            validations.append({
+                'series': s,
+                'patient': s.patient,
+                'appt_count': appt_count,
+                'max_appts': max_appts,
+                'issues': issues,
+                'existing_invoice': existing_invoice if existing_invoice else None
+            })
+
+    return render_template('billing/validierungen.html',
+                           validations=validations)
+
+
+@billing_bp.route('/<int:id>/reminder-stop', methods=['POST'])
+@login_required
+@require_permission('billing.start_dunning')
+def reminder_stop(id):
+    """Mahnstopp setzen (Cenplex: ReminderstopDto)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+    result, error = stop_reminder(id)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        log_action('update', 'invoice', id, changes={'reminder_stop': {'new': str(date.today())}})
+        flash('Mahnstopp wurde gesetzt.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/reminder-resume', methods=['POST'])
+@login_required
+@require_permission('billing.start_dunning')
+def reminder_resume(id):
+    """Mahnstopp aufheben"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+    result, error = resume_reminder(id)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        log_action('update', 'invoice', id, changes={'reminder_stop': {'old': str(invoice.reminder_stop), 'new': None}})
+        flash('Mahnstopp wurde aufgehoben.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/inkasso', methods=['POST'])
+@login_required
+@require_permission('billing.start_dunning')
+def inkasso(id):
+    """Zu Inkasso eskalieren (Cenplex: IsinkassoDto)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+    result, error = escalate_to_inkasso(id)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        log_action('update', 'invoice', id, changes={'is_inkasso': {'new': True}})
+        flash('Rechnung wurde an Inkasso übergeben.', 'warning')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/toggle-discount', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def toggle_discount_route(id):
+    """Rabatt ein-/ausschalten (Cenplex: ChangeDiscount)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+    exclude = request.form.get('exclude_discount') == '1'
+    result, error = toggle_discount(id, exclude)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        status_text = 'ausgeschlossen' if exclude else 'eingeschlossen'
+        log_action('update', 'invoice', id, changes={'exclude_discount': {'new': exclude}})
+        flash(f'Rabatte wurden {status_text}.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/payment/<int:payment_id>/delete', methods=['POST'])
+@login_required
+@require_permission('billing.record_payment')
+def delete_payment_route(id, payment_id):
+    """Zahlung loeschen (Cenplex: DeletePayment)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    payment = Payment.query.get_or_404(payment_id)
+    if payment.invoice_id != invoice.id:
+        flash('Zahlung gehoert nicht zu dieser Rechnung.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    log_action('delete', 'payment', payment_id, changes={
+        'amount': {'old': str(payment.amount)},
+        'invoice_id': {'old': id}
+    })
+    result, error = service_delete_payment(payment_id)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        flash(f'Zahlung von CHF {payment.amount:.2f} wurde storniert.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/credit-note', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def create_credit_note_route(id):
+    """Gutschrift erstellen (Cenplex: ProductCreditInvoice)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+    reason = request.form.get('reason', '').strip()
+    credit, error = create_credit_note(id, current_user.organization_id, reason)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    log_action('create', 'invoice', credit.id, changes={
+        'type': {'new': 'Gutschrift'},
+        'original_invoice': {'new': id},
+        'amount': {'new': str(credit.amount_total)},
+    })
+    flash(f'Gutschrift {credit.invoice_number} wurde erstellt.', 'success')
+    return redirect(url_for('billing.detail', id=credit.id))
+
+
+@billing_bp.route('/<int:id>/fix', methods=['POST'])
+@login_required
+@require_permission('billing.create_invoice')
+def add_fix(id):
+    """Rechnungskorrektur hinzufuegen (Cenplex: InvoicefixDto)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    fix_type = request.form.get('fix_type', type=int, default=0)
+    description = request.form.get('fix_description', '').strip()
+    amount = request.form.get('fix_amount', type=float, default=0)
+    employee_id = current_user.employee.id if current_user.employee else None
+
+    if not description:
+        flash('Bitte Beschreibung angeben.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    fix, error = create_invoice_fix(id, fix_type, description, amount, employee_id)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        log_action('create', 'invoice_fix', fix.id, changes={
+            'invoice_id': {'new': id},
+            'fix_type': {'new': fix_type},
+            'amount': {'new': str(amount)},
+        })
+        flash('Korrektur wurde hinzugefügt.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/<int:id>/comments', methods=['POST'])
+@login_required
+@require_permission('billing.view')
+def update_comments(id):
+    """Kommentare aktualisieren (Cenplex: CommentDto / InternalcommentDto)"""
+    invoice = Invoice.query.get_or_404(id)
+    check_org(invoice)
+
+    comment = request.form.get('inv_comment', '').strip()
+    internal_comment = request.form.get('internal_comment', '').strip()
+
+    result, error = update_invoice_comments(id, comment=comment, internal_comment=internal_comment)
+    if error:
+        flash(f'Fehler: {error}', 'error')
+    else:
+        log_action('update', 'invoice', id, changes={'comments': {'new': 'aktualisiert'}})
+        flash('Kommentare wurden gespeichert.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+# ============================================================
+# Cenplex Phase 5: API-Endpunkte
 # ============================================================
 
 @billing_bp.route('/api/search')
