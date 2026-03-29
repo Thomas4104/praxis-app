@@ -49,6 +49,12 @@
             <h3>Produktdaten</h3>
         </div>
         <div class="card-body">
+            {% if product.logo_path %}
+            <div style="margin-bottom: var(--spacing-md); text-align: center;">
+                <img src="{{ url_for('static', filename=product.logo_path) }}" alt="Produktbild"
+                     style="max-width: 140px; max-height: 140px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            </div>
+            {% endif %}
             <div class="detail-list">
                 <div class="detail-item">
                     <span class="detail-label">Name</span>
@@ -62,7 +68,10 @@
                 {% endif %}
                 <div class="detail-item">
                     <span class="detail-label">Kategorie</span>
-                    <span class="detail-value">{{ product.category or '-' }}</span>
+                    <span class="detail-value">
+                        {% set cat_labels = {'Bandage': 'Bandagen', 'Tape': 'Tapen', 'Beckenboden': 'Beckenboden', 'Electro': 'Elektrotherapie', 'Breath': 'Atemtherapie', 'DryNeedling': 'Dry Needling'} %}
+                        {{ cat_labels.get(product.category, product.category) or '-' }}
+                    </span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Nettopreis</span>
@@ -80,16 +89,47 @@
                     <span class="detail-label">Einheit</span>
                     <span class="detail-value">{{ product.unit_type or '-' }}</span>
                 </div>
+                {% if product.article_number %}
+                <div class="detail-item">
+                    <span class="detail-label">Artikelnummer</span>
+                    <span class="detail-value">{{ product.article_number }}</span>
+                </div>
+                {% endif %}
+                {% if product.order_number %}
+                <div class="detail-item">
+                    <span class="detail-label">Bestellnummer</span>
+                    <span class="detail-value">{{ product.order_number }}</span>
+                </div>
+                {% endif %}
+                {% if product.mige_number %}
+                <div class="detail-item">
+                    <span class="detail-label">MIGE-Nummer</span>
+                    <span class="detail-value">{{ product.mige_number }}</span>
+                </div>
+                {% endif %}
                 {% if product.tariff_code %}
                 <div class="detail-item">
                     <span class="detail-label">Tarifcode</span>
                     <span class="detail-value">{{ product.tariff_code }}</span>
                 </div>
                 {% endif %}
-                {% if product.article_number %}
+                {% if product.product_tarif %}
                 <div class="detail-item">
-                    <span class="detail-label">Artikelnummer</span>
-                    <span class="detail-value">{{ product.article_number }}</span>
+                    <span class="detail-label">Produkttarif</span>
+                    <span class="detail-value">{{ product.product_tarif }}</span>
+                </div>
+                {% endif %}
+                <!-- Tags -->
+                {% if selected_tags %}
+                <div class="detail-item">
+                    <span class="detail-label">Tags</span>
+                    <span class="detail-value">
+                        {% for tid in selected_tags %}
+                            {% if tag_map.get(tid) %}
+                                <span class="badge badge-info">{{ tag_map[tid] }}</span>
+                            {% endif %}
+                        {% endfor %}
+                    </span>
                 </div>
                 {% endif %}
                 <div class="detail-item">
@@ -106,7 +146,7 @@
         </div>
     </div>
 
-    <!-- Bestand & Lieferant -->
+    <!-- Bestand, Lieferant & Spezial -->
     <div class="card">
         <div class="card-header">
             <h3>Bestand & Lieferant</h3>
@@ -117,16 +157,24 @@
                     <span class="detail-label">Lagerbestand</span>
                     <span class="detail-value">
                         {% if product.min_stock > 0 and product.stock_quantity < product.min_stock %}
-                            <span class="badge badge-error">{{ product.stock_quantity }} {{ product.unit_type or 'Stück' }}</span>
+                            <span class="badge badge-error">{{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}</span>
                         {% else %}
-                            {{ product.stock_quantity }} {{ product.unit_type or 'Stück' }}
+                            {{ product.stock_quantity }} {{ product.unit_type or 'Stueck' }}
                         {% endif %}
                     </span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Mindestbestand</span>
-                    <span class="detail-value">{{ product.min_stock }} {{ product.unit_type or 'Stück' }}</span>
+                    <span class="detail-value">{{ product.min_stock }} {{ product.unit_type or 'Stueck' }}</span>
                 </div>
+                {% if product.provider %}
+                <div class="detail-item">
+                    <span class="detail-label">Lieferant (Kontakt)</span>
+                    <span class="detail-value">
+                        {{ product.provider.company_name or '' }} {{ product.provider.last_name or '' }} {{ product.provider.first_name or '' }}
+                    </span>
+                </div>
+                {% endif %}
                 {% if product.supplier %}
                 <div class="detail-item">
                     <span class="detail-label">Lieferant</span>
@@ -139,8 +187,42 @@
                     <span class="detail-value">{{ product.manufacturer }}</span>
                 </div>
                 {% endif %}
+                {% if product.default_bank_account %}
+                <div class="detail-item">
+                    <span class="detail-label">Standard-Bankkonto</span>
+                    <span class="detail-value">{{ product.default_bank_account.bank_name or product.default_bank_account.account_name or product.default_bank_account.iban }}</span>
+                </div>
+                {% endif %}
             </div>
         </div>
+
+        <!-- Spezial-Einstellungen -->
+        {% if product.is_ergo or product.is_emr %}
+        <div class="card-header" style="border-top: 1px solid var(--border-color);">
+            <h3>Spezial-Einstellungen</h3>
+        </div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if product.is_ergo %}
+                <div class="detail-item">
+                    <span class="detail-label">Ergotherapie</span>
+                    <span class="detail-value">
+                        <span class="badge badge-info">Ergo-Produkt</span>
+                        {% if product.ergo_taxpoint %}
+                            - Taxpunkt: {{ product.ergo_taxpoint }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if product.is_emr %}
+                <div class="detail-item">
+                    <span class="detail-label">EMR</span>
+                    <span class="detail-value"><span class="badge badge-info">EMR-kompatibel</span></span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 

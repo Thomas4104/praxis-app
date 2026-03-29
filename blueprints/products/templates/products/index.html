@@ -11,6 +11,13 @@
 {% block page_title %}Produkte{% endblock %}
 
 {% block page_actions %}
+<a href="{{ url_for('products.tags_index') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+    </svg>
+    Tags verwalten
+</a>
 <a href="{{ url_for('products.create') }}" class="btn btn-primary">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -25,16 +32,25 @@
     <!-- Filter-Leiste -->
     <form class="filter-bar" method="GET" action="{{ url_for('products.index') }}">
         <div class="filter-group">
-            <input type="text" name="search" class="form-input" placeholder="Name oder Artikelnummer suchen..."
+            <input type="text" name="search" class="form-input" placeholder="Name, Artikelnr., Beschreibung, MIGE-Nr. suchen..."
                    value="{{ search }}" autocomplete="off">
         </div>
         <div class="filter-group">
             <select name="category" class="form-select">
                 <option value="">Alle Kategorien</option>
-                <option value="Therapiematerial" {% if category == 'Therapiematerial' %}selected{% endif %}>Therapiematerial</option>
-                <option value="Verbrauchsmaterial" {% if category == 'Verbrauchsmaterial' %}selected{% endif %}>Verbrauchsmaterial</option>
-                <option value="Retail" {% if category == 'Retail' %}selected{% endif %}>Retail</option>
-                <option value="Sonstiges" {% if category == 'Sonstiges' %}selected{% endif %}>Sonstiges</option>
+                {% for val, label in categories %}
+                    {% if val %}
+                    <option value="{{ val }}" {% if category == val %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="tag" class="form-select">
+                <option value="">Alle Tags</option>
+                {% for t in tags %}
+                <option value="{{ t.id }}" {% if tag_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-group">
@@ -54,7 +70,7 @@
             <thead>
                 <tr>
                     <th>
-                        <a href="{{ url_for('products.index', search=search, category=category, status=status, sort='name', order='desc' if sort == 'name' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'name' %}active{% endif %}">
+                        <a href="{{ url_for('products.index', search=search, category=category, tag=tag_id, status=status, sort='name', order='desc' if sort == 'name' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'name' %}active{% endif %}">
                             Name
                             {% if sort == 'name' %}
                                 <span class="sort-icon">{{ '&#9650;' if order == 'asc' else '&#9660;' }}</span>
@@ -63,7 +79,7 @@
                     </th>
                     <th>Kategorie</th>
                     <th>
-                        <a href="{{ url_for('products.index', search=search, category=category, status=status, sort='price', order='desc' if sort == 'price' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'price' %}active{% endif %}">
+                        <a href="{{ url_for('products.index', search=search, category=category, tag=tag_id, status=status, sort='price', order='desc' if sort == 'price' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'price' %}active{% endif %}">
                             Nettopreis
                             {% if sort == 'price' %}
                                 <span class="sort-icon">{{ '&#9650;' if order == 'asc' else '&#9660;' }}</span>
@@ -71,9 +87,11 @@
                         </a>
                     </th>
                     <th>Einheit</th>
+                    <th>MIGE-Nr.</th>
+                    <th>Tags</th>
                     <th>
-                        <a href="{{ url_for('products.index', search=search, category=category, status=status, sort='stock', order='desc' if sort == 'stock' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'stock' %}active{% endif %}">
-                            Lagerbestand
+                        <a href="{{ url_for('products.index', search=search, category=category, tag=tag_id, status=status, sort='stock', order='desc' if sort == 'stock' and order == 'asc' else 'asc') }}" class="sort-header {% if sort == 'stock' %}active{% endif %}">
+                            Bestand
                             {% if sort == 'stock' %}
                                 <span class="sort-icon">{{ '&#9650;' if order == 'asc' else '&#9660;' }}</span>
                             {% endif %}
@@ -94,9 +112,24 @@
                         <br><small class="text-muted">Art.-Nr.: {{ product.article_number }}</small>
                         {% endif %}
                     </td>
-                    <td>{{ product.category or '-' }}</td>
+                    <td>
+                        {% set cat_labels = {'Bandage': 'Bandagen', 'Tape': 'Tapen', 'Beckenboden': 'Beckenboden', 'Electro': 'Elektrotherapie', 'Breath': 'Atemtherapie', 'DryNeedling': 'Dry Needling'} %}
+                        {{ cat_labels.get(product.category, product.category) or '-' }}
+                    </td>
                     <td>{{ '%.2f'|format(product.net_price) }} CHF</td>
                     <td>{{ product.unit_type or '-' }}</td>
+                    <td>{{ product.mige_number or '-' }}</td>
+                    <td>
+                        {% if product.tags %}
+                            {% for tid, tname in tag_map.items() %}
+                                {% if product.tags and ('"' ~ tid ~ '"') in product.tags %}
+                                    <span class="badge badge-info" style="font-size: 0.75rem; margin: 1px;">{{ tname }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td>
                         {% if product.min_stock > 0 and product.stock_quantity < product.min_stock %}
                             <span class="badge badge-error">{{ product.stock_quantity }}</span>
@@ -109,6 +142,12 @@
                             <span class="badge badge-success">Aktiv</span>
                         {% else %}
                             <span class="badge badge-muted">Deaktiviert</span>
+                        {% endif %}
+                        {% if product.is_ergo %}
+                            <span class="badge badge-info" style="font-size: 0.7rem;">Ergo</span>
+                        {% endif %}
+                        {% if product.is_emr %}
+                            <span class="badge badge-info" style="font-size: 0.7rem;">EMR</span>
                         {% endif %}
                     </td>
                     <td class="actions-cell">
@@ -140,6 +179,20 @@
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination" style="padding: var(--spacing-md); display: flex; justify-content: center; gap: var(--spacing-sm);">
+        {% if page > 1 %}
+        <a href="{{ url_for('products.index', search=search, category=category, tag=tag_id, status=status, sort=sort, order=order, page=page-1) }}" class="btn btn-sm btn-secondary">&laquo; Zurueck</a>
+        {% endif %}
+        <span style="line-height: 32px;">Seite {{ page }} von {{ total_pages }} ({{ total }} Produkte)</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('products.index', search=search, category=category, tag=tag_id, status=status, sort=sort, order=order, page=page+1) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% else %}
     <div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

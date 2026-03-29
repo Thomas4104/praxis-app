@@ -13,10 +13,10 @@
 {% block page_title %}{{ 'Produkt bearbeiten' if product else 'Neues Produkt' }}{% endblock %}
 
 {% block content %}
-<form method="POST" class="form-container" id="productForm" novalidate>
+<form method="POST" class="form-container" id="productForm" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid form-grid-2">
-        <!-- Linke Spalte -->
+        <!-- Linke Spalte: Produktdaten -->
         <div class="form-section">
             <h3 class="form-section-title">Produktdaten</h3>
 
@@ -37,9 +37,8 @@
             <div class="form-group">
                 <label for="category" class="form-label">Kategorie</label>
                 <select id="category" name="category" class="form-select">
-                    <option value="">-- Kategorie wählen --</option>
-                    {% for cat in ['Therapiematerial', 'Verbrauchsmaterial', 'Retail', 'Sonstiges'] %}
-                    <option value="{{ cat }}" {% if product and product.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% for val, label in categories %}
+                    <option value="{{ val }}" {% if product and product.category == val %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -55,7 +54,7 @@
                 <div class="form-group">
                     <label for="vat_rate" class="form-label">MwSt-Satz</label>
                     <select id="vat_rate" name="vat_rate" class="form-select">
-                        {% for rate, label in [('0', '0%'), ('2.6', '2.6%'), ('8.1', '8.1%')] %}
+                        {% for rate, label in vat_rates %}
                         <option value="{{ rate }}" {% if product and '%.1f'|format(product.vat_rate) == rate %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
@@ -66,34 +65,86 @@
                 <div class="form-group">
                     <label for="unit_type" class="form-label">Einheit</label>
                     <select id="unit_type" name="unit_type" class="form-select">
-                        <option value="">-- Einheit wählen --</option>
-                        {% for unit in ['Stück', 'cm', 'm', 'Tage', 'Monate', 'Packung', 'ml', 'l'] %}
-                        <option value="{{ unit }}" {% if product and product.unit_type == unit %}selected{% endif %}>{{ unit }}</option>
+                        {% for val, label in unit_types %}
+                        <option value="{{ val }}" {% if product and product.unit_type == val %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="article_number" class="form-label">Artikelnummer</label>
+                    <input type="text" id="article_number" name="article_number" class="form-input"
+                           value="{{ product.article_number if product and product.article_number else '' }}"
+                           placeholder="Interne Artikelnr.">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="order_number" class="form-label">Bestellnummer</label>
+                    <input type="text" id="order_number" name="order_number" class="form-input"
+                           value="{{ product.order_number if product and product.order_number else '' }}"
+                           placeholder="Bestellnummer">
+                </div>
+                <div class="form-group">
+                    <label for="mige_number" class="form-label">MIGE-Nummer</label>
+                    <input type="text" id="mige_number" name="mige_number" class="form-input"
+                           value="{{ product.mige_number if product and product.mige_number else '' }}"
+                           placeholder="MIGE-Nummer (Gesundheitsprodukte)">
+                </div>
+            </div>
+
+            <div class="form-row">
                 <div class="form-group">
                     <label for="tariff_code" class="form-label">Tarifcode</label>
                     <input type="text" id="tariff_code" name="tariff_code" class="form-input"
                            value="{{ product.tariff_code if product and product.tariff_code else '' }}"
                            placeholder="Optional">
                 </div>
+                <div class="form-group">
+                    <label for="product_tarif" class="form-label">Produkttarif</label>
+                    <input type="text" id="product_tarif" name="product_tarif" class="form-input"
+                           value="{{ product.product_tarif if product and product.product_tarif else '' }}"
+                           placeholder="Produkttarif-Code">
+                </div>
             </div>
 
+            <!-- Tags -->
             <div class="form-group">
-                <label for="article_number" class="form-label">Artikelnummer</label>
-                <input type="text" id="article_number" name="article_number" class="form-input"
-                       value="{{ product.article_number if product and product.article_number else '' }}"
-                       placeholder="Interne Artikelnummer">
+                <label class="form-label">Tags</label>
+                <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+                    {% for t in tags %}
+                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" name="tags" value="{{ t.id }}"
+                               {% if t.id|string in selected_tags %}checked{% endif %}>
+                        {{ t.name }}
+                    </label>
+                    {% endfor %}
+                    {% if not tags %}
+                    <small class="text-muted">Keine Tags definiert. <a href="{{ url_for('products.tags_index') }}">Tags verwalten</a></small>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
-        <!-- Rechte Spalte -->
+        <!-- Rechte Spalte: Lieferant, Bestand, Erweitert -->
         <div class="form-section">
             <h3 class="form-section-title">Lieferant & Bestand</h3>
 
             <div class="form-group">
-                <label for="supplier" class="form-label">Lieferant</label>
+                <label for="provider_id" class="form-label">Lieferant (Kontakt)</label>
+                <select id="provider_id" name="provider_id" class="form-select">
+                    <option value="">-- Kein Lieferant --</option>
+                    {% for c in contacts %}
+                    <option value="{{ c.id }}" {% if product and product.provider_id == c.id %}selected{% endif %}>
+                        {{ c.company_name or '' }} {{ c.last_name or '' }} {{ c.first_name or '' }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">Aus Kontaktverzeichnis waehlen</small>
+            </div>
+
+            <div class="form-group">
+                <label for="supplier" class="form-label">Lieferant (Freitext)</label>
                 <input type="text" id="supplier" name="supplier" class="form-input"
                        value="{{ product.supplier if product and product.supplier else '' }}"
                        placeholder="Name des Lieferanten">
@@ -104,6 +155,18 @@
                 <input type="text" id="manufacturer" name="manufacturer" class="form-input"
                        value="{{ product.manufacturer if product and product.manufacturer else '' }}"
                        placeholder="Name des Herstellers">
+            </div>
+
+            <div class="form-group">
+                <label for="default_bank_account_id" class="form-label">Standard-Bankkonto</label>
+                <select id="default_bank_account_id" name="default_bank_account_id" class="form-select">
+                    <option value="">-- Kein Standard --</option>
+                    {% for ba in bank_accounts %}
+                    <option value="{{ ba.id }}" {% if product and product.default_bank_account_id == ba.id %}selected{% endif %}>
+                        {{ ba.bank_name or ba.account_name or ba.iban }}
+                    </option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div class="form-row">
@@ -120,6 +183,38 @@
                 </div>
             </div>
 
+            <!-- Ergotherapie & EMR -->
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Spezial-Einstellungen</h3>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_ergo" id="is_ergo"
+                           {% if product and product.is_ergo %}checked{% endif %}
+                           onchange="toggleErgo()">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Ergotherapie-Produkt</span>
+                </label>
+            </div>
+
+            <div class="form-group" id="ergoTaxpointGroup" style="{% if not product or not product.is_ergo %}display:none;{% endif %}">
+                <label for="ergo_taxpoint" class="form-label">Ergo-Taxpunkt</label>
+                <select id="ergo_taxpoint" name="ergo_taxpoint" class="form-select">
+                    <option value="">-- Taxpunkt waehlen --</option>
+                    {% for tp in ergo_taxpoints %}
+                    <option value="{{ tp }}" {% if product and product.ergo_taxpoint == tp %}selected{% endif %}>{{ tp }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_emr" id="is_emr"
+                           {% if product and product.is_emr %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">EMR-kompatibel</span>
+                </label>
+            </div>
+
             <div class="form-group">
                 <label class="form-toggle">
                     <input type="checkbox" name="is_active" id="is_active"
@@ -127,6 +222,22 @@
                     <span class="toggle-slider"></span>
                     <span class="toggle-label">Produkt aktiv</span>
                 </label>
+            </div>
+
+            <!-- Logo -->
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Produktbild</h3>
+
+            {% if product and product.logo_path %}
+            <div class="form-group">
+                <img src="{{ url_for('static', filename=product.logo_path) }}" alt="Produktbild"
+                     style="max-width: 140px; max-height: 140px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="logo" class="form-label">Bild hochladen</label>
+                <input type="file" id="logo" name="logo" class="form-input" accept=".jpg,.jpeg,.png,.gif,.bmp">
+                <small class="form-hint">JPG, PNG, GIF oder BMP. Max. 140x140px empfohlen.</small>
             </div>
         </div>
     </div>
@@ -142,12 +253,29 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('productForm').addEventListener('submit', function(e) {
-    let valid = true;
-    const name = document.getElementById('name');
-    const price = document.getElementById('net_price');
+// Ergo-Taxpunkt ein/ausblenden
+function toggleErgo() {
+    var ergoCheckbox = document.getElementById('is_ergo');
+    var ergoGroup = document.getElementById('ergoTaxpointGroup');
+    var ergoSelect = document.getElementById('ergo_taxpoint');
+    if (ergoCheckbox.checked) {
+        ergoGroup.style.display = '';
+        // Auto-Selektion des ersten Taxpunktes wenn nichts gewaehlt (Cenplex-Verhalten)
+        if (!ergoSelect.value) {
+            ergoSelect.selectedIndex = 1;
+        }
+    } else {
+        ergoGroup.style.display = 'none';
+        ergoSelect.value = '';
+    }
+}
 
-    // Name validieren
+// Formular-Validierung
+document.getElementById('productForm').addEventListener('submit', function(e) {
+    var valid = true;
+    var name = document.getElementById('name');
+    var price = document.getElementById('net_price');
+
     document.getElementById('nameError').textContent = '';
     if (!name.value.trim()) {
         document.getElementById('nameError').textContent = 'Name ist ein Pflichtfeld.';
@@ -155,7 +283,6 @@ document.getElementById('productForm').addEventListener('submit', function(e) {
         valid = false;
     }
 
-    // Preis validieren
     document.getElementById('priceError').textContent = '';
     if (parseFloat(price.value) < 0 || isNaN(parseFloat(price.value))) {
         document.getElementById('priceError').textContent = 'Bitte geben Sie einen gueltigen Preis ein.';

@@ -662,6 +662,18 @@ class Product(db.Model):
     default_bank_account = db.relationship('BankAccount', foreign_keys=[default_bank_account_id])
 
 
+class ProductTag(db.Model):
+    """Benutzerdefinierte Produkt-Tags/Kategorien (Cenplex: ProductSettings.Categories)"""
+    __tablename__ = 'product_tags'
+    __table_args__ = (
+        db.Index('ix_product_tag_org', 'organization_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Resource(db.Model):
     __tablename__ = 'resources'
     __table_args__ = (

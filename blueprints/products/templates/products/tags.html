@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Produkt-Tags verwalten{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('products.index') }}">Produkte</a>
+<span class="breadcrumb-sep">/</span>
+<span>Tags verwalten</span>
+{% endblock %}
+
+{% block page_title %}Produkt-Tags verwalten{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('products.index') }}" class="btn btn-secondary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+    Zurueck zu Produkte
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="detail-grid">
+    <!-- Neuen Tag erstellen -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Neuen Tag erstellen</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('products.tag_create') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="tag_name" class="form-label required">Tag-Name</label>
+                    <input type="text" id="tag_name" name="name" class="form-input"
+                           placeholder="z.B. Physiotherapie, Wellness, Neurologie..." required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Tag erstellen
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bestehende Tags -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Bestehende Tags ({{ tags|length }})</h3>
+        </div>
+        <div class="card-body">
+            {% if tags %}
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Tag-Name</th>
+                            <th>Produkte</th>
+                            <th>Erstellt</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tag in tags %}
+                        <tr>
+                            <td>
+                                <span class="badge badge-info">{{ tag.name }}</span>
+                            </td>
+                            <td>{{ tag_counts.get(tag.id, 0) }} Produkte</td>
+                            <td>{{ tag.created_at.strftime('%d.%m.%Y') if tag.created_at else '-' }}</td>
+                            <td class="actions-cell">
+                                <form method="POST" action="{{ url_for('products.tag_delete', tag_id=tag.id) }}"
+                                      style="display:inline"
+                                      onsubmit="return confirm('Tag &quot;{{ tag.name }}&quot; wirklich loeschen? Er wird aus allen Produkten entfernt.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Tag loeschen">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                </svg>
+                <p>Noch keine Tags definiert.</p>
+                <p class="text-muted">Tags helfen bei der Organisation und Filterung von Produkten.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
