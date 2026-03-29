@@ -1532,6 +1532,9 @@ class Email(db.Model):
     linked_invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
     linked_cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
     has_attachments = db.Column(db.Boolean, default=False)
+    color_code = db.Column(db.Integer, default=0)  # Cenplex: ColorcodeDto (0=keine, 1-6)
+    handled_at = db.Column(db.DateTime)  # Cenplex: HandleddateDto
+    handled_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     read_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -2838,36 +2841,63 @@ class EmailLog(db.Model):
     __tablename__ = 'email_logs'
     __table_args__ = (
         db.Index('ix_emaillog_entity', 'entity_type', 'entity_id'),
+        db.Index('ix_emaillog_patient', 'patient_id'),
     )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     entity_type = db.Column(db.String(50))  # invoice, cost_approval, appointment, abo
     entity_id = db.Column(db.Integer)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     template_id = db.Column(db.Integer, db.ForeignKey('email_templates.id'))
     from_address = db.Column(db.String(200))
     to_address = db.Column(db.String(200))
+    sender_name = db.Column(db.String(200))
     cc = db.Column(db.String(500))
     subject = db.Column(db.String(500))
     body_html = db.Column(db.Text)
-    status = db.Column(db.String(20), default='sent')  # sent, failed, bounced
+    message_id = db.Column(db.String(300))  # Provider Message-ID
+    status = db.Column(db.String(20), default='sent')  # sent, failed, bounced, delivered
     error_message = db.Column(db.Text)
+    notes = db.Column(db.Text)  # Notizen zum Versand
+    delivered_date = db.Column(db.DateTime)  # Zustellbestaetigung
+    opened_date = db.Column(db.DateTime)  # Geoeffnet-Tracking
+    sent_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    patient = db.relationship('Patient', backref='email_logs')
+    sent_by = db.relationship('Employee', backref='sent_emails')
+    template = db.relationship('EmailTemplate')
+
 
 class SmsLog(db.Model):
-    """SMS Versandprotokoll"""
+    """SMS Versandprotokoll (Cenplex: SmslogDto)"""
     __tablename__ = 'sms_logs'
+    __table_args__ = (
+        db.Index('ix_smslog_patient', 'patient_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     entity_type = db.Column(db.String(50))
     entity_id = db.Column(db.Integer)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'))
     phone_number = db.Column(db.String(30))
     message = db.Column(db.Text)
-    status = db.Column(db.String(20), default='sent')
+    sender_name = db.Column(db.String(100))
+    parts_count = db.Column(db.Integer, default=1)  # SMS-Segmente
+    price = db.Column(db.Numeric(6, 4))  # Kosten
+    confirm_key = db.Column(db.String(100))  # Provider-Bestaetigungsschluessel
+    message_id = db.Column(db.String(300))  # Provider Message-ID
+    status = db.Column(db.String(20), default='sent')  # sent, failed, delivered
+    error_code = db.Column(db.String(50))
     error_message = db.Column(db.Text)
+    delivered_date = db.Column(db.DateTime)  # Zustellbestaetigung
+    sent_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    patient = db.relationship('Patient', backref='sms_logs')
+    sent_by = db.relationship('Employee', backref='sent_sms')
 
 
 class TreatmentReport(db.Model):
@@ -2979,13 +3009,18 @@ class TrustedDoctor(db.Model):
 
 
 class SpamList(db.Model):
-    """Blockierte E-Mail-Adressen"""
+    """Blockierte E-Mail-Adressen/Domains (Cenplex: SpamlistDto)"""
     __tablename__ = 'spam_list'
     id = db.Column(db.Integer, primary_key=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
-    email = db.Column(db.String(200), nullable=False)
+    spam_entry = db.Column(db.String(200), nullable=False)  # E-Mail-Adresse oder Domain-Muster
+    email = db.Column(db.String(200))  # Legacy-Feld
+    entry_type = db.Column(db.Integer, default=0)  # 0=E-Mail-Adresse, 1=Domain-Muster
     reason = db.Column(db.Text)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    created_by = db.relationship('Employee', backref='spam_entries')
 
 
 class OnlineBookingMapping(db.Model):

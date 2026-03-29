@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}SMS verfassen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.sms_index') }}">SMS</a>
+<span class="breadcrumb-sep">/</span>
+<span>SMS verfassen</span>
+{% endblock %}
+
+{% block page_title %}SMS verfassen{% endblock %}
+
+{% block content %}
+<!-- Demo-Modus Banner -->
+<div class="alert alert-info" style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+    <strong>Demo-Modus:</strong> SMS wird protokolliert aber nicht versendet.
+</div>
+
+<div class="compose-form" style="max-width: 600px;">
+    <div class="card">
+        <div class="card-body">
+            <!-- Patient verknuepfen -->
+            <div class="form-group">
+                <label class="form-label">Patient:</label>
+                <select id="linkedPatient" class="form-control" onchange="onPatientChange()">
+                    <option value="">-- Patient waehlen --</option>
+                    {% for p in patients %}
+                    <option value="{{ p.id }}"
+                            data-phone="{{ p.mobile_phone or p.phone or '' }}"
+                            {% if patient_id == p.id %}selected{% endif %}>
+                        {{ p.last_name }}, {{ p.first_name }}
+                        {% if p.mobile_phone %} ({{ p.mobile_phone }}){% elif p.phone %} ({{ p.phone }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Telefonnummer -->
+            <div class="form-group">
+                <label class="form-label">Telefonnummer:</label>
+                <input type="tel" id="smsPhone" class="form-control" placeholder="+41 79 123 45 67"
+                       value="{{ phone }}">
+            </div>
+
+            <!-- SMS-Vorlage -->
+            <div class="form-group">
+                <label class="form-label">Vorlage:</label>
+                <select id="smsTemplate" class="form-control" onchange="loadSmsTemplate()">
+                    <option value="">-- Ohne Vorlage --</option>
+                    {% for tpl in sms_templates %}
+                    <option value="{{ tpl.id }}">{{ tpl.name }} ({{ tpl.template_type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Nachricht -->
+            <div class="form-group">
+                <label class="form-label">Nachricht:</label>
+                <textarea id="smsMessage" class="form-control" rows="5" placeholder="SMS-Text eingeben..."
+                          maxlength="640" oninput="updateCounter()">{{ message }}</textarea>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                    <small class="form-hint">Platzhalter: {patient_name}, {termin_datum}, {termin_zeit}, {praxis_name}</small>
+                    <small id="smsCounter" style="color: var(--text-muted);">
+                        <span id="charCount">{{ message | length }}</span>/160
+                        (<span id="segmentCount">{{ ((message | length) / 160) | round(0, 'ceil') | int if message else 0 }}</span> SMS)
+                    </small>
+                </div>
+            </div>
+
+            <!-- Aktionen -->
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="sendSms()" id="sendBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    SMS senden
+                </button>
+                <a href="{{ url_for('mailing.sms_index') }}" class="btn btn-outline">Abbrechen</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function onPatientChange() {
+    var sel = document.getElementById('linkedPatient');
+    var opt = sel.options[sel.selectedIndex];
+    var phone = opt ? opt.getAttribute('data-phone') : '';
+    if (phone && !document.getElementById('smsPhone').value) {
+        document.getElementById('smsPhone').value = phone;
+    }
+}
+
+function updateCounter() {
+    var msg = document.getElementById('smsMessage').value;
+    var len = msg.length;
+    document.getElementById('charCount').textContent = len;
+    document.getElementById('segmentCount').textContent = Math.max(1, Math.ceil(len / 160));
+}
+
+function loadSmsTemplate() {
+    var templateId = document.getElementById('smsTemplate').value;
+    if (!templateId) return;
+
+    var patientId = document.getElementById('linkedPatient').value;
+    var url = '{{ url_for("mailing.get_template", template_id=0) }}'.replace('/0', '/' + templateId);
+    if (patientId) url += '?patient_id=' + patientId;
+
+    fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.body_html) {
+            // HTML-Tags entfernen fuer SMS
+            var tmp = document.createElement('div');
+            tmp.innerHTML = data.body_html;
+            document.getElementById('smsMessage').value = tmp.textContent || tmp.innerText || '';
+            updateCounter();
+        }
+    });
+}
+
+function sendSms() {
+    var phone = document.getElementById('smsPhone').value.trim();
+    var message = document.getElementById('smsMessage').value.trim();
+    var patientId = document.getElementById('linkedPatient').value || null;
+
+    if (!phone) { alert('Bitte Telefonnummer eingeben.'); return; }
+    if (!message) { alert('Bitte Nachricht eingeben.'); return; }
+
+    var btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.textContent = 'Wird gesendet...';
+
+    fetchWithCSRF('{{ url_for("mailing.send_sms") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phone: phone, message: message, patient_id: patientId ? parseInt(patientId) : null})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if (result.success) {
+            window.location = '{{ url_for("mailing.sms_index") }}';
+        } else {
+            alert(result.message || 'Fehler beim Senden.');
+            btn.disabled = false;
+            btn.textContent = 'SMS senden';
+        }
+    })
+    .catch(function() {
+        alert('Fehler beim Senden.');
+        btn.disabled = false;
+        btn.textContent = 'SMS senden';
+    });
+}
+
+// Initial Counter
+updateCounter();
+</script>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}SMS-Detail{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.sms_index') }}">SMS</a>
+<span class="breadcrumb-sep">/</span>
+<span>Detail</span>
+{% endblock %}
+
+{% block page_title %}SMS-Detail{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('mailing.sms_index') }}" class="btn btn-outline">Zurueck</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px;">
+    <div class="card">
+        <div class="card-body">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Empfaenger:</span>
+                    <span>{{ sms.phone_number or '-' }}</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Gesendet:</span>
+                    <span>{{ sms.sent_at.strftime('%d.%m.%Y %H:%M') if sms.sent_at else sms.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Status:</span>
+                    <span>
+                        {% if sms.status == 'sent' %}
+                        <span class="status-badge status-active">Gesendet</span>
+                        {% elif sms.status == 'delivered' %}
+                        <span class="status-badge" style="background: #dcfce7; color: #166534;">Zugestellt</span>
+                        {% elif sms.status == 'failed' %}
+                        <span class="status-badge" style="background: #fee2e2; color: #991b1b;">Fehlgeschlagen</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Segmente:</span>
+                    <span>{{ sms.parts_count or 1 }}</span>
+                </div>
+                {% if sms.sender_name %}
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Gesendet von:</span>
+                    <span>{{ sms.sender_name }}</span>
+                </div>
+                {% endif %}
+                {% if patient %}
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Patient:</span>
+                    <a href="{{ url_for('patients.detail', patient_id=patient.id) }}">
+                        {{ patient.first_name }} {{ patient.last_name }}
+                    </a>
+                </div>
+                {% endif %}
+                {% if sms.error_message %}
+                <div style="display: flex; gap: 0.5rem; font-size: 0.9rem;">
+                    <span style="font-weight: 600; color: var(--text-muted); min-width: 100px;">Fehler:</span>
+                    <span style="color: #991b1b;">{{ sms.error_message }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 1rem;">
+        <div class="card-header">
+            <h3>Nachricht</h3>
+        </div>
+        <div class="card-body">
+            <p style="white-space: pre-wrap; line-height: 1.6;">{{ sms.message or '(keine Nachricht)' }}</p>
+            <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                {{ (sms.message | length) if sms.message else 0 }} Zeichen
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

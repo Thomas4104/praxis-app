@@ -27,6 +27,13 @@
     </svg>
     Weiterleiten
 </a>
+<button class="btn btn-outline" onclick="markUnread()" title="Als ungelesen markieren">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+        <polyline points="22,6 12,13 2,6"></polyline>
+    </svg>
+    Ungelesen
+</button>
 {% endblock %}
 
 {% block content %}
@@ -169,6 +176,15 @@
             </div>
             <div class="card-body">
                 <div class="action-buttons">
+                    <!-- Bearbeitet-Status (Cenplex: HandleddateDto) -->
+                    <button class="btn btn-sm btn-outline" onclick="toggleHandled()" style="width: 100%;" id="handledBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 11 12 14 22 4"></polyline>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                        {% if email.status == 'handled' %}Bearbeitet{% else %}Als bearbeitet markieren{% endif %}
+                    </button>
+
                     {% if email.folder != 'archive' %}
                     <button class="btn btn-sm btn-outline" onclick="moveEmail('archive')" style="width: 100%;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -191,12 +207,40 @@
                         <button class="btn btn-sm btn-outline" onclick="moveToSelectedFolder()">Verschieben</button>
                     </div>
 
+                    <!-- Spam -->
+                    {% if email.folder != 'spam' %}
+                    <button class="btn btn-sm btn-outline" onclick="markAsSpam()" style="width: 100%;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        Als Spam markieren
+                    </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline" onclick="restoreEmail()" style="width: 100%;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        Wiederherstellen
+                    </button>
+                    {% endif %}
+
+                    {% if email.folder == 'trash' %}
+                    <button class="btn btn-sm btn-outline" onclick="restoreEmail()" style="width: 100%;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        Wiederherstellen
+                    </button>
+                    {% endif %}
+
                     <button class="btn btn-sm btn-outline btn-danger" onclick="deleteEmail()" style="width: 100%;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
-                        Löschen
+                        Loeschen
                     </button>
                 </div>
             </div>
@@ -314,6 +358,40 @@ function linkPatient() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({email_id: {{ email.id }}, patient_id: parseInt(patientId)})
+    }).then(() => location.reload());
+}
+
+function markUnread() {
+    fetchWithCSRF('{{ url_for("mailing.mark_unread") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}]})
+    }).then(() => window.location = '{{ url_for("mailing.index") }}');
+}
+
+function markAsSpam() {
+    if (!confirm('E-Mail als Spam markieren und Absender blockieren?')) return;
+    fetchWithCSRF('{{ url_for("mailing.add_spam_from_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}]})
+    }).then(() => window.location = '{{ url_for("mailing.index") }}');
+}
+
+function restoreEmail() {
+    fetchWithCSRF('{{ url_for("mailing.restore_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}]})
+    }).then(() => window.location = '{{ url_for("mailing.index") }}');
+}
+
+function toggleHandled() {
+    var isHandled = '{{ email.status }}' === 'handled';
+    fetchWithCSRF('{{ url_for("mailing.mark_handled") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: [{{ email.id }}], handled: !isHandled})
     }).then(() => location.reload());
 }
 </script>

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Versandprotokoll{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>Versandprotokoll</span>
+{% endblock %}
+
+{% block page_title %}Versandprotokoll{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('mailing.index') }}" class="btn btn-outline">Zurueck zu E-Mails</a>
+{% endblock %}
+
+{% block content %}
+<p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+    Detailliertes Protokoll aller gesendeten E-Mails mit Zustellstatus und Tracking.
+</p>
+
+<!-- Filter -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-body" style="padding: 0.5rem 0.75rem;">
+        <form method="GET" action="{{ url_for('mailing.sent_log') }}" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Empfaenger oder Betreff..."
+                   value="{{ search }}" style="width: 200px;">
+            <select name="status" class="form-control form-control-sm" style="width: 150px;">
+                <option value="">Alle Status</option>
+                <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Gesendet</option>
+                <option value="delivered" {% if status_filter == 'delivered' %}selected{% endif %}>Zugestellt</option>
+                <option value="bounced" {% if status_filter == 'bounced' %}selected{% endif %}>Bounced</option>
+                <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Fehlgeschlagen</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline">Filtern</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    {% if logs.items %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Von</th>
+                    <th>An</th>
+                    <th>Betreff</th>
+                    <th>Status</th>
+                    <th>Patient</th>
+                    <th>Notizen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs.items %}
+                <tr>
+                    <td style="white-space: nowrap; font-size: 0.85rem;">
+                        {{ log.sent_at.strftime('%d.%m.%Y %H:%M') if log.sent_at else log.created_at.strftime('%d.%m.%Y %H:%M') }}
+                    </td>
+                    <td style="font-size: 0.85rem;">{{ log.sender_name or log.from_address or '-' }}</td>
+                    <td style="font-size: 0.85rem;">{{ log.to_address or '-' }}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem;">
+                        {{ log.subject or '(kein Betreff)' }}
+                    </td>
+                    <td>
+                        {% if log.status == 'sent' %}
+                        <span class="status-badge status-active">Gesendet</span>
+                        {% elif log.status == 'delivered' %}
+                        <span class="status-badge" style="background: #dcfce7; color: #166534;">Zugestellt</span>
+                        {% elif log.status == 'bounced' %}
+                        <span class="status-badge" style="background: #fef3c7; color: #92400e;">Bounced</span>
+                        {% elif log.status == 'failed' %}
+                        <span class="status-badge" style="background: #fee2e2; color: #991b1b;">Fehlgeschlagen</span>
+                        {% else %}
+                        <span class="status-badge">{{ log.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.85rem;">
+                        {% if log.patient %}
+                        <a href="{{ url_for('patients.detail', patient_id=log.patient.id) }}">
+                            {{ log.patient.last_name }}
+                        </a>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td style="font-size: 0.8rem; color: var(--text-muted); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ log.notes or '-' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if logs.pages > 1 %}
+    <div class="pagination" style="display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem;">
+        {% if logs.has_prev %}
+        <a href="{{ url_for('mailing.sent_log', page=logs.prev_num, search=search, status=status_filter) }}" class="btn btn-sm btn-outline">&laquo; Zurueck</a>
+        {% endif %}
+        <span>Seite {{ logs.page }} von {{ logs.pages }}</span>
+        {% if logs.has_next %}
+        <a href="{{ url_for('mailing.sent_log', page=logs.next_num, search=search, status=status_filter) }}" class="btn btn-sm btn-outline">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state" style="padding: 3rem 1rem; text-align: center;">
+        <p style="color: var(--text-muted);">Keine Eintraege im Versandprotokoll.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

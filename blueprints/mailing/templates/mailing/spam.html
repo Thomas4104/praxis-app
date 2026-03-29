@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Spam-Verwaltung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>Spam-Liste</span>
+{% endblock %}
+
+{% block page_title %}Spam-Liste{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="document.getElementById('addSpamModal').classList.add('active')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Eintrag hinzufuegen
+</button>
+<a href="{{ url_for('mailing.index') }}" class="btn btn-outline">Zurueck zu E-Mails</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3>Blockierte Absender und Domains ({{ entries | length }})</h3>
+    </div>
+
+    {% if entries %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Typ</th>
+                    <th>Eintrag</th>
+                    <th>Erstellt</th>
+                    <th>Erstellt von</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td>
+                        {% if e.entry_type == 1 %}
+                        <span class="badge" style="background: #fef3c7; color: #92400e;">Domain</span>
+                        {% else %}
+                        <span class="badge" style="background: #fee2e2; color: #991b1b;">E-Mail</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ e.spam_entry or e.email or '-' }}</strong></td>
+                    <td>{{ e.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td>
+                        {% if e.created_by %}
+                        {{ e.created_by.first_name }} {{ e.created_by.last_name }}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <button class="btn btn-sm btn-ghost" onclick="editSpam({{ e.id }}, '{{ e.spam_entry or e.email }}', {{ e.entry_type or 0 }})" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <button class="btn btn-sm btn-ghost btn-danger" onclick="deleteSpam({{ e.id }})" title="Loeschen">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 3rem 1rem; text-align: center;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity: 0.3; margin-bottom: 1rem;">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <p style="color: var(--text-muted);">Keine blockierten Absender.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Hinweis -->
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-body" style="font-size: 0.85rem; color: var(--text-muted);">
+        <strong>Hinweis:</strong> E-Mail-Eintraege blockieren eine bestimmte Adresse (z.B. spam@example.com).
+        Domain-Eintraege blockieren alle Adressen einer Domain (z.B. @example.com).
+    </div>
+</div>
+
+<!-- Modal: Spam hinzufuegen -->
+<div class="modal-overlay" id="addSpamModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="spamModalTitle">Spam-Eintrag hinzufuegen</h3>
+            <button class="modal-close" onclick="document.getElementById('addSpamModal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Typ</label>
+                <select id="spamEntryType" class="form-control">
+                    <option value="0">E-Mail-Adresse</option>
+                    <option value="1">Domain (z.B. @example.com)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Eintrag</label>
+                <input type="text" id="spamEntryValue" class="form-control" placeholder="spam@example.com oder @example.com">
+            </div>
+            <input type="hidden" id="spamEditId" value="">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('addSpamModal').classList.remove('active')">Abbrechen</button>
+            <button class="btn btn-primary" onclick="saveSpam()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function saveSpam() {
+    var entryType = parseInt(document.getElementById('spamEntryType').value);
+    var spamEntry = document.getElementById('spamEntryValue').value.trim();
+    var editId = document.getElementById('spamEditId').value;
+
+    if (!spamEntry) { alert('Bitte Eintrag eingeben.'); return; }
+
+    var url, method;
+    if (editId) {
+        url = '{{ url_for("mailing.update_spam", entry_id=0) }}'.replace('/0', '/' + editId);
+        method = 'PUT';
+    } else {
+        url = '{{ url_for("mailing.add_spam") }}';
+        method = 'POST';
+    }
+
+    fetchWithCSRF(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({spam_entry: spamEntry, entry_type: entryType})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) location.reload();
+        else alert(data.message || 'Fehler.');
+    });
+}
+
+function editSpam(id, entry, type) {
+    document.getElementById('spamModalTitle').textContent = 'Spam-Eintrag bearbeiten';
+    document.getElementById('spamEditId').value = id;
+    document.getElementById('spamEntryValue').value = entry;
+    document.getElementById('spamEntryType').value = type;
+    document.getElementById('addSpamModal').classList.add('active');
+}
+
+function deleteSpam(id) {
+    if (!confirm('Eintrag wirklich loeschen?')) return;
+    fetchWithCSRF('{{ url_for("mailing.delete_spam", entry_id=0) }}'.replace('/0', '/' + id), {
+        method: 'DELETE'
+    }).then(function() { location.reload(); });
+}
+</script>
+{% endblock %}

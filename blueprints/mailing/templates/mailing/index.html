@@ -92,6 +92,18 @@
                 {% endif %}
             </a>
 
+            <!-- Spam -->
+            <a href="{{ url_for('mailing.index', folder='spam') }}"
+               class="folder-item {% if current_folder == 'spam' %}active{% endif %}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>Spam</span>
+                {% if folder_counts.get('spam', 0) > 0 %}
+                <span class="folder-badge folder-badge-muted">{{ folder_counts['spam'] }}</span>
+                {% endif %}
+            </a>
+
             {% if custom_folders %}
             <div class="folder-divider"></div>
             <div class="folder-section-label">Eigene Ordner</div>
@@ -117,6 +129,52 @@
                 </svg>
                 <span>Neuer Ordner</span>
             </button>
+
+            <!-- Erweiterte Bereiche -->
+            <div class="folder-divider"></div>
+            <div class="folder-section-label">Erweitert</div>
+            <a href="{{ url_for('mailing.sms_index') }}" class="folder-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>SMS</span>
+            </a>
+            <a href="{{ url_for('mailing.bounced') }}" class="folder-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <span>Bounced</span>
+                {% if bounce_count > 0 %}
+                <span class="folder-badge" style="background: #fee2e2; color: #991b1b;">{{ bounce_count }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('mailing.sent_log') }}" class="folder-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <span>Protokoll</span>
+            </a>
+            <a href="{{ url_for('mailing.spam_list') }}" class="folder-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>Spam-Liste</span>
+                {% if spam_count > 0 %}
+                <span class="folder-badge folder-badge-muted">{{ spam_count }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('mailing.accounts') }}" class="folder-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>E-Mail-Konten</span>
+            </a>
         </div>
     </div>
 
@@ -135,13 +193,32 @@
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                         </svg>
                     </button>
+                    <button class="btn btn-sm btn-outline" onclick="batchMarkUnread()" title="Als ungelesen markieren">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                    </button>
                     <button class="btn btn-sm btn-outline" onclick="batchArchive()" title="Archivieren">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="21 8 21 21 3 21 3 8"></polyline>
                             <rect x="1" y="3" width="22" height="5"></rect>
                         </svg>
                     </button>
-                    <button class="btn btn-sm btn-outline btn-danger" onclick="batchDelete()" title="Löschen">
+                    <button class="btn btn-sm btn-outline" onclick="batchSpam()" title="Als Spam markieren">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </button>
+                    {% if current_folder in ['trash', 'spam'] %}
+                    <button class="btn btn-sm btn-outline" onclick="batchRestore()" title="Wiederherstellen">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline btn-danger" onclick="batchDelete()" title="Loeschen">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -492,10 +569,41 @@ function batchArchive() {
     }).then(() => location.reload());
 }
 
+function batchMarkUnread() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return;
+    fetchWithCSRF('{{ url_for("mailing.mark_unread") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: ids})
+    }).then(() => location.reload());
+}
+
+function batchSpam() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return;
+    if (!confirm('Ausgewaehlte E-Mails als Spam markieren?')) return;
+    fetchWithCSRF('{{ url_for("mailing.add_spam_from_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: ids})
+    }).then(() => location.reload());
+}
+
+function batchRestore() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return;
+    fetchWithCSRF('{{ url_for("mailing.restore_email") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email_ids: ids})
+    }).then(() => location.reload());
+}
+
 function batchDelete() {
     const ids = getSelectedIds();
     if (ids.length === 0) return;
-    if (!confirm('Ausgewählte E-Mails löschen?')) return;
+    if (!confirm('Ausgewaehlte E-Mails loeschen?')) return;
     fetchWithCSRF('{{ url_for("mailing.delete_email") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

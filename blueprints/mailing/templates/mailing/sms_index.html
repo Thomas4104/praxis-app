@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}SMS-Verlauf{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>SMS</span>
+{% endblock %}
+
+{% block page_title %}SMS-Verlauf{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('mailing.sms_compose') }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    Neue SMS
+</a>
+<a href="{{ url_for('mailing.index') }}" class="btn btn-outline">Zurueck zu E-Mails</a>
+{% endblock %}
+
+{% block content %}
+<!-- Demo-Modus Banner -->
+<div class="alert alert-info" style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+    </svg>
+    <strong>Demo-Modus:</strong> SMS-Versand ist im Demo-Modus. SMS werden protokolliert aber nicht versendet.
+</div>
+
+<!-- Statistik -->
+<div class="stats-row" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+    <div class="stat-card">
+        <div class="stat-value">{{ monthly_count }}</div>
+        <div class="stat-label">SMS diesen Monat</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ sms_templates | length }}</div>
+        <div class="stat-label">Aktive Vorlagen</div>
+    </div>
+</div>
+
+<!-- Suche und Liste -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <h3>Gesendete SMS</h3>
+        <form method="GET" action="{{ url_for('mailing.sms_index') }}" style="display: flex; gap: 0.5rem;">
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Suchen..."
+                   value="{{ search }}" style="width: 200px;">
+            <button type="submit" class="btn btn-sm btn-outline">Suchen</button>
+        </form>
+    </div>
+
+    {% if sms_logs.items %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Empfaenger</th>
+                    <th>Nachricht</th>
+                    <th>Teile</th>
+                    <th>Status</th>
+                    <th>Patient</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sms in sms_logs.items %}
+                <tr style="cursor: pointer;" onclick="window.location='{{ url_for('mailing.sms_detail', sms_id=sms.id) }}'">
+                    <td style="white-space: nowrap;">
+                        {{ sms.sent_at.strftime('%d.%m.%Y %H:%M') if sms.sent_at else sms.created_at.strftime('%d.%m.%Y %H:%M') }}
+                    </td>
+                    <td>{{ sms.phone_number or '-' }}</td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ sms.message[:80] if sms.message else '-' }}
+                    </td>
+                    <td>{{ sms.parts_count or 1 }}</td>
+                    <td>
+                        {% if sms.status == 'sent' %}
+                        <span class="status-badge status-active">Gesendet</span>
+                        {% elif sms.status == 'delivered' %}
+                        <span class="status-badge" style="background: #dcfce7; color: #166534;">Zugestellt</span>
+                        {% elif sms.status == 'failed' %}
+                        <span class="status-badge" style="background: #fee2e2; color: #991b1b;">Fehlgeschlagen</span>
+                        {% else %}
+                        <span class="status-badge">{{ sms.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if sms.patient %}
+                        <a href="{{ url_for('patients.detail', patient_id=sms.patient.id) }}">
+                            {{ sms.patient.last_name }}, {{ sms.patient.first_name }}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if sms_logs.pages > 1 %}
+    <div class="pagination" style="display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem;">
+        {% if sms_logs.has_prev %}
+        <a href="{{ url_for('mailing.sms_index', page=sms_logs.prev_num, search=search) }}" class="btn btn-sm btn-outline">&laquo; Zurueck</a>
+        {% endif %}
+        <span>Seite {{ sms_logs.page }} von {{ sms_logs.pages }}</span>
+        {% if sms_logs.has_next %}
+        <a href="{{ url_for('mailing.sms_index', page=sms_logs.next_num, search=search) }}" class="btn btn-sm btn-outline">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state" style="padding: 3rem 1rem; text-align: center;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity: 0.3; margin-bottom: 1rem;">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <p style="color: var(--text-muted);">Noch keine SMS versendet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Schnellvorlagen -->
+{% if sms_templates %}
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+        <h3>SMS-Vorlagen (Schnellversand)</h3>
+    </div>
+    <div class="card-body">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            {% for tpl in sms_templates %}
+            <a href="{{ url_for('mailing.sms_compose', template_id=tpl.id) }}" class="btn btn-sm btn-outline">
+                {{ tpl.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.stat-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    min-width: 140px;
+}
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color, #4a90d9);
+}
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted, #666);
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}

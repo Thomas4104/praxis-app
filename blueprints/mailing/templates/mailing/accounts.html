@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}E-Mail-Konten{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('mailing.index') }}">Kommunikation</a>
+<span class="breadcrumb-sep">/</span>
+<span>E-Mail-Konten</span>
+{% endblock %}
+
+{% block page_title %}E-Mail-Konten{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-primary" onclick="openAccountModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neues Konto
+</button>
+<a href="{{ url_for('mailing.index') }}" class="btn btn-outline">Zurueck</a>
+{% endblock %}
+
+{% block content %}
+<p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+    Konfigurieren Sie E-Mail-Konten (Postfaecher), die fuer den Versand und Empfang verwendet werden.
+    Jedem Konto kann ein Mitarbeiter und Standort zugeordnet werden.
+</p>
+
+<!-- Bestehende Konten -->
+{% if mappings %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>E-Mail-Adresse</th>
+                    <th>Mitarbeiter</th>
+                    <th>Standort</th>
+                    <th>Standard</th>
+                    <th>Abwesenheit</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in mappings %}
+                <tr>
+                    <td><strong>{{ m.email }}</strong></td>
+                    <td>
+                        {% if m.employee %}
+                        {{ m.employee.first_name }} {{ m.employee.last_name }}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ m.location_id or '-' }}</td>
+                    <td>
+                        {% if m.is_default %}
+                        <span class="status-badge status-active">Standard</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if m.absence_note and m.absence_note_active_from and m.absence_note_active_till %}
+                        <span class="badge" style="background: #fef3c7; color: #92400e;">
+                            {{ m.absence_note_active_from.strftime('%d.%m.') }} - {{ m.absence_note_active_till.strftime('%d.%m.%Y') }}
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <button class="btn btn-sm btn-ghost" onclick='editAccount({{ m.id | tojson }}, {{ m.email | tojson }}, {{ (m.employee_id or "") | tojson }}, {{ (m.location_id or "") | tojson }}, {{ (m.sent_email_bcc or "") | tojson }}, {{ (m.received_email_bcc or "") | tojson }}, {{ m.is_default | tojson }}, {{ (m.absence_subject or "") | tojson }}, {{ (m.absence_note or "") | tojson }})' title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <button class="btn btn-sm btn-ghost btn-danger" onclick="deleteAccount({{ m.id }})" title="Loeschen">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state" style="padding: 3rem 1rem; text-align: center;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="opacity: 0.3; margin-bottom: 1rem;">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+        <p style="color: var(--text-muted);">Noch keine E-Mail-Konten konfiguriert.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal: E-Mail-Konto -->
+<div class="modal-overlay" id="accountModal">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="accountModalTitle">Neues E-Mail-Konto</h3>
+            <button class="modal-close" onclick="document.getElementById('accountModal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="acctEditId" value="">
+
+            <div class="form-group">
+                <label class="form-label required">E-Mail-Adresse</label>
+                <input type="email" id="acctEmail" class="form-control" placeholder="info@praxis.ch">
+            </div>
+
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label class="form-label">Mitarbeiter</label>
+                    <select id="acctEmployee" class="form-control">
+                        <option value="">-- Keiner --</option>
+                        {% for e in employees %}
+                        <option value="{{ e.id }}">{{ e.last_name }}, {{ e.first_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label class="form-label">Standort</label>
+                    <select id="acctLocation" class="form-control">
+                        <option value="">-- Keiner --</option>
+                        {% for l in locations %}
+                        <option value="{{ l.id }}">{{ l.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">BCC bei Versand</label>
+                    <input type="email" id="acctSentBcc" class="form-control" placeholder="kopie@praxis.ch">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">BCC bei Empfang</label>
+                    <input type="email" id="acctRecvBcc" class="form-control" placeholder="archiv@praxis.ch">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="acctDefault">
+                    Als Standard-Absender verwenden
+                </label>
+            </div>
+
+            <div style="border-top: 1px solid var(--border-color, #e0e0e0); padding-top: 1rem; margin-top: 1rem;">
+                <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem;">Abwesenheitsnotiz (Auto-Reply)</h4>
+                <div class="form-group">
+                    <label class="form-label">Betreff</label>
+                    <input type="text" id="acctAbsSubject" class="form-control" placeholder="Abwesenheit">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nachricht</label>
+                    <textarea id="acctAbsNote" class="form-control" rows="3" placeholder="Vielen Dank fuer Ihre Nachricht..."></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Aktiv von</label>
+                        <input type="date" id="acctAbsFrom" class="form-control">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Aktiv bis</label>
+                        <input type="date" id="acctAbsTill" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('accountModal').classList.remove('active')">Abbrechen</button>
+            <button class="btn btn-primary" onclick="saveAccount()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openAccountModal() {
+    document.getElementById('accountModalTitle').textContent = 'Neues E-Mail-Konto';
+    document.getElementById('acctEditId').value = '';
+    document.getElementById('acctEmail').value = '';
+    document.getElementById('acctEmployee').value = '';
+    document.getElementById('acctLocation').value = '';
+    document.getElementById('acctSentBcc').value = '';
+    document.getElementById('acctRecvBcc').value = '';
+    document.getElementById('acctDefault').checked = false;
+    document.getElementById('acctAbsSubject').value = '';
+    document.getElementById('acctAbsNote').value = '';
+    document.getElementById('acctAbsFrom').value = '';
+    document.getElementById('acctAbsTill').value = '';
+    document.getElementById('accountModal').classList.add('active');
+}
+
+function editAccount(id, email, empId, locId, sentBcc, recvBcc, isDefault, absSubject, absNote) {
+    document.getElementById('accountModalTitle').textContent = 'E-Mail-Konto bearbeiten';
+    document.getElementById('acctEditId').value = id;
+    document.getElementById('acctEmail').value = email;
+    document.getElementById('acctEmployee').value = empId || '';
+    document.getElementById('acctLocation').value = locId || '';
+    document.getElementById('acctSentBcc').value = sentBcc || '';
+    document.getElementById('acctRecvBcc').value = recvBcc || '';
+    document.getElementById('acctDefault').checked = isDefault;
+    document.getElementById('acctAbsSubject').value = absSubject || '';
+    document.getElementById('acctAbsNote').value = absNote || '';
+    document.getElementById('accountModal').classList.add('active');
+}
+
+function saveAccount() {
+    var editId = document.getElementById('acctEditId').value;
+    var data = {
+        email: document.getElementById('acctEmail').value.trim(),
+        employee_id: document.getElementById('acctEmployee').value || null,
+        location_id: document.getElementById('acctLocation').value || null,
+        sent_email_bcc: document.getElementById('acctSentBcc').value.trim(),
+        received_email_bcc: document.getElementById('acctRecvBcc').value.trim(),
+        is_default: document.getElementById('acctDefault').checked,
+        absence_subject: document.getElementById('acctAbsSubject').value.trim(),
+        absence_note: document.getElementById('acctAbsNote').value.trim(),
+        absence_from: document.getElementById('acctAbsFrom').value,
+        absence_till: document.getElementById('acctAbsTill').value
+    };
+
+    if (!data.email) { alert('E-Mail-Adresse ist erforderlich.'); return; }
+
+    var url, method;
+    if (editId) {
+        url = '{{ url_for("mailing.update_account", mapping_id=0) }}'.replace('/0', '/' + editId);
+        method = 'PUT';
+    } else {
+        url = '{{ url_for("mailing.create_account") }}';
+        method = 'POST';
+    }
+
+    fetchWithCSRF(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if (result.success) location.reload();
+        else alert(result.message || 'Fehler.');
+    });
+}
+
+function deleteAccount(id) {
+    if (!confirm('E-Mail-Konto wirklich loeschen?')) return;
+    fetchWithCSRF('{{ url_for("mailing.delete_account", mapping_id=0) }}'.replace('/0', '/' + id), {
+        method: 'DELETE'
+    }).then(function() { location.reload(); });
+}
+</script>
+{% endblock %}
