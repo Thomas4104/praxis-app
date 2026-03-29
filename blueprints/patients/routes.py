@@ -700,3 +700,509 @@ def api_search():
         'patient_number': p.patient_number,
         'name': f'{p.first_name} {p.last_name}'
     } for p in patients])
+
+
+# ============================================================
+# Cenplex Phase 2: Duplikat-Erkennung
+# ============================================================
+
+@patients_bp.route('/api/check-duplicates')
+@login_required
+def api_check_duplicates():
+    """Duplikat-Erkennung: Sucht Patienten mit gleichem Geschlecht und Geburtsdatum
+    (Cenplex: GetPatientsBySexAndBirthday)"""
+    gender = request.args.get('gender', '').strip()
+    dob_str = request.args.get('date_of_birth', '').strip()
+    first_name = request.args.get('first_name', '').strip()
+    last_name = request.args.get('last_name', '').strip()
+    exclude_id = request.args.get('exclude_id', type=int)
+
+    if not dob_str:
+        return jsonify([])
+
+    dob = parse_date(dob_str)
+    if not dob:
+        return jsonify([])
+
+    org_id = current_user.organization_id
+    query = Patient.query.filter_by(
+        organization_id=org_id,
+        is_active=True
+    )
+
+    # Primaer: Geschlecht + Geburtsdatum (Cenplex-Logik)
+    if gender:
+        query = query.filter_by(gender=gender)
+    query = query.filter_by(date_of_birth=dob)
+
+    if exclude_id:
+        query = query.filter(Patient.id != exclude_id)
+
+    duplicates = query.limit(10).all()
+
+    # Sekundaer: Auch nach Name + Geburtsdatum suchen (erweiterte Erkennung)
+    if not duplicates and first_name and last_name:
+        query2 = Patient.query.filter_by(
+            organization_id=org_id,
+            is_active=True
+        ).filter(
+            Patient.first_name.ilike(first_name),
+            Patient.last_name.ilike(last_name)
+        )
+        if exclude_id:
+            query2 = query2.filter(Patient.id != exclude_id)
+        duplicates = query2.limit(10).all()
+
+    return jsonify([{
+        'id': p.id,
+        'patient_number': p.patient_number,
+        'first_name': p.first_name,
+        'last_name': p.last_name,
+        'date_of_birth': p.date_of_birth.strftime('%d.%m.%Y') if p.date_of_birth else '',
+        'gender': p.gender or '',
+        'city': p.city or '',
+        'insurance': p.insurance_provider.name if p.insurance_provider else ''
+    } for p in duplicates])
+
+
+# ============================================================
+# Cenplex Phase 2: Patienten-Sperrzeiten (Planning Breaks)
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/block-times')
+@login_required
+def block_times(patient_id):
+    """Patienten-Sperrzeiten anzeigen"""
+    from models import PatientBlockTime
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    blocks = PatientBlockTime.query.filter_by(patient_id=patient.id) \
+        .order_by(PatientBlockTime.start_date.desc()).all()
+    return jsonify([{
+        'id': b.id,
+        'start_date': b.start_date.isoformat() if b.start_date else '',
+        'end_date': b.end_date.isoformat() if b.end_date else '',
+        'reason': b.reason or ''
+    } for b in blocks])
+
+
+@patients_bp.route('/<int:patient_id>/block-times', methods=['POST'])
+@login_required
+def save_block_time(patient_id):
+    """Patienten-Sperrzeit erstellen/aktualisieren"""
+    from models import PatientBlockTime
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    data = request.get_json() if request.is_json else request.form
+    block_id = data.get('id')
+
+    if block_id:
+        block = PatientBlockTime.query.get_or_404(int(block_id))
+    else:
+        block = PatientBlockTime(patient_id=patient.id)
+
+    start_str = data.get('start_date', '')
+    end_str = data.get('end_date', '')
+
+    if not start_str or not end_str:
+        return jsonify({'error': 'Start- und Enddatum sind Pflicht'}), 400
+
+    try:
+        block.start_date = datetime.fromisoformat(start_str)
+        block.end_date = datetime.fromisoformat(end_str)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Ungültiges Datumsformat'}), 400
+
+    if block.start_date >= block.end_date:
+        return jsonify({'error': 'Startdatum muss vor Enddatum liegen'}), 400
+
+    block.reason = data.get('reason', '')
+
+    if not block_id:
+        db.session.add(block)
+    db.session.commit()
+
+    return jsonify({'success': True, 'id': block.id})
+
+
+@patients_bp.route('/<int:patient_id>/block-times/<int:block_id>', methods=['DELETE'])
+@login_required
+def delete_block_time(patient_id, block_id):
+    """Patienten-Sperrzeit löschen"""
+    from models import PatientBlockTime
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    block = PatientBlockTime.query.get_or_404(block_id)
+    if block.patient_id != patient.id:
+        return jsonify({'error': 'Nicht gefunden'}), 404
+
+    db.session.delete(block)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 2: Patientenziele (Goals)
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/goals')
+@login_required
+def goals(patient_id):
+    """Patientenziele anzeigen (mit Hierarchie wie Cenplex PatientGoalModel)"""
+    from models import TherapyGoal
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    goals = TherapyGoal.query.filter_by(patient_id=patient.id) \
+        .order_by(TherapyGoal.created_at.desc()).all()
+    return jsonify([{
+        'id': g.id,
+        'description': g.description,
+        'target_value': g.target_value,
+        'current_value': g.current_value,
+        'achievement_percent': g.achievement_percent,
+        'status': g.status,
+        'series_id': g.series_id,
+        'created_at': g.created_at.isoformat() if g.created_at else ''
+    } for g in goals])
+
+
+@patients_bp.route('/<int:patient_id>/goals', methods=['POST'])
+@login_required
+def save_goal(patient_id):
+    """Patientenziel erstellen/aktualisieren"""
+    from models import TherapyGoal
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    data = request.get_json() if request.is_json else request.form
+    goal_id = data.get('id')
+
+    if goal_id:
+        goal = TherapyGoal.query.get_or_404(int(goal_id))
+    else:
+        goal = TherapyGoal(
+            organization_id=current_user.organization_id,
+            patient_id=patient.id
+        )
+
+    goal.description = data.get('description', '')
+    goal.target_value = data.get('target_value', '')
+    goal.current_value = data.get('current_value', '')
+    goal.status = data.get('status', 'open')
+
+    series_id = data.get('series_id')
+    goal.series_id = int(series_id) if series_id else None
+
+    try:
+        goal.achievement_percent = int(data.get('achievement_percent', 0))
+    except (ValueError, TypeError):
+        goal.achievement_percent = 0
+
+    if not goal_id:
+        db.session.add(goal)
+    db.session.commit()
+
+    return jsonify({'success': True, 'id': goal.id})
+
+
+@patients_bp.route('/<int:patient_id>/goals/<int:goal_id>/finish', methods=['POST'])
+@login_required
+def finish_goal(patient_id, goal_id):
+    """Patientenziel als erreicht markieren"""
+    from models import TherapyGoal
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    goal = TherapyGoal.query.get_or_404(goal_id)
+    if goal.patient_id != patient.id:
+        return jsonify({'error': 'Nicht gefunden'}), 404
+
+    goal.status = 'achieved'
+    goal.achievement_percent = 100
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# Cenplex Phase 2: Guthaben/Credits
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/credits')
+@login_required
+def credits(patient_id):
+    """Patientenguthaben anzeigen"""
+    from models import Credit
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    credits_list = Credit.query.filter_by(
+        patient_id=patient.id, is_deleted=False
+    ).order_by(Credit.created_at.desc()).all()
+
+    return jsonify([{
+        'id': c.id,
+        'original_amount': float(c.original_amount) if c.original_amount else 0,
+        'remaining_amount': float(c.remaining_amount) if c.remaining_amount else 0,
+        'from_invoice_id': c.from_invoice_id,
+        'created_at': c.created_at.isoformat() if c.created_at else ''
+    } for c in credits_list])
+
+
+# ============================================================
+# Cenplex Phase 2: Arztberichte (Doctor Reports)
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/doctor-reports')
+@login_required
+def doctor_reports(patient_id):
+    """Arztberichte eines Patienten anzeigen"""
+    from models import DoctorReport
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    reports = DoctorReport.query.filter_by(patient_id=patient.id) \
+        .order_by(DoctorReport.created_at.desc()).all()
+    return jsonify([{
+        'id': r.id,
+        'headline': r.headline or '',
+        'therapist_name': f'{r.therapist.user.first_name} {r.therapist.user.last_name}' if r.therapist and r.therapist.user else '',
+        'doctor_name': f'{r.doctor.first_name} {r.doctor.last_name}' if r.doctor else '',
+        'last_sent': r.last_sent.isoformat() if r.last_sent else '',
+        'created_at': r.created_at.isoformat() if r.created_at else ''
+    } for r in reports])
+
+
+@patients_bp.route('/<int:patient_id>/doctor-reports', methods=['POST'])
+@login_required
+def save_doctor_report(patient_id):
+    """Arztbericht erstellen/aktualisieren"""
+    from models import DoctorReport, Contact
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    data = request.get_json() if request.is_json else request.form
+    report_id = data.get('id')
+
+    if report_id:
+        report = DoctorReport.query.get_or_404(int(report_id))
+    else:
+        report = DoctorReport(
+            organization_id=current_user.organization_id,
+            patient_id=patient.id
+        )
+
+    report.headline = data.get('headline', '')
+    report.content_text = data.get('content_text', '')
+
+    therapist_id = data.get('therapist_id')
+    report.therapist_id = int(therapist_id) if therapist_id else None
+
+    doctor_id = data.get('doctor_id')
+    report.doctor_id = int(doctor_id) if doctor_id else None
+
+    cost_unit_id = data.get('cost_unit_id')
+    report.cost_unit_id = int(cost_unit_id) if cost_unit_id else None
+
+    if not report_id:
+        db.session.add(report)
+    db.session.commit()
+
+    log_action('create' if not report_id else 'update', 'doctor_report', report.id)
+    return jsonify({'success': True, 'id': report.id})
+
+
+# ============================================================
+# Cenplex Phase 2: Hilfsmittel-Bestellungen (Supplement Orders)
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/supplement-orders')
+@login_required
+def supplement_orders(patient_id):
+    """Hilfsmittel-Bestellungen eines Patienten"""
+    from models import SupplementOrder
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    orders = SupplementOrder.query.filter_by(patient_id=patient.id) \
+        .order_by(SupplementOrder.created_at.desc()).all()
+    return jsonify([{
+        'id': o.id,
+        'supplier_name': o.supplier.company_name if o.supplier else '',
+        'employee_name': f'{o.employee.user.first_name} {o.employee.user.last_name}' if o.employee and o.employee.user else '',
+        'print_date': o.print_date.isoformat() if o.print_date else '',
+        'send_date': o.send_date.isoformat() if o.send_date else '',
+        'items_count': len(o.items) if hasattr(o, 'items') else 0,
+        'created_at': o.created_at.isoformat() if o.created_at else ''
+    } for o in orders])
+
+
+@patients_bp.route('/<int:patient_id>/supplement-orders', methods=['POST'])
+@login_required
+def save_supplement_order(patient_id):
+    """Hilfsmittel-Bestellung erstellen"""
+    from models import SupplementOrder, SupplementOrderItem
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Keine Daten'}), 400
+
+    supplier_id = data.get('supplier_id')
+    if not supplier_id:
+        return jsonify({'error': 'Lieferant ist Pflicht'}), 400
+
+    order = SupplementOrder(
+        organization_id=current_user.organization_id,
+        patient_id=patient.id,
+        supplier_id=int(supplier_id),
+        employee_id=current_user.employee.id if current_user.employee else None
+    )
+    db.session.add(order)
+    db.session.flush()
+
+    items = data.get('items', [])
+    for item_data in items:
+        item = SupplementOrderItem(
+            order_id=order.id,
+            product_id=item_data.get('product_id'),
+            quantity=item_data.get('quantity', 1),
+            note=item_data.get('note', '')
+        )
+        db.session.add(item)
+
+    db.session.commit()
+    log_action('create', 'supplement_order', order.id)
+    return jsonify({'success': True, 'id': order.id})
+
+
+# ============================================================
+# Cenplex Phase 2: Erweiterte Suche
+# ============================================================
+
+@patients_bp.route('/api/search-extended')
+@login_required
+def api_search_extended():
+    """Erweiterte Patientensuche (Cenplex: inkl. E-Mail, Kartennummer, AHV)"""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    org_id = current_user.organization_id
+    query = Patient.query.filter_by(organization_id=org_id, is_active=True)
+
+    # Datum-Suche (dd.mm.yyyy)
+    date_match = re.match(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$', q)
+    if date_match:
+        try:
+            search_date = date(int(date_match.group(3)),
+                               int(date_match.group(2)),
+                               int(date_match.group(1)))
+            query = query.filter(Patient.date_of_birth == search_date)
+        except ValueError:
+            return jsonify([])
+    else:
+        query = query.filter(
+            db.or_(
+                Patient.first_name.ilike(f'%{q}%'),
+                Patient.last_name.ilike(f'%{q}%'),
+                Patient.patient_number.ilike(f'%{q}%'),
+                Patient.phone.ilike(f'%{q}%'),
+                Patient.mobile.ilike(f'%{q}%'),
+                Patient.email.ilike(f'%{q}%'),
+                Patient.card_id.ilike(f'%{q}%'),
+                Patient.ahv_number.ilike(f'%{q}%'),
+                (Patient.first_name + ' ' + Patient.last_name).ilike(f'%{q}%')
+            )
+        )
+
+    patients = query.limit(20).all()
+    return jsonify([{
+        'id': p.id,
+        'patient_number': p.patient_number,
+        'first_name': p.first_name,
+        'last_name': p.last_name,
+        'date_of_birth': p.date_of_birth.strftime('%d.%m.%Y') if p.date_of_birth else '',
+        'city': p.city or '',
+        'phone': p.phone or p.mobile or '',
+        'email': p.email or '',
+        'insurance': p.insurance_provider.name if p.insurance_provider else ''
+    } for p in patients])
+
+
+# ============================================================
+# Cenplex Phase 2: Patienten-Behandlungshistorie
+# ============================================================
+
+@patients_bp.route('/<int:patient_id>/history')
+@login_required
+def appointment_history(patient_id):
+    """Detaillierte Behandlungshistorie mit Seriengruppierung
+    (Cenplex: PatientHistoryDialogViewModel)"""
+    patient = Patient.query.get_or_404(patient_id)
+    check_org(patient)
+
+    series_filter = request.args.get('series_id', type=int)
+
+    query = Appointment.query.filter_by(patient_id=patient.id) \
+        .order_by(Appointment.start_time.desc())
+
+    if series_filter:
+        query = query.filter_by(series_id=series_filter)
+
+    appointments = query.all()
+
+    # Nach Serien gruppieren
+    series_groups = {}
+    ungrouped = []
+    for appt in appointments:
+        if appt.series_id:
+            if appt.series_id not in series_groups:
+                series_groups[appt.series_id] = {
+                    'series': appt.series,
+                    'appointments': []
+                }
+            series_groups[appt.series_id]['appointments'].append(appt)
+        else:
+            ungrouped.append(appt)
+
+    # Serien fuer Filter-Dropdown
+    all_series = TreatmentSeries.query.filter_by(patient_id=patient.id) \
+        .order_by(TreatmentSeries.created_at.desc()).all()
+
+    result = {
+        'series_groups': [{
+            'series_id': sid,
+            'series_title': g['series'].title or (g['series'].template.name if g['series'].template else f'Serie {sid}'),
+            'series_status': g['series'].status,
+            'appointments': [{
+                'id': a.id,
+                'start_time': a.start_time.isoformat(),
+                'end_time': a.end_time.isoformat(),
+                'status': a.status,
+                'therapist': f'{a.employee.user.first_name} {a.employee.user.last_name}' if a.employee and a.employee.user else '',
+                'position_in_series': a.position_in_series or a.series_number,
+                'soap_subjective': a.soap_subjective or '',
+                'soap_objective': a.soap_objective or '',
+                'therapy': a.therapy or ''
+            } for a in g['appointments']]
+        } for sid, g in series_groups.items()],
+        'ungrouped': [{
+            'id': a.id,
+            'start_time': a.start_time.isoformat(),
+            'end_time': a.end_time.isoformat(),
+            'status': a.status,
+            'title': a.title or '',
+            'therapist': f'{a.employee.user.first_name} {a.employee.user.last_name}' if a.employee and a.employee.user else ''
+        } for a in ungrouped],
+        'available_series': [{
+            'id': s.id,
+            'title': s.title or (s.template.name if s.template else f'Serie {s.id}'),
+            'status': s.status
+        } for s in all_series]
+    }
+    return jsonify(result)
