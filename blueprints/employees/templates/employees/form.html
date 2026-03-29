@@ -18,6 +18,7 @@
     <!-- Tabs -->
     <div class="tab-nav">
         <button type="button" class="tab-btn active" data-tab="basisdaten">Basisdaten</button>
+        <button type="button" class="tab-btn" data-tab="berufsdaten">Berufsdaten</button>
         <button type="button" class="tab-btn" data-tab="benutzerdaten">Benutzerdaten</button>
         <button type="button" class="tab-btn" data-tab="qualifikationen">Qualifikationen</button>
     </div>
@@ -29,6 +30,15 @@
                 <h3 class="form-section-title">Persönliche Daten</h3>
 
                 <div class="form-row">
+                    <div class="form-group" style="flex: 0 0 120px;">
+                        <label for="salutation" class="form-label">Anrede</label>
+                        <select id="salutation" name="salutation" class="form-select">
+                            <option value="">--</option>
+                            {% for val, label in [('Herr', 'Herr'), ('Frau', 'Frau'), ('Divers', 'Divers')] %}
+                            <option value="{{ val }}" {% if employee and employee.salutation == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="first_name" class="form-label required">Vorname</label>
                         <input type="text" id="first_name" name="first_name" class="form-input"
@@ -41,11 +51,27 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="employee_number" class="form-label">Mitarbeiternummer</label>
-                    <input type="text" id="employee_number" name="employee_number" class="form-input"
-                           value="{{ employee.employee_number if employee else '' }}"
-                           placeholder="Automatisch generiert">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="employee_number" class="form-label">Mitarbeiternummer</label>
+                        <input type="text" id="employee_number" name="employee_number" class="form-input"
+                               value="{{ employee.employee_number if employee else '' }}"
+                               placeholder="Automatisch generiert">
+                    </div>
+                    <div class="form-group">
+                        <label for="birthday" class="form-label">Geburtsdatum</label>
+                        <input type="date" id="birthday" name="birthday" class="form-input"
+                               value="{{ employee.birthday.strftime('%Y-%m-%d') if employee and employee.birthday else '' }}">
+                    </div>
+                    <div class="form-group" style="flex: 0 0 100px;">
+                        <label for="sex" class="form-label">Geschlecht</label>
+                        <select id="sex" name="sex" class="form-select">
+                            <option value="">--</option>
+                            {% for val, label in [('female', 'Weiblich'), ('male', 'Männlich'), ('other', 'Divers')] %}
+                            <option value="{{ val }}" {% if employee and employee.sex == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -54,6 +80,75 @@
                            value="{{ employee.user.email if employee and employee.user else '' }}"
                            placeholder="mitarbeiter@praxis.ch">
                 </div>
+
+                <div class="form-group">
+                    <label for="private_email" class="form-label">Private E-Mail</label>
+                    <input type="email" id="private_email" name="private_email" class="form-input"
+                           value="{{ employee.private_email if employee else '' }}"
+                           placeholder="privat@example.ch">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="phone_office" class="form-label">Telefon Büro</label>
+                        <input type="tel" id="phone_office" name="phone_office" class="form-input"
+                               value="{{ employee.phone_office if employee else '' }}" placeholder="+41 ...">
+                    </div>
+                    <div class="form-group">
+                        <label for="mobile" class="form-label">Mobiltelefon</label>
+                        <input type="tel" id="mobile" name="mobile" class="form-input"
+                               value="{{ employee.mobile if employee else '' }}" placeholder="+41 ...">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone_private" class="form-label">Telefon Privat</label>
+                        <input type="tel" id="phone_private" name="phone_private" class="form-input"
+                               value="{{ employee.phone_private if employee else '' }}" placeholder="+41 ...">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Adresse</h3>
+
+                <div class="form-group">
+                    <label for="street" class="form-label">Strasse</label>
+                    <input type="text" id="street" name="street" class="form-input"
+                           value="{{ employee.street if employee else '' }}">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 0 0 120px;">
+                        <label for="zipcode" class="form-label">PLZ</label>
+                        <input type="text" id="zipcode" name="zipcode" class="form-input"
+                               value="{{ employee.zipcode if employee else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="town" class="form-label">Ort</label>
+                        <input type="text" id="town" name="town" class="form-input"
+                               value="{{ employee.town if employee else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="kanton" class="form-label">Kanton</label>
+                        <input type="text" id="kanton" name="kanton" class="form-input"
+                               value="{{ employee.kanton if employee else '' }}" placeholder="z.B. ZH">
+                    </div>
+                    <div class="form-group">
+                        <label for="country" class="form-label">Land</label>
+                        <select id="country" name="country" class="form-select">
+                            <option value="CH" {% if not employee or employee.country == 'CH' %}selected{% endif %}>Schweiz</option>
+                            <option value="DE" {% if employee and employee.country == 'DE' %}selected{% endif %}>Deutschland</option>
+                            <option value="AT" {% if employee and employee.country == 'AT' %}selected{% endif %}>Österreich</option>
+                            <option value="LI" {% if employee and employee.country == 'LI' %}selected{% endif %}>Liechtenstein</option>
+                            <option value="FR" {% if employee and employee.country == 'FR' %}selected{% endif %}>Frankreich</option>
+                            <option value="IT" {% if employee and employee.country == 'IT' %}selected{% endif %}>Italien</option>
+                        </select>
+                    </div>
+                </div>
+
+                <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Anstellung</h3>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -65,16 +160,43 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label for="contract_type" class="form-label">Vertragstyp</label>
+                        <select id="contract_type" name="contract_type" class="form-select">
+                            {% for val, label in [('permanent', 'Unbefristet'), ('temporary', 'Befristet'), ('freelance', 'Freiberuflich')] %}
+                            <option value="{{ val }}" {% if employee and employee.contract_type == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
                         <label for="pensum_percent" class="form-label required">Pensum (%)</label>
                         <input type="number" id="pensum_percent" name="pensum_percent" class="form-input"
                                value="{{ employee.pensum_percent if employee else 100 }}"
                                min="1" max="100" required>
                     </div>
+                    <div class="form-group">
+                        <label for="active_from" class="form-label">Aktiv seit</label>
+                        <input type="date" id="active_from" name="active_from" class="form-input"
+                               value="{{ employee.active_from.strftime('%Y-%m-%d') if employee and employee.active_from else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="degree" class="form-label">Abschluss / Titel</label>
+                    <input type="text" id="degree" name="degree" class="form-input"
+                           value="{{ employee.degree if employee else '' }}" placeholder="z.B. BSc Physiotherapie">
                 </div>
             </div>
+        </div>
+    </div>
 
+    <!-- Tab: Berufsdaten -->
+    <div class="tab-content" id="tab-berufsdaten">
+        <div class="form-grid form-grid-2">
             <div class="form-section">
-                <h3 class="form-section-title">Berufsdaten</h3>
+                <h3 class="form-section-title">Standort & Raum</h3>
 
                 <div class="form-group">
                     <label for="default_location_id" class="form-label">Standard-Standort</label>
@@ -109,6 +231,29 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="calendar_default_interval" class="form-label">Kalender-Intervall (Min.)</label>
+                    <select id="calendar_default_interval" name="calendar_default_interval" class="form-select">
+                        {% for val in [15, 20, 25, 30, 45, 60] %}
+                        <option value="{{ val }}" {% if employee and employee.calendar_default_interval == val %}selected{% endif %}
+                                {% if not employee and val == 30 %}selected{% endif %}>{{ val }} Minuten</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-toggle">
+                        <input type="checkbox" name="is_active" id="is_active"
+                               {% if not employee or employee.is_active %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Mitarbeiter aktiv</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">Registrierungsnummern</h3>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="zsr_number" class="form-label">ZSR-Nummer</label>
@@ -124,13 +269,54 @@
                     </div>
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ahv_number" class="form-label">AHV-Nummer</label>
+                        <input type="text" id="ahv_number" name="ahv_number" class="form-input"
+                               value="{{ employee.ahv_number if employee else '' }}"
+                               placeholder="756.1234.5678.97">
+                    </div>
+                    <div class="form-group">
+                        <label for="emr_number" class="form-label">EMR-Nummer</label>
+                        <input type="text" id="emr_number" name="emr_number" class="form-input"
+                               value="{{ employee.emr_number if employee else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="asca_number" class="form-label">ASCA-Nummer</label>
+                    <input type="text" id="asca_number" name="asca_number" class="form-input"
+                           value="{{ employee.asca_number if employee else '' }}">
+                </div>
+
+                <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Online-Buchung</h3>
+
                 <div class="form-group">
                     <label class="form-toggle">
-                        <input type="checkbox" name="is_active" id="is_active"
-                               {% if not employee or employee.is_active %}checked{% endif %}>
+                        <input type="checkbox" name="booking_book_active" id="booking_book_active"
+                               {% if employee and employee.booking_book_active %}checked{% endif %}>
                         <span class="toggle-slider"></span>
-                        <span class="toggle-label">Mitarbeiter aktiv</span>
+                        <span class="toggle-label">Online-Buchung aktiv</span>
                     </label>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="booking_sync_from" class="form-label">Buchbar von</label>
+                        <input type="date" id="booking_sync_from" name="booking_sync_from" class="form-input"
+                               value="{{ employee.booking_sync_from.strftime('%Y-%m-%d') if employee and employee.booking_sync_from else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="booking_sync_till" class="form-label">Buchbar bis</label>
+                        <input type="date" id="booking_sync_till" name="booking_sync_till" class="form-input"
+                               value="{{ employee.booking_sync_till.strftime('%Y-%m-%d') if employee and employee.booking_sync_till else '' }}">
+                    </div>
+                </div>
+
+                <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Notizen</h3>
+                <div class="form-group">
+                    <textarea id="notes" name="notes" class="form-textarea" rows="3"
+                              placeholder="Interne Notizen zum Mitarbeiter">{{ employee.notes if employee else '' }}</textarea>
                 </div>
             </div>
         </div>

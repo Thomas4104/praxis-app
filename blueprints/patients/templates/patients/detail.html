@@ -47,6 +47,11 @@
 {% if not patient.is_active %}
 <div class="alert alert-warning">Dieser Patient ist deaktiviert.</div>
 {% endif %}
+{% if patient.is_special and patient.special_notes %}
+<div class="alert alert-warning" style="border-left: 4px solid var(--color-warning);">
+    <strong>Spezialpatient:</strong> {{ patient.special_notes }}
+</div>
+{% endif %}
 
 <!-- Zwei-Spalten-Layout: Stammdaten links, Behandlungsbereich rechts -->
 <div class="patient-detail-layout">
@@ -67,6 +72,9 @@
                     <span class="badge badge-success">Aktiv</span>
                     {% else %}
                     <span class="badge badge-muted">Deaktiviert</span>
+                    {% endif %}
+                    {% if patient.is_special %}
+                    <span class="badge badge-warning">Spezial</span>
                     {% endif %}
                 </div>
             </div>
@@ -106,6 +114,12 @@
             <div class="sidebar-field">
                 <span class="sidebar-label">Mobil</span>
                 <span class="sidebar-value"><a href="tel:{{ patient.mobile }}">{{ patient.mobile }}</a></span>
+            </div>
+            {% endif %}
+            {% if patient.phone_office %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Geschaeft</span>
+                <span class="sidebar-value"><a href="tel:{{ patient.phone_office }}">{{ patient.phone_office }}</a></span>
             </div>
             {% endif %}
             {% if patient.email %}
@@ -165,10 +179,28 @@
                 <span class="sidebar-value">{{ patient.card_id }}{% if patient.card_expiry %} (bis {{ patient.card_expiry.strftime('%d.%m.%Y') }}){% endif %}</span>
             </div>
             {% endif %}
+            {% if patient.insured_id %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Vers.-Nr. KVG</span>
+                <span class="sidebar-value">{{ patient.insured_id }}</span>
+            </div>
+            {% endif %}
             {% if patient.kvg_model %}
             <div class="sidebar-field">
                 <span class="sidebar-label">KVG Modell</span>
-                <span class="sidebar-value">{% if patient.kvg_model == 1 %}HMO{% elif patient.kvg_model == 2 %}PPO{% else %}Standard{% endif %}</span>
+                <span class="sidebar-value">{% if patient.kvg_model == 1 %}Standard{% elif patient.kvg_model == 2 %}Hausarztmodell{% elif patient.kvg_model == 3 %}HMO{% elif patient.kvg_model == 4 %}Listenmodell (PPO){% elif patient.kvg_model == 5 %}Sonstige{% else %}Unbekannt{% endif %}</span>
+            </div>
+            {% endif %}
+            {% if patient.kvg_accident_coverage and patient.kvg_accident_coverage != 99 %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Unfalldeckung</span>
+                <span class="sidebar-value">{% if patient.kvg_accident_coverage == 1 %}Vorhanden{% elif patient.kvg_accident_coverage == 2 %}Nicht vorhanden{% else %}Unbekannt{% endif %}</span>
+            </div>
+            {% endif %}
+            {% if patient.medical_service_coverage_restriction %}
+            <div class="sidebar-field">
+                <span class="sidebar-label">Leistungseinschr.</span>
+                <span class="sidebar-value">{% if patient.medical_service_coverage_restriction == 1 %}Nur OKP{% elif patient.medical_service_coverage_restriction == 2 %}Nur VVG{% elif patient.medical_service_coverage_restriction == 3 %}OKP und VVG{% elif patient.medical_service_coverage_restriction == 4 %}Ausland/Militaer{% endif %}</span>
             </div>
             {% endif %}
         </div>
@@ -318,6 +350,14 @@
                class="detail-tab {% if tab == 'appointments' %}active{% endif %}">Termine</a>
             <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='documents') }}"
                class="detail-tab {% if tab == 'documents' %}active{% endif %}">Dokumente</a>
+            <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='history') }}"
+               class="detail-tab {% if tab == 'history' %}active{% endif %}">Historie</a>
+            <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='blocktimes') }}"
+               class="detail-tab {% if tab == 'blocktimes' %}active{% endif %}">Sperrzeiten</a>
+            <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='credits') }}"
+               class="detail-tab {% if tab == 'credits' %}active{% endif %}">Guthaben</a>
+            <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='goals') }}"
+               class="detail-tab {% if tab == 'goals' %}active{% endif %}">Ziele</a>
             <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='communication') }}"
                class="detail-tab {% if tab == 'communication' %}active{% endif %}">Kommunikation</a>
             <a href="{{ url_for('patients.detail', patient_id=patient.id, tab='portal') }}"
@@ -616,6 +656,333 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
+
+            <!-- Tab: Historie (Cenplex: Behandlungshistorie mit SOAP-Notizen) -->
+            {% if tab == 'history' %}
+            <div class="card">
+                <div class="card-header">
+                    <h3>Behandlungshistorie</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <select id="historySeriesFilter" class="form-select" style="width:auto; font-size:var(--font-size-sm);">
+                            <option value="">Alle Serien</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="historyContent">
+                        <div class="empty-state"><p>Lade Behandlungshistorie...</p></div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                const patientId = {{ patient.id }};
+                const container = document.getElementById('historyContent');
+                const filterSelect = document.getElementById('historySeriesFilter');
+
+                function loadHistory(seriesId) {
+                    let url = '/patients/' + patientId + '/history';
+                    if (seriesId) url += '?series_id=' + seriesId;
+                    fetch(url).then(r => r.json()).then(data => {
+                        // Filter-Dropdown befuellen
+                        if (data.available_series && filterSelect.options.length <= 1) {
+                            data.available_series.forEach(s => {
+                                const opt = document.createElement('option');
+                                opt.value = s.id;
+                                opt.textContent = s.title + ' (' + s.status + ')';
+                                filterSelect.appendChild(opt);
+                            });
+                        }
+                        let html = '';
+                        // Seriengruppen
+                        if (data.series_groups && data.series_groups.length > 0) {
+                            data.series_groups.forEach(g => {
+                                html += '<div class="history-series-group">';
+                                html += '<h4 class="history-series-title">' + g.series_title +
+                                    ' <span class="badge ' + (g.series_status === 'active' ? 'badge-success' : 'badge-muted') + '">' +
+                                    (g.series_status === 'active' ? 'Aktiv' : 'Abgeschlossen') + '</span></h4>';
+                                g.appointments.forEach(a => {
+                                    const dt = new Date(a.start_time);
+                                    html += '<div class="history-entry">';
+                                    html += '<div class="history-date">' + dt.toLocaleDateString('de-CH') + ' ' + dt.toLocaleTimeString('de-CH', {hour:'2-digit',minute:'2-digit'}) + '</div>';
+                                    html += '<div class="history-details">';
+                                    html += '<div class="history-meta">#' + (a.position_in_series || '-') + ' | ' + a.therapist + ' | <span class="badge badge-info">' + a.status + '</span></div>';
+                                    if (a.soap_subjective) html += '<div class="history-soap"><strong>S:</strong> ' + a.soap_subjective + '</div>';
+                                    if (a.soap_objective) html += '<div class="history-soap"><strong>O:</strong> ' + a.soap_objective + '</div>';
+                                    if (a.therapy) html += '<div class="history-soap"><strong>T:</strong> ' + a.therapy + '</div>';
+                                    html += '</div></div>';
+                                });
+                                html += '</div>';
+                            });
+                        }
+                        // Einzeltermine ohne Serie
+                        if (data.ungrouped && data.ungrouped.length > 0) {
+                            html += '<div class="history-series-group"><h4 class="history-series-title">Einzeltermine</h4>';
+                            data.ungrouped.forEach(a => {
+                                const dt = new Date(a.start_time);
+                                html += '<div class="history-entry">';
+                                html += '<div class="history-date">' + dt.toLocaleDateString('de-CH') + '</div>';
+                                html += '<div class="history-details">';
+                                html += '<div class="history-meta">' + (a.title || '') + ' | ' + a.therapist + '</div>';
+                                html += '</div></div>';
+                            });
+                            html += '</div>';
+                        }
+                        if (!html) html = '<div class="empty-state"><p>Keine Behandlungshistorie vorhanden.</p></div>';
+                        container.innerHTML = html;
+                    }).catch(() => {
+                        container.innerHTML = '<div class="empty-state"><p>Fehler beim Laden der Historie.</p></div>';
+                    });
+                }
+
+                filterSelect.addEventListener('change', function() { loadHistory(this.value); });
+                loadHistory('');
+            })();
+            </script>
+            {% endif %}
+
+            <!-- Tab: Sperrzeiten (Cenplex: Planning Breaks) -->
+            {% if tab == 'blocktimes' %}
+            <div class="card">
+                <div class="card-header">
+                    <h3>Sperrzeiten</h3>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="showBlockTimeForm()">Neue Sperrzeit</button>
+                </div>
+                <div class="card-body">
+                    <!-- Formular (versteckt) -->
+                    <div id="blockTimeForm" style="display:none; margin-bottom:var(--spacing-lg); padding:var(--spacing-md); border:1px solid var(--color-gray-200); border-radius:var(--radius-md);">
+                        <h4 style="margin-bottom:var(--spacing-sm);">Sperrzeit erfassen</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Von</label>
+                                <input type="date" id="btStartDate" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Bis</label>
+                                <input type="date" id="btEndDate" class="form-input" required>
+                            </div>
+                            <div class="form-group" style="flex:2;">
+                                <label class="form-label">Grund</label>
+                                <input type="text" id="btReason" class="form-input" placeholder="z.B. Ferien, Verletzung...">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:flex-end;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('blockTimeForm').style.display='none'">Abbrechen</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="saveBlockTime()">Speichern</button>
+                        </div>
+                    </div>
+                    <div id="blockTimesList">
+                        <div class="empty-state"><p>Lade Sperrzeiten...</p></div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                const patientId = {{ patient.id }};
+                const csrfToken = '{{ csrf_token() }}';
+
+                window.showBlockTimeForm = function() {
+                    document.getElementById('blockTimeForm').style.display = 'block';
+                };
+
+                window.saveBlockTime = function() {
+                    const start = document.getElementById('btStartDate').value;
+                    const end = document.getElementById('btEndDate').value;
+                    const reason = document.getElementById('btReason').value;
+                    if (!start || !end) { alert('Start- und Enddatum sind Pflicht'); return; }
+                    fetch('/patients/' + patientId + '/block-times', {
+                        method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken': csrfToken},
+                        body: JSON.stringify({start_date: start, end_date: end, reason: reason})
+                    }).then(r => r.json()).then(d => {
+                        if (d.success) {
+                            document.getElementById('blockTimeForm').style.display = 'none';
+                            document.getElementById('btStartDate').value = '';
+                            document.getElementById('btEndDate').value = '';
+                            document.getElementById('btReason').value = '';
+                            loadBlockTimes();
+                        } else { alert(d.error || 'Fehler beim Speichern'); }
+                    });
+                };
+
+                window.deleteBlockTime = function(blockId) {
+                    if (!confirm('Sperrzeit loeschen?')) return;
+                    fetch('/patients/' + patientId + '/block-times/' + blockId, {
+                        method: 'DELETE', headers: {'X-CSRFToken': csrfToken}
+                    }).then(r => r.json()).then(d => { if (d.success) loadBlockTimes(); });
+                };
+
+                function loadBlockTimes() {
+                    fetch('/patients/' + patientId + '/block-times').then(r => r.json()).then(blocks => {
+                        const container = document.getElementById('blockTimesList');
+                        if (!blocks.length) {
+                            container.innerHTML = '<div class="empty-state"><p>Keine Sperrzeiten erfasst.</p></div>';
+                            return;
+                        }
+                        let html = '<table class="data-table"><thead><tr><th>Von</th><th>Bis</th><th>Grund</th><th></th></tr></thead><tbody>';
+                        blocks.forEach(b => {
+                            const start = new Date(b.start_date).toLocaleDateString('de-CH');
+                            const end = new Date(b.end_date).toLocaleDateString('de-CH');
+                            html += '<tr><td>' + start + '</td><td>' + end + '</td><td>' + (b.reason || '-') + '</td>';
+                            html += '<td><button class="btn btn-sm btn-danger" onclick="deleteBlockTime(' + b.id + ')">Loeschen</button></td></tr>';
+                        });
+                        html += '</tbody></table>';
+                        container.innerHTML = html;
+                    });
+                }
+                loadBlockTimes();
+            })();
+            </script>
+            {% endif %}
+
+            <!-- Tab: Guthaben (Cenplex: Credits) -->
+            {% if tab == 'credits' %}
+            <div class="card">
+                <div class="card-header"><h3>Guthaben / Credits</h3></div>
+                <div class="card-body">
+                    <div id="creditsList">
+                        <div class="empty-state"><p>Lade Guthaben...</p></div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                const patientId = {{ patient.id }};
+                fetch('/patients/' + patientId + '/credits').then(r => r.json()).then(credits => {
+                    const container = document.getElementById('creditsList');
+                    if (!credits.length) {
+                        container.innerHTML = '<div class="empty-state"><p>Keine Guthaben vorhanden.</p></div>';
+                        return;
+                    }
+                    let html = '<table class="data-table"><thead><tr><th>Erstellt</th><th>Originalbetrag</th><th>Restbetrag</th><th>Rechnung</th></tr></thead><tbody>';
+                    credits.forEach(c => {
+                        const dt = new Date(c.created_at).toLocaleDateString('de-CH');
+                        html += '<tr><td>' + dt + '</td>';
+                        html += '<td>CHF ' + c.original_amount.toFixed(2) + '</td>';
+                        html += '<td><strong>CHF ' + c.remaining_amount.toFixed(2) + '</strong></td>';
+                        html += '<td>' + (c.from_invoice_id ? '<a href="/billing/' + c.from_invoice_id + '">Rechnung #' + c.from_invoice_id + '</a>' : '-') + '</td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                });
+            })();
+            </script>
+            {% endif %}
+
+            <!-- Tab: Ziele (Cenplex: PatientGoals) -->
+            {% if tab == 'goals' %}
+            <div class="card">
+                <div class="card-header">
+                    <h3>Therapieziele</h3>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="showGoalForm()">Neues Ziel</button>
+                </div>
+                <div class="card-body">
+                    <div id="goalForm" style="display:none; margin-bottom:var(--spacing-lg); padding:var(--spacing-md); border:1px solid var(--color-gray-200); border-radius:var(--radius-md);">
+                        <h4 style="margin-bottom:var(--spacing-sm);">Ziel erfassen</h4>
+                        <div class="form-row">
+                            <div class="form-group" style="flex:2;">
+                                <label class="form-label">Beschreibung *</label>
+                                <input type="text" id="goalDesc" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Zielwert</label>
+                                <input type="text" id="goalTarget" class="form-input" placeholder="z.B. 90 Grad Flexion">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Faellig bis</label>
+                                <input type="date" id="goalDueDate" class="form-input">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:flex-end;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('goalForm').style.display='none'">Abbrechen</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="saveGoal()">Speichern</button>
+                        </div>
+                    </div>
+                    <div id="goalsList">
+                        <div class="empty-state"><p>Lade Therapieziele...</p></div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                const patientId = {{ patient.id }};
+                const csrfToken = '{{ csrf_token() }}';
+
+                window.showGoalForm = function() { document.getElementById('goalForm').style.display = 'block'; };
+
+                window.saveGoal = function() {
+                    const desc = document.getElementById('goalDesc').value;
+                    if (!desc) { alert('Beschreibung ist Pflicht'); return; }
+                    fetch('/patients/' + patientId + '/goals', {
+                        method: 'POST', headers: {'Content-Type':'application/json', 'X-CSRFToken': csrfToken},
+                        body: JSON.stringify({
+                            description: desc,
+                            target_value: document.getElementById('goalTarget').value,
+                            due_date: document.getElementById('goalDueDate').value
+                        })
+                    }).then(r => r.json()).then(d => {
+                        if (d.success) {
+                            document.getElementById('goalForm').style.display = 'none';
+                            document.getElementById('goalDesc').value = '';
+                            document.getElementById('goalTarget').value = '';
+                            document.getElementById('goalDueDate').value = '';
+                            loadGoals();
+                        }
+                    });
+                };
+
+                window.finishGoal = function(goalId) {
+                    if (!confirm('Ziel als erreicht markieren?')) return;
+                    fetch('/patients/' + patientId + '/goals/' + goalId + '/finish', {
+                        method: 'POST', headers: {'X-CSRFToken': csrfToken}
+                    }).then(r => r.json()).then(d => { if (d.success) loadGoals(); });
+                };
+
+                function renderGoal(g, level) {
+                    level = level || 0;
+                    const statusBadge = g.status === 'achieved' ? '<span class="badge badge-success">Erreicht</span>' :
+                        g.status === 'open' ? '<span class="badge badge-info">Offen</span>' : '<span class="badge badge-muted">' + g.status + '</span>';
+                    const isOverdue = g.due_date && g.status !== 'achieved' && new Date(g.due_date) < new Date();
+                    let html = '<div class="goal-item" style="margin-left:' + (level * 24) + 'px;' + (isOverdue ? 'border-color:var(--color-danger);' : '') + '">';
+                    html += '<div class="goal-info"><strong>' + g.description + '</strong>';
+                    if (g.target_value) html += '<div class="text-muted" style="font-size:var(--font-size-sm);">Ziel: ' + g.target_value + '</div>';
+                    if (g.current_value) html += '<div class="text-muted" style="font-size:var(--font-size-sm);">Aktuell: ' + g.current_value + '</div>';
+                    if (g.due_date) {
+                        const dt = new Date(g.due_date).toLocaleDateString('de-CH');
+                        html += '<div style="font-size:var(--font-size-xs);' + (isOverdue ? 'color:var(--color-danger);font-weight:600;' : 'color:var(--color-gray-500);') + '">Faellig: ' + dt + (isOverdue ? ' (ueberfaellig)' : '') + '</div>';
+                    }
+                    if (g.finished_date) html += '<div style="font-size:var(--font-size-xs);color:var(--color-success);">Erreicht: ' + new Date(g.finished_date).toLocaleDateString('de-CH') + '</div>';
+                    html += '</div>';
+                    html += '<div class="goal-progress">';
+                    html += '<div class="progress-bar" style="width:80px;"><div class="progress-fill progress-ok" style="width:' + g.achievement_percent + '%;"></div></div>';
+                    html += '<span style="font-size:var(--font-size-xs);">' + g.achievement_percent + '%</span>';
+                    html += '</div>';
+                    html += '<div class="goal-actions">' + statusBadge;
+                    if (g.status !== 'achieved') html += ' <button class="btn btn-sm btn-success" onclick="finishGoal(' + g.id + ')">Erreicht</button>';
+                    html += '</div></div>';
+                    // Unterziele rekursiv rendern
+                    if (g.children && g.children.length > 0) {
+                        g.children.forEach(c => { html += renderGoal(c, level + 1); });
+                    }
+                    return html;
+                }
+
+                function loadGoals() {
+                    fetch('/patients/' + patientId + '/goals').then(r => r.json()).then(goals => {
+                        const container = document.getElementById('goalsList');
+                        if (!goals.length) {
+                            container.innerHTML = '<div class="empty-state"><p>Keine Therapieziele erfasst.</p></div>';
+                            return;
+                        }
+                        let html = '<div class="goals-list">';
+                        goals.forEach(g => { html += renderGoal(g, 0); });
+                        html += '</div>';
+                        container.innerHTML = html;
+                    });
+                }
+                loadGoals();
+            })();
+            </script>
             {% endif %}
 
             <!-- Tab: Kommunikation -->
@@ -939,6 +1306,23 @@
 .email-item { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-gray-100); }
 .email-info strong { font-size: var(--font-size-sm); }
 .email-meta { font-size: var(--font-size-xs); color: var(--color-gray-500); display: flex; gap: var(--spacing-md); margin-top: 2px; }
+
+/* Historie */
+.history-series-group { margin-bottom: var(--spacing-lg); }
+.history-series-title { font-size: var(--font-size-base); margin-bottom: var(--spacing-sm); display: flex; align-items: center; gap: var(--spacing-sm); }
+.history-entry { display: flex; gap: var(--spacing-md); padding: var(--spacing-sm) 0; border-bottom: 1px solid var(--color-gray-100); }
+.history-entry:last-child { border-bottom: none; }
+.history-date { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-primary); min-width: 120px; white-space: nowrap; }
+.history-details { flex: 1; }
+.history-meta { font-size: var(--font-size-xs); color: var(--color-gray-500); margin-bottom: 4px; }
+.history-soap { font-size: var(--font-size-sm); margin-bottom: 2px; line-height: 1.4; }
+
+/* Ziele */
+.goals-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.goal-item { display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-sm); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); }
+.goal-info { flex: 1; }
+.goal-progress { display: flex; align-items: center; gap: 6px; }
+.goal-actions { display: flex; align-items: center; gap: var(--spacing-xs); }
 
 /* --- Responsive --- */
 @media (max-width: 1024px) {

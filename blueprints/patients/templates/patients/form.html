@@ -90,6 +90,23 @@
                             <option value="Englisch" {% if lang == 'Englisch' %}selected{% endif %}>Englisch</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Anredeformel</label>
+                        <input type="text" name="addressing" class="form-input" placeholder="z.B. Sehr geehrte Frau..."
+                               value="{{ patient.addressing if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="is_special" {% if patient and patient.is_special %}checked{% endif %}>
+                            Spezialpatient (besondere Beachtung)
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" id="special-notes-group" style="{% if not (patient and patient.is_special) %}display:none;{% endif %}">
+                    <label class="form-label">Spezialnotizen</label>
+                    <textarea name="special_notes" class="form-textarea" rows="2" placeholder="Besondere Hinweise...">{{ patient.special_notes if patient else '' }}</textarea>
                 </div>
             </div>
         </div>
@@ -170,19 +187,23 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">KVG Modell</label>
-                        {% set km = patient.kvg_model|int if patient and patient.kvg_model else 0 %}
+                        {% set km = patient.kvg_model|int if patient and patient.kvg_model is not none else 1 %}
                         <select name="kvg_model" class="form-select">
-                            <option value="0" {% if km == 0 %}selected{% endif %}>Standard</option>
-                            <option value="1" {% if km == 1 %}selected{% endif %}>HMO</option>
-                            <option value="2" {% if km == 2 %}selected{% endif %}>PPO</option>
+                            <option value="1" {% if km == 1 %}selected{% endif %}>Standard</option>
+                            <option value="2" {% if km == 2 %}selected{% endif %}>Hausarztmodell</option>
+                            <option value="3" {% if km == 3 %}selected{% endif %}>HMO</option>
+                            <option value="4" {% if km == 4 %}selected{% endif %}>Listenmodell (PPO)</option>
+                            <option value="5" {% if km == 5 %}selected{% endif %}>Sonstige</option>
+                            <option value="99" {% if km == 99 %}selected{% endif %}>Unbekannt</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Unfalldeckung KVG</label>
-                        {% set kac = patient.kvg_accident_coverage|int if patient and patient.kvg_accident_coverage else 0 %}
+                        {% set kac = patient.kvg_accident_coverage|int if patient and patient.kvg_accident_coverage is not none else 99 %}
                         <select name="kvg_accident_coverage" class="form-select">
-                            <option value="0" {% if kac == 0 %}selected{% endif %}>Nein</option>
-                            <option value="1" {% if kac == 1 %}selected{% endif %}>Ja</option>
+                            <option value="1" {% if kac == 1 %}selected{% endif %}>Vorhanden</option>
+                            <option value="2" {% if kac == 2 %}selected{% endif %}>Nicht vorhanden</option>
+                            <option value="99" {% if kac == 99 %}selected{% endif %}>Unbekannt</option>
                         </select>
                     </div>
                 </div>
@@ -193,17 +214,45 @@
                             KVG Grundversicherung
                         </label>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Leistungseinschraenkung</label>
+                        {% set mscr = patient.medical_service_coverage_restriction|int if patient and patient.medical_service_coverage_restriction else 0 %}
+                        <select name="medical_service_coverage_restriction" class="form-select">
+                            <option value="0" {% if mscr == 0 %}selected{% endif %}>Keine</option>
+                            <option value="1" {% if mscr == 1 %}selected{% endif %}>Physiotherapie nur OKP</option>
+                            <option value="2" {% if mscr == 2 %}selected{% endif %}>Physiotherapie nur VVG</option>
+                            <option value="3" {% if mscr == 3 %}selected{% endif %}>Physiotherapie OKP und VVG</option>
+                            <option value="4" {% if mscr == 4 %}selected{% endif %}>Ausland/Militaer</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Versichertenkarten-Nr.</label>
-                        <input type="text" name="card_id" class="form-input"
+                        <label class="form-label">Versichertenkarten-Nr. (20 Ziffern)</label>
+                        <input type="text" name="card_id" class="form-input" pattern="\d{20}"
+                               placeholder="20-stellige Kartennummer"
                                value="{{ patient.card_id if patient else '' }}">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Karte gueltig bis</label>
                         <input type="date" name="card_expiry" class="form-input"
                                value="{{ patient.card_expiry.strftime('%Y-%m-%d') if patient and patient.card_expiry else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Versichertennummer KVG</label>
+                        <input type="text" name="insured_id" class="form-input"
+                               value="{{ patient.insured_id if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">KVG Kostentraeger</label>
+                        <select name="costunit_id" class="form-select searchable-select">
+                            <option value="">-- Bitte waehlen --</option>
+                            {% for ins in insurances %}
+                            <option value="{{ ins.id }}" {% if patient and patient.costunit_id == ins.id %}selected{% endif %}>{{ ins.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
 
@@ -257,15 +306,23 @@
             <div class="card-body">
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Telefon Festnetz</label>
+                        <label class="form-label">Telefon Privat *</label>
                         <input type="tel" name="phone" class="form-input"
                                value="{{ patient.phone if patient else '' }}">
+                        <small class="form-hint">Mind. Privat oder Mobil erforderlich</small>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Mobiltelefon</label>
+                        <label class="form-label">Mobiltelefon *</label>
                         <input type="tel" name="mobile" class="form-input"
                                value="{{ patient.mobile if patient else '' }}">
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefon Geschaeft</label>
+                        <input type="tel" name="phone_office" class="form-input"
+                               value="{{ patient.phone_office if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">E-Mail</label>
                         <input type="email" name="email" class="form-input"
@@ -503,6 +560,13 @@
                         <input type="text" name="premium_payer_address" class="form-input"
                                value="{{ patient.premium_payer_address if patient else '' }}">
                     </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Adresse 2</label>
+                        <input type="text" name="premium_payer_address2" class="form-input"
+                               value="{{ patient.premium_payer_address2 if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">PLZ</label>
                         <input type="text" name="premium_payer_zipcode" class="form-input"
@@ -529,6 +593,11 @@
                         <label class="form-label">Land</label>
                         <input type="text" name="premium_payer_country" class="form-input"
                                value="{{ patient.premium_payer_country if patient else 'CH' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">E-Mail</label>
+                        <input type="email" name="premium_payer_email" class="form-input"
+                               value="{{ patient.premium_payer_email if patient else '' }}">
                     </div>
                 </div>
 
@@ -579,6 +648,18 @@
                         <label class="form-label">MyWellness ID</label>
                         <input type="text" name="mywellness_id" class="form-input"
                                value="{{ patient.mywellness_id if patient else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Milon ID</label>
+                        <input type="text" name="milon_id" class="form-input"
+                               value="{{ patient.milon_id if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">MyWellness Geraetetyp</label>
+                        <input type="text" name="mywellness_device_type" class="form-input"
+                               value="{{ patient.mywellness_device_type if patient else '' }}">
                     </div>
                 </div>
             </div>
@@ -635,6 +716,14 @@ document.querySelectorAll('.form-tab').forEach(tab => {
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     });
 });
+
+// Spezialpatient: Notizen ein-/ausblenden
+const isSpecial = document.querySelector('input[name="is_special"]');
+if (isSpecial) {
+    isSpecial.addEventListener('change', function() {
+        document.getElementById('special-notes-group').style.display = this.checked ? '' : 'none';
+    });
+}
 
 // Versicherungsart: UVG-Felder ein-/ausblenden
 const insType = document.getElementById('insuranceType');

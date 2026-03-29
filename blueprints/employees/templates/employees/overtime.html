@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Überstunden{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Überstunden</span>
+{% endblock %}
+
+{% block page_title %}Überstunden – {{ selected_month.strftime('%B %Y') }}{% endblock %}
+
+{% block content %}
+<!-- Monats-Navigation -->
+<div class="filter-bar" style="margin-bottom: var(--spacing-lg);">
+    {% set prev_month = (selected_month - timedelta(days=1)).replace(day=1) %}
+    {% set next_month_date = selected_month.replace(day=28) + timedelta(days=4) %}
+    {% set next_month = next_month_date.replace(day=1) %}
+    <a href="{{ url_for('employees.overtime_page', month=prev_month.strftime('%Y-%m')) }}" class="btn btn-secondary btn-sm">&laquo; Vormonat</a>
+    <span style="font-weight: 600; font-size: var(--font-size-lg); margin: 0 var(--spacing-md);">
+        {% set month_names = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'] %}
+        {{ month_names[selected_month.month - 1] }} {{ selected_month.year }}
+    </span>
+    <a href="{{ url_for('employees.overtime_page', month=next_month.strftime('%Y-%m')) }}" class="btn btn-secondary btn-sm">Nächster &raquo;</a>
+
+    <div style="margin-left: auto;">
+        <select class="form-select form-select-sm" onchange="location.href='{{ url_for('employees.overtime_page') }}?month=' + this.value" style="width: auto;">
+            {% for m in months %}
+            <option value="{{ m.strftime('%Y-%m') }}" {% if m == selected_month %}selected{% endif %}>
+                {{ month_names[m.month - 1] }} {{ m.year }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="overflow-x: auto;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Mitarbeiter</th>
+                    <th>Soll-Arbeitszeit (h)</th>
+                    <th>Behandlungszeit (h)</th>
+                    <th>Adminzeit (h)</th>
+                    <th>Allgemeine Zeit (h)</th>
+                    <th>Gruppentherapie (h)</th>
+                    <th>Ist-Gesamt (h)</th>
+                    <th>Überstunden</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                {% set ot = overtime_map.get(emp.id) %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('employees.detail', employee_id=emp.id) }}">
+                            {{ emp.user.first_name }} {{ emp.user.last_name }}
+                        </a>
+                        <br><small class="text-muted">{{ emp.pensum_percent }}% Pensum</small>
+                    </td>
+                    {% if ot %}
+                    <td>{{ '%.1f' | format((ot.planned_worktime or 0) / 60) }}</td>
+                    <td>{{ '%.1f' | format((ot.treatment_time or 0) / 60) }}</td>
+                    <td>{{ '%.1f' | format((ot.admin_time or 0) / 60) }}</td>
+                    <td>{{ '%.1f' | format((ot.general_time or 0) / 60) }}</td>
+                    <td>{{ '%.1f' | format((ot.group_time or 0) / 60) }}</td>
+                    {% set actual = ((ot.treatment_time or 0) + (ot.admin_time or 0) + (ot.general_time or 0) + (ot.group_time or 0)) / 60 %}
+                    <td><strong>{{ '%.1f' | format(actual) }}</strong></td>
+                    <td>
+                        {% set ot_hours = (ot.overtime or 0) / 60 %}
+                        <span class="overtime-badge {% if ot_hours > 0 %}overtime-positive{% elif ot_hours < 0 %}overtime-negative{% else %}overtime-zero{% endif %}">
+                            {{ '%+.1f' | format(ot_hours) }}h
+                        </span>
+                    </td>
+                    {% else %}
+                    <td colspan="7" class="text-muted">Keine Daten für diesen Monat</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if not overtime_map %}
+<div class="alert alert-info" style="margin-top: var(--spacing-lg);">
+    Für diesen Monat liegen noch keine Überstunden-Berechnungen vor. Überstunden werden aus Arbeitszeiten und Terminen berechnet.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.data-table th { text-align: left; padding: var(--spacing-sm); border-bottom: 2px solid var(--color-gray-200); color: var(--color-gray-500); font-weight: 500; white-space: nowrap; }
+.data-table td { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-gray-100); }
+.filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm); }
+.overtime-badge { display: inline-block; padding: 2px 10px; border-radius: var(--radius-full); font-weight: 600; font-size: var(--font-size-sm); }
+.overtime-positive { background: #dcfce7; color: #166534; }
+.overtime-negative { background: #fee2e2; color: #991b1b; }
+.overtime-zero { background: var(--color-gray-100); color: var(--color-gray-600); }
+.text-muted { color: var(--color-gray-400); }
+</style>
+{% endblock %}

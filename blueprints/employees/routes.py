@@ -192,10 +192,78 @@ def _save_employee(employee):
     # Mitarbeiter-Felder
     employee.pensum_percent = pensum_int
     employee.employment_model = request.form.get('employment_model', 'Festanstellung')
+    employee.contract_type = request.form.get('contract_type', 'permanent')
     employee.color_code = request.form.get('color_code', '#4a90d9')
     employee.zsr_number = request.form.get('zsr_number', '').strip()
     employee.gln_number = request.form.get('gln_number', '').strip()
-    employee.is_active = request.form.get('is_active') != 'off'
+    employee.ahv_number = request.form.get('ahv_number', '').strip()
+    employee.emr_number = request.form.get('emr_number', '').strip()
+    employee.asca_number = request.form.get('asca_number', '').strip()
+    employee.degree = request.form.get('degree', '').strip()
+    employee.notes = request.form.get('notes', '').strip()
+    employee.is_active = request.form.get('is_active') == 'on'
+
+    # Persoenliche Daten
+    employee.salutation = request.form.get('salutation', '').strip()
+    employee.sex = request.form.get('sex', '').strip()
+    employee.private_email = request.form.get('private_email', '').strip()
+    employee.phone_office = request.form.get('phone_office', '').strip()
+    employee.mobile = request.form.get('mobile', '').strip()
+    employee.phone_private = request.form.get('phone_private', '').strip()
+
+    # Geburtstag
+    birthday_str = request.form.get('birthday', '').strip()
+    if birthday_str:
+        try:
+            employee.birthday = datetime.strptime(birthday_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    else:
+        employee.birthday = None
+
+    # Adresse
+    employee.street = request.form.get('street', '').strip()
+    employee.zipcode = request.form.get('zipcode', '').strip()
+    employee.town = request.form.get('town', '').strip()
+    employee.kanton = request.form.get('kanton', '').strip()
+    employee.country = request.form.get('country', 'CH').strip()
+
+    # Aktiv seit
+    active_from_str = request.form.get('active_from', '').strip()
+    if active_from_str:
+        try:
+            employee.active_from = datetime.strptime(active_from_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    # Kalender-Intervall
+    cal_interval = request.form.get('calendar_default_interval', '')
+    if cal_interval:
+        try:
+            interval = int(cal_interval)
+            if interval >= 15 and interval % 5 == 0:
+                employee.calendar_default_interval = interval
+        except ValueError:
+            pass
+
+    # Online-Buchung
+    employee.booking_book_active = request.form.get('booking_book_active') == 'on'
+    sync_from_str = request.form.get('booking_sync_from', '').strip()
+    if sync_from_str:
+        try:
+            employee.booking_sync_from = datetime.strptime(sync_from_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    else:
+        employee.booking_sync_from = None
+    sync_till_str = request.form.get('booking_sync_till', '').strip()
+    if sync_till_str:
+        try:
+            employee.booking_sync_till = datetime.strptime(sync_till_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    else:
+        employee.booking_sync_till = None
 
     # Standort und Raum
     loc_id = request.form.get('default_location_id', '')
@@ -203,9 +271,6 @@ def _save_employee(employee):
 
     room_id = request.form.get('default_room_id', '')
     employee.default_room_id = int(room_id) if room_id else None
-
-    # User-Felder
-    user.phone = request.form.get('phone', '').strip() if hasattr(user, 'phone') else None
 
     # Qualifikationen
     qualifications = request.form.getlist('qualifications')
@@ -283,6 +348,42 @@ def detail(employee_id):
         absence_type='vacation'
     ).first()
 
+    # Kapazitaeten laden
+    from models import EmployeeCapacity, EmployeeWorkplan, VacationAllotment, \
+        EmployeeGroup, EmployeeGroupMember, OvertimeHistory
+    capacities = EmployeeCapacity.query.filter_by(
+        employee_id=employee_id, is_deleted=False
+    ).order_by(EmployeeCapacity.valid_from.desc()).all()
+
+    # Aktuelle Kapazitaet bestimmen
+    current_capacity = None
+    for cap in capacities:
+        if cap.valid_from and cap.valid_from <= today:
+            current_capacity = cap
+            break
+
+    # Arbeitsplaene laden
+    workplans = EmployeeWorkplan.query.filter_by(
+        employee_id=employee_id
+    ).order_by(EmployeeWorkplan.from_date.desc()).all()
+
+    # Ferienkontingente laden
+    vacation_allotments = VacationAllotment.query.filter_by(
+        employee_id=employee_id, planned_year=today.year
+    ).all()
+
+    # Benutzergruppen laden
+    group_memberships = db.session.query(EmployeeGroup).join(
+        EmployeeGroupMember, EmployeeGroup.id == EmployeeGroupMember.group_id
+    ).filter(EmployeeGroupMember.employee_id == employee_id).all()
+
+    # Ueberstunden-Historie laden (letzte 6 Monate)
+    six_months_ago = (today.replace(day=1) - timedelta(days=180)).replace(day=1)
+    overtime_history = OvertimeHistory.query.filter(
+        OvertimeHistory.employee_id == employee_id,
+        OvertimeHistory.month >= six_months_ago
+    ).order_by(OvertimeHistory.month.desc()).all()
+
     return render_template('employees/detail.html',
                            employee=employee,
                            upcoming_appointments=upcoming_appointments,
@@ -292,7 +393,13 @@ def detail(employee_id):
                            booked_minutes=booked_minutes,
                            total_work_minutes=total_work_minutes,
                            certificates=certificates,
-                           quota=quota)
+                           quota=quota,
+                           capacities=capacities,
+                           current_capacity=current_capacity,
+                           workplans=workplans,
+                           vacation_allotments=vacation_allotments,
+                           group_memberships=group_memberships,
+                           overtime_history=overtime_history)
 
 
 # ============================================================
@@ -828,6 +935,8 @@ def save_capacity(employee_id):
 
     if capacity_id:
         cap = EmployeeCapacity.query.get_or_404(int(capacity_id))
+        if cap.employee_id != employee.id:
+            return jsonify({'error': 'Nicht erlaubt'}), 403
         cap.capacity = capacity_val
         cap.valid_from = valid_from
     else:
@@ -850,6 +959,8 @@ def delete_capacity(employee_id, cap_id):
     employee = Employee.query.get_or_404(employee_id)
     check_org(employee)
     cap = EmployeeCapacity.query.get_or_404(cap_id)
+    if cap.employee_id != employee.id:
+        return jsonify({'error': 'Nicht erlaubt'}), 403
     cap.is_deleted = True
     db.session.commit()
     return jsonify({'success': True})
@@ -892,6 +1003,8 @@ def save_workplan(employee_id):
 
     if plan_id:
         plan = EmployeeWorkplan.query.get_or_404(int(plan_id))
+        if plan.employee_id != employee.id:
+            return jsonify({'error': 'Nicht erlaubt'}), 403
     else:
         plan = EmployeeWorkplan(employee_id=employee.id)
 
@@ -1000,7 +1113,16 @@ def api_overtime():
     else:
         month_date = date.today().replace(day=1)
 
-    query = OvertimeHistory.query.filter_by(month=month_date)
+    # SECURITY: Nur Mitarbeiter der eigenen Organisation
+    org_employees = Employee.query.filter_by(
+        organization_id=current_user.organization_id
+    ).with_entities(Employee.id).all()
+    org_emp_ids = [e.id for e in org_employees]
+
+    query = OvertimeHistory.query.filter(
+        OvertimeHistory.employee_id.in_(org_emp_ids),
+        OvertimeHistory.month == month_date
+    )
 
     if employee_ids:
         try:
@@ -1077,6 +1199,265 @@ def save_employee_group():
 
     db.session.commit()
     return jsonify({'success': True, 'id': group.id})
+
+
+# ============================================================
+# Cenplex Phase 4: Ferienkontingente-Seite (HTML)
+# ============================================================
+
+@employees_bp.route('/vacation-allotments')
+@login_required
+def vacation_allotments_page():
+    """Ferienkontingente-Verwaltung (HTML-Seite)"""
+    from models import VacationAllotment
+    org_id = current_user.organization_id
+    year = request.args.get('year', type=int, default=date.today().year)
+
+    employees = Employee.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).join(User).order_by(User.last_name).all()
+
+    allotments = VacationAllotment.query.filter_by(
+        organization_id=org_id, planned_year=year
+    ).all()
+
+    # Map: employee_id -> allotment
+    allotment_map = {a.employee_id: a for a in allotments}
+
+    return render_template('employees/vacation_allotments.html',
+                           employees=employees,
+                           allotment_map=allotment_map,
+                           year=year)
+
+
+@employees_bp.route('/vacation-allotments', methods=['POST'])
+@login_required
+def save_vacation_allotments_page():
+    """Ferienkontingente speichern (Form POST)"""
+    from models import VacationAllotment
+    org_id = current_user.organization_id
+    year = int(request.form.get('year', date.today().year))
+
+    employees = Employee.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).all()
+
+    for emp in employees:
+        days = request.form.get(f'days_{emp.id}', '').strip()
+        hours = request.form.get(f'hours_{emp.id}', '').strip()
+        hours_per_day = request.form.get(f'hours_per_day_{emp.id}', '').strip()
+        pensum = request.form.get(f'pensum_{emp.id}', '').strip()
+        comments = request.form.get(f'comments_{emp.id}', '').strip()
+
+        allot = VacationAllotment.query.filter_by(
+            organization_id=org_id, employee_id=emp.id, planned_year=year
+        ).first()
+
+        if not allot:
+            allot = VacationAllotment(
+                organization_id=org_id, employee_id=emp.id, planned_year=year
+            )
+            db.session.add(allot)
+
+        allot.days = float(days) if days else None
+        allot.hours = float(hours) if hours else None
+        allot.hours_per_day = float(hours_per_day) if hours_per_day else None
+        allot.pensum = float(pensum) if pensum else emp.pensum_percent
+        allot.comments = comments
+
+    db.session.commit()
+    flash('Ferienkontingente gespeichert.', 'success')
+    return redirect(url_for('employees.vacation_allotments_page', year=year))
+
+
+# ============================================================
+# Cenplex Phase 4: Ueberstunden-Seite (HTML)
+# ============================================================
+
+@employees_bp.route('/overtime')
+@login_required
+def overtime_page():
+    """Ueberstunden-Uebersicht (HTML-Seite)"""
+    from models import OvertimeHistory
+    org_id = current_user.organization_id
+    month_str = request.args.get('month', '')
+
+    if month_str:
+        try:
+            selected_month = datetime.strptime(month_str, '%Y-%m').date().replace(day=1)
+        except ValueError:
+            selected_month = date.today().replace(day=1)
+    else:
+        selected_month = date.today().replace(day=1)
+
+    employees = Employee.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).join(User).order_by(User.last_name).all()
+    emp_ids = [e.id for e in employees]
+
+    overtime_entries = OvertimeHistory.query.filter(
+        OvertimeHistory.employee_id.in_(emp_ids),
+        OvertimeHistory.month == selected_month
+    ).all() if emp_ids else []
+
+    # Map: employee_id -> overtime
+    overtime_map = {ot.employee_id: ot for ot in overtime_entries}
+
+    # Vorherige 6 Monate fuer Navigation
+    months = []
+    m = date.today().replace(day=1)
+    for i in range(6):
+        months.append(m)
+        m = (m - timedelta(days=1)).replace(day=1)
+
+    return render_template('employees/overtime.html',
+                           employees=employees,
+                           overtime_map=overtime_map,
+                           selected_month=selected_month,
+                           months=months)
+
+
+# ============================================================
+# Cenplex Phase 4: Benutzergruppen-Seite (HTML)
+# ============================================================
+
+@employees_bp.route('/groups')
+@login_required
+def employee_groups_page():
+    """Benutzergruppen-Verwaltung (HTML-Seite)"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    org_id = current_user.organization_id
+
+    groups = EmployeeGroup.query.filter_by(organization_id=org_id).all()
+
+    # Gruppenmitglieder laden
+    group_data = []
+    for g in groups:
+        members = db.session.query(Employee).join(
+            EmployeeGroupMember, Employee.id == EmployeeGroupMember.employee_id
+        ).filter(EmployeeGroupMember.group_id == g.id).all()
+        group_data.append({
+            'group': g,
+            'members': members
+        })
+
+    employees = Employee.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).join(User).order_by(User.last_name).all()
+
+    return render_template('employees/groups.html',
+                           group_data=group_data,
+                           employees=employees)
+
+
+@employees_bp.route('/groups/save', methods=['POST'])
+@login_required
+def save_employee_group_page():
+    """Benutzergruppe speichern (Form POST)"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    org_id = current_user.organization_id
+
+    group_id = request.form.get('group_id', '').strip()
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
+    member_ids = request.form.getlist('member_ids')
+
+    if not title:
+        flash('Gruppenname ist ein Pflichtfeld.', 'error')
+        return redirect(url_for('employees.employee_groups_page'))
+
+    if group_id:
+        group = EmployeeGroup.query.get_or_404(int(group_id))
+    else:
+        group = EmployeeGroup(organization_id=org_id)
+        db.session.add(group)
+
+    group.title = title
+    group.description = description
+    db.session.flush()
+
+    # Mitglieder aktualisieren
+    EmployeeGroupMember.query.filter_by(group_id=group.id).delete()
+    for emp_id in member_ids:
+        member = EmployeeGroupMember(group_id=group.id, employee_id=int(emp_id))
+        db.session.add(member)
+
+    db.session.commit()
+    flash(f'Benutzergruppe "{title}" gespeichert.', 'success')
+    return redirect(url_for('employees.employee_groups_page'))
+
+
+@employees_bp.route('/groups/<int:group_id>/delete', methods=['POST'])
+@login_required
+def delete_employee_group_page(group_id):
+    """Benutzergruppe loeschen (Form POST)"""
+    from models import EmployeeGroup, EmployeeGroupMember
+    group = EmployeeGroup.query.get_or_404(group_id)
+    if group.organization_id != current_user.organization_id:
+        flash('Keine Berechtigung.', 'error')
+        return redirect(url_for('employees.employee_groups_page'))
+
+    EmployeeGroupMember.query.filter_by(group_id=group.id).delete()
+    db.session.delete(group)
+    db.session.commit()
+    flash('Benutzergruppe gelöscht.', 'success')
+    return redirect(url_for('employees.employee_groups_page'))
+
+
+# ============================================================
+# Cenplex Phase 4: Raumplanung (HTML)
+# ============================================================
+
+@employees_bp.route('/room-planning')
+@login_required
+def room_planning():
+    """Raumplanung: Wochenansicht der Raumbelegung"""
+    org_id = current_user.organization_id
+    date_str = request.args.get('date', '')
+    if date_str:
+        try:
+            ref_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            ref_date = date.today()
+    else:
+        ref_date = date.today()
+
+    week_start = ref_date - timedelta(days=ref_date.weekday())
+    week_dates = [week_start + timedelta(days=i) for i in range(5)]
+
+    # Raeume laden
+    rooms = Resource.query.filter_by(
+        organization_id=org_id, resource_type='room', is_active=True
+    ).order_by(Resource.name).all()
+
+    # Termine pro Raum und Tag
+    room_ids = [r.id for r in rooms]
+    week_end = week_start + timedelta(days=4)
+    appointments = Appointment.query.filter(
+        Appointment.resource_id.in_(room_ids),
+        Appointment.start_time >= datetime.combine(week_start, time(0, 0)),
+        Appointment.start_time <= datetime.combine(week_end, time(23, 59)),
+        Appointment.status != 'cancelled'
+    ).all() if room_ids else []
+
+    # Map: (room_id, date) -> [appointments]
+    room_appointment_map = {}
+    for appt in appointments:
+        key = (appt.resource_id, appt.start_time.date())
+        if key not in room_appointment_map:
+            room_appointment_map[key] = []
+        room_appointment_map[key].append(appt)
+
+    # Arbeitszeiten pro Raum via Mitarbeiter-Standort
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
+
+    return render_template('employees/room_planning.html',
+                           rooms=rooms,
+                           week_dates=week_dates,
+                           room_appointment_map=room_appointment_map,
+                           week_start=week_start,
+                           locations=locations,
+                           today=date.today())
 
 
 @employees_bp.route('/api/groups/<int:group_id>', methods=['DELETE'])

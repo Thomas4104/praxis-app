@@ -3,7 +3,7 @@ import os
 import json
 import uuid
 import re
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from flask import render_template, request, redirect, url_for, flash, jsonify, \
     send_from_directory, current_app
 from flask_login import login_required, current_user
@@ -66,9 +66,8 @@ def index():
         except ValueError:
             pass
 
-    # Suche (Name, Geburtsdatum, Telefon, Patientennummer)
+    # Suche (Cenplex-Logik: Alle Begriffe muessen matchen, AND-Verknuepfung)
     if search:
-        search_lower = search.lower()
         # Pruefen ob Datum-Suche (Format dd.mm.yyyy)
         date_match = re.match(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$', search)
         if date_match:
@@ -80,16 +79,20 @@ def index():
             except ValueError:
                 pass
         else:
-            query = query.filter(
-                db.or_(
-                    Patient.first_name.ilike(f'%{search}%'),
-                    Patient.last_name.ilike(f'%{search}%'),
-                    Patient.patient_number.ilike(f'%{search}%'),
-                    Patient.phone.ilike(f'%{search}%'),
-                    Patient.mobile.ilike(f'%{search}%'),
-                    (Patient.first_name + ' ' + Patient.last_name).ilike(f'%{search}%')
+            # Cenplex: Aufteilen nach Leerzeichen, jeder Begriff muss in mind. einem Feld matchen
+            terms = search.split()
+            for term in terms:
+                query = query.filter(
+                    db.or_(
+                        Patient.first_name.ilike(f'%{term}%'),
+                        Patient.last_name.ilike(f'%{term}%'),
+                        Patient.patient_number.ilike(f'%{term}%'),
+                        Patient.phone.ilike(f'%{term}%'),
+                        Patient.mobile.ilike(f'%{term}%'),
+                        Patient.card_id.ilike(f'%{term}%'),
+                        (Patient.first_name + ' ' + Patient.last_name).ilike(f'%{term}%')
+                    )
                 )
-            )
 
     # Sortierung
     if sort_by == 'name':
@@ -231,10 +234,32 @@ def _save_patient(patient):
         except ValueError:
             errors.append('Ungültiges Datumsformat für Geburtsdatum.')
 
-    # AHV-Nummer Validierung
+    # AHV-Nummer Validierung (Cenplex: Format + Pruefsumme)
     ahv = request.form.get('ahv_number', '').strip()
-    if ahv and not re.match(r'^756\.\d{4}\.\d{4}\.\d{2}$', ahv):
-        errors.append('AHV-Nummer muss im Format 756.XXXX.XXXX.XX sein.')
+    if ahv:
+        if not re.match(r'^756\.\d{4}\.\d{4}\.\d{2}$', ahv):
+            errors.append('AHV-Nummer muss im Format 756.XXXX.XXXX.XX sein.')
+        else:
+            # Cenplex: Pruefsummenvalidierung (Modulo 10, EAN-13)
+            digits = ahv.replace('.', '')
+            if len(digits) == 13:
+                checksum = 0
+                for i, d in enumerate(digits[:12]):
+                    checksum += int(d) * (1 if i % 2 == 0 else 3)
+                expected = (10 - (checksum % 10)) % 10
+                if int(digits[12]) != expected:
+                    errors.append('AHV-Nummer: Pruefsumme ungueltig.')
+
+    # Versichertenkarten-Nr. Validierung (Cenplex: genau 20 Ziffern)
+    card_id = request.form.get('card_id', '').strip()
+    if card_id and not re.match(r'^\d{20}$', card_id):
+        errors.append('Versichertenkarten-Nr. muss genau 20 Ziffern enthalten.')
+
+    # Telefon-Validierung (Cenplex: mind. Mobil oder Festnetz)
+    phone_val = request.form.get('phone', '').strip()
+    mobile_val = request.form.get('mobile', '').strip()
+    if not phone_val and not mobile_val:
+        errors.append('Mindestens eine Telefonnummer (Festnetz oder Mobil) ist erforderlich.')
 
     if errors:
         for e in errors:
@@ -296,9 +321,15 @@ def _save_patient(patient):
     patient.supplementary_insurance_name = request.form.get('supplementary_insurance_name', '').strip()
     patient.supplementary_insurance_number = request.form.get('supplementary_insurance_number', '').strip()
 
+    # Personalien erweitert (Cenplex)
+    patient.addressing = request.form.get('addressing', '').strip()
+    patient.is_special = request.form.get('is_special') == 'on'
+    patient.special_notes = request.form.get('special_notes', '').strip()
+
     # Kontakt
     patient.phone = request.form.get('phone', '').strip()
     patient.mobile = request.form.get('mobile', '').strip()
+    patient.phone_office = request.form.get('phone_office', '').strip()
     patient.email = request.form.get('email', '').strip()
     patient.address = request.form.get('address', '').strip()
     patient.zip_code = request.form.get('zip_code', '').strip()
@@ -330,10 +361,14 @@ def _save_patient(patient):
     # Cenplex: Erweiterte Versicherung
     patient.kanton = request.form.get('kanton', '')
     patient.is_kvg_base = request.form.get('is_kvg_base') == 'on'
-    patient.kvg_model = int(request.form.get('kvg_model', 0))
-    patient.kvg_accident_coverage = int(request.form.get('kvg_accident_coverage', 0))
+    patient.kvg_model = int(request.form.get('kvg_model', 1))
+    patient.kvg_accident_coverage = int(request.form.get('kvg_accident_coverage', 99))
     patient.card_id = request.form.get('card_id', '')
     patient.card_expiry = parse_date(request.form.get('card_expiry'))
+    patient.insured_id = request.form.get('insured_id', '')
+    costunit_kvg = request.form.get('costunit_id', '')
+    patient.costunit_id = int(costunit_kvg) if costunit_kvg else None
+    patient.medical_service_coverage_restriction = int(request.form.get('medical_service_coverage_restriction', 0)) or None
 
     # Cenplex: UVG/VVG Kostentraeger
     costunit_uvg = request.form.get('costunit_uvg_id', '')
@@ -353,6 +388,8 @@ def _save_patient(patient):
     patient.premium_payer_town = request.form.get('premium_payer_town', '')
     patient.premium_payer_kanton = request.form.get('premium_payer_kanton', '')
     patient.premium_payer_country = request.form.get('premium_payer_country', 'CH')
+    patient.premium_payer_address2 = request.form.get('premium_payer_address2', '')
+    patient.premium_payer_email = request.form.get('premium_payer_email', '')
 
     # Cenplex: Beruf, Hobbies, Zuweiser
     patient.hobbies = request.form.get('hobbies', '')
@@ -367,6 +404,8 @@ def _save_patient(patient):
     patient.vald_id = request.form.get('vald_id', '')
     patient.dividat_id = request.form.get('dividat_id', '')
     patient.mywellness_id = request.form.get('mywellness_id', '')
+    patient.milon_id = request.form.get('milon_id', '')
+    patient.mywellness_device_type = request.form.get('mywellness_device_type', '')
 
     # Cenplex: Kaution
     deposit_str = request.form.get('deposit_amount', '')
@@ -709,42 +748,51 @@ def api_search():
 @patients_bp.route('/api/check-duplicates')
 @login_required
 def api_check_duplicates():
-    """Duplikat-Erkennung: Sucht Patienten mit gleichem Geschlecht und Geburtsdatum
-    (Cenplex: GetPatientsBySexAndBirthday)"""
+    """Duplikat-Erkennung: Sucht Patienten mit gleichem Geschlecht und Geburtsdatum,
+    AHV-Nummer oder Versichertenkarten-Nr. (Cenplex: GetPatientsBySexAndBirthday)"""
     gender = request.args.get('gender', '').strip()
     dob_str = request.args.get('date_of_birth', '').strip()
     first_name = request.args.get('first_name', '').strip()
     last_name = request.args.get('last_name', '').strip()
+    ahv_number = request.args.get('ahv_number', '').strip()
+    card_id_val = request.args.get('card_id', '').strip()
     exclude_id = request.args.get('exclude_id', type=int)
 
-    if not dob_str:
-        return jsonify([])
-
-    dob = parse_date(dob_str)
-    if not dob:
-        return jsonify([])
-
     org_id = current_user.organization_id
-    query = Patient.query.filter_by(
-        organization_id=org_id,
-        is_active=True
-    )
+    duplicates = []
+
+    # Cenplex: AHV und Kartennummer sind natuerliche Schluessel - exakter Match
+    if ahv_number:
+        q = Patient.query.filter_by(organization_id=org_id, is_active=True) \
+            .filter(Patient.ahv_number == ahv_number)
+        if exclude_id:
+            q = q.filter(Patient.id != exclude_id)
+        duplicates = q.limit(10).all()
+
+    if not duplicates and card_id_val:
+        q = Patient.query.filter_by(organization_id=org_id, is_active=True) \
+            .filter(Patient.card_id == card_id_val)
+        if exclude_id:
+            q = q.filter(Patient.id != exclude_id)
+        duplicates = q.limit(10).all()
 
     # Primaer: Geschlecht + Geburtsdatum (Cenplex-Logik)
-    if gender:
-        query = query.filter_by(gender=gender)
-    query = query.filter_by(date_of_birth=dob)
+    if not duplicates and dob_str:
+        dob = parse_date(dob_str)
+        if dob:
+            query = Patient.query.filter_by(
+                organization_id=org_id, is_active=True, date_of_birth=dob
+            )
+            if gender:
+                query = query.filter_by(gender=gender)
+            if exclude_id:
+                query = query.filter(Patient.id != exclude_id)
+            duplicates = query.limit(10).all()
 
-    if exclude_id:
-        query = query.filter(Patient.id != exclude_id)
-
-    duplicates = query.limit(10).all()
-
-    # Sekundaer: Auch nach Name + Geburtsdatum suchen (erweiterte Erkennung)
+    # Sekundaer: Name-Match (erweiterte Erkennung)
     if not duplicates and first_name and last_name:
         query2 = Patient.query.filter_by(
-            organization_id=org_id,
-            is_active=True
+            organization_id=org_id, is_active=True
         ).filter(
             Patient.first_name.ilike(first_name),
             Patient.last_name.ilike(last_name)
@@ -856,18 +904,27 @@ def goals(patient_id):
     patient = Patient.query.get_or_404(patient_id)
     check_org(patient)
 
-    goals = TherapyGoal.query.filter_by(patient_id=patient.id) \
+    # Cenplex: Nur Top-Level-Ziele laden (parent_id IS NULL), Kinder werden verschachtelt
+    goals = TherapyGoal.query.filter_by(patient_id=patient.id, parent_id=None) \
         .order_by(TherapyGoal.created_at.desc()).all()
-    return jsonify([{
-        'id': g.id,
-        'description': g.description,
-        'target_value': g.target_value,
-        'current_value': g.current_value,
-        'achievement_percent': g.achievement_percent,
-        'status': g.status,
-        'series_id': g.series_id,
-        'created_at': g.created_at.isoformat() if g.created_at else ''
-    } for g in goals])
+
+    def goal_to_dict(g):
+        result = {
+            'id': g.id,
+            'description': g.description,
+            'target_value': g.target_value,
+            'current_value': g.current_value,
+            'achievement_percent': g.achievement_percent,
+            'status': g.status,
+            'series_id': g.series_id,
+            'due_date': g.due_date.isoformat() if g.due_date else '',
+            'finished_date': g.finished_date.isoformat() if g.finished_date else '',
+            'created_at': g.created_at.isoformat() if g.created_at else '',
+            'children': [goal_to_dict(c) for c in g.children.order_by(TherapyGoal.created_at).all()]
+        }
+        return result
+
+    return jsonify([goal_to_dict(g) for g in goals])
 
 
 @patients_bp.route('/<int:patient_id>/goals', methods=['POST'])
@@ -897,6 +954,16 @@ def save_goal(patient_id):
     series_id = data.get('series_id')
     goal.series_id = int(series_id) if series_id else None
 
+    parent_id = data.get('parent_id')
+    goal.parent_id = int(parent_id) if parent_id else None
+
+    due_date_str = data.get('due_date', '')
+    if due_date_str:
+        try:
+            goal.due_date = datetime.fromisoformat(due_date_str).date() if 'T' in due_date_str else datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
+
     try:
         goal.achievement_percent = int(data.get('achievement_percent', 0))
     except (ValueError, TypeError):
@@ -923,6 +990,13 @@ def finish_goal(patient_id, goal_id):
 
     goal.status = 'achieved'
     goal.achievement_percent = 100
+    goal.finished_date = datetime.now(timezone.utc)
+    # Cenplex: Alle Unterziele ebenfalls abschliessen
+    for child in goal.children.all():
+        if child.status != 'achieved':
+            child.status = 'achieved'
+            child.achievement_percent = 100
+            child.finished_date = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify({'success': True})
 

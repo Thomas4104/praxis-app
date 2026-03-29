@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Raumplanung{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Raumplanung</span>
+{% endblock %}
+
+{% block page_title %}Raumplanung{% endblock %}
+
+{% block content %}
+<!-- Wochen-Navigation -->
+<div class="week-nav">
+    {% set prev_week = week_start - timedelta(days=7) %}
+    {% set next_week = week_start + timedelta(days=7) %}
+    <a href="{{ url_for('employees.room_planning', date=prev_week.strftime('%Y-%m-%d')) }}" class="btn btn-secondary btn-sm">&laquo; Vorwoche</a>
+    <a href="{{ url_for('employees.room_planning') }}" class="btn btn-secondary btn-sm">Heute</a>
+    <span class="week-label">
+        KW {{ week_start.isocalendar()[1] }} &mdash; {{ week_start.strftime('%d.%m.') }} - {{ (week_start + timedelta(days=4)).strftime('%d.%m.%Y') }}
+    </span>
+    <a href="{{ url_for('employees.room_planning', date=next_week.strftime('%Y-%m-%d')) }}" class="btn btn-secondary btn-sm">Nächste &raquo;</a>
+</div>
+
+{% if rooms %}
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-body" style="overflow-x: auto;">
+        <table class="room-table">
+            <thead>
+                <tr>
+                    <th class="room-name-col">Raum</th>
+                    {% set day_names = ['Mo', 'Di', 'Mi', 'Do', 'Fr'] %}
+                    {% for d in week_dates %}
+                    <th class="day-col {% if d == today %}today-col{% endif %}">
+                        <div class="day-header">{{ day_names[loop.index0] }}</div>
+                        <div class="day-date">{{ d.strftime('%d.%m.') }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <td class="room-name-cell">
+                        <strong>{{ room.name }}</strong>
+                        {% if room.location %}
+                        <br><small class="text-muted">{{ room.location.name }}</small>
+                        {% endif %}
+                    </td>
+                    {% for d in week_dates %}
+                    {% set appts = room_appointment_map.get((room.id, d), []) %}
+                    <td class="day-cell {% if d == today %}today-cell{% endif %}">
+                        {% if appts %}
+                        {% for appt in appts | sort(attribute='start_time') %}
+                        <div class="room-appt" title="{{ appt.title or 'Termin' }} - {{ appt.patient.first_name if appt.patient else '' }} {{ appt.patient.last_name if appt.patient else '' }}">
+                            <span class="appt-time">{{ appt.start_time.strftime('%H:%M') }}-{{ appt.end_time.strftime('%H:%M') }}</span>
+                            <span class="appt-info">
+                                {% if appt.patient %}{{ appt.patient.last_name }}{% endif %}
+                                {% if appt.employee %}<small>({{ appt.employee.user.first_name[0] }}{{ appt.employee.user.last_name[0] }})</small>{% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <span class="text-muted room-free">Frei</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info" style="margin-top: var(--spacing-lg);">
+    Keine Räume konfiguriert. Bitte erstellen Sie zuerst Räume unter Ressourcen.
+</div>
+{% endif %}
+
+<!-- Legende -->
+<div class="room-legend" style="margin-top: var(--spacing-md);">
+    <span class="legend-item"><span class="legend-dot" style="background: var(--color-primary);"></span> Belegt</span>
+    <span class="legend-item"><span class="legend-dot" style="background: var(--color-gray-300);"></span> Frei</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.week-nav { display: flex; align-items: center; gap: var(--spacing-sm); }
+.week-label { font-weight: 600; font-size: var(--font-size-lg); margin: 0 var(--spacing-md); }
+.room-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.room-table th { padding: var(--spacing-sm); border-bottom: 2px solid var(--color-gray-200); text-align: center; }
+.room-name-col { text-align: left !important; min-width: 140px; }
+.day-col { min-width: 160px; }
+.day-header { font-weight: 600; }
+.day-date { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+.today-col { background: var(--color-primary-50, #e3f2fd); }
+.today-cell { background: var(--color-primary-50, #f0f7ff); }
+.room-table td { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-gray-100); vertical-align: top; }
+.room-name-cell { font-size: var(--font-size-sm); }
+.day-cell { min-height: 60px; }
+.room-appt { background: var(--color-primary-50, #e3f2fd); border-left: 3px solid var(--color-primary); padding: 3px 6px; border-radius: var(--radius-sm); margin-bottom: 3px; font-size: var(--font-size-xs); }
+.appt-time { font-weight: 600; display: block; }
+.appt-info { color: var(--color-gray-600); }
+.appt-info small { color: var(--color-gray-400); }
+.room-free { font-size: var(--font-size-xs); }
+.text-muted { color: var(--color-gray-400); }
+.room-legend { display: flex; gap: var(--spacing-md); }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); color: var(--color-gray-600); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+{% endblock %}

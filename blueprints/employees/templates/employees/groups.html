@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzergruppen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Benutzergruppen</span>
+{% endblock %}
+
+{% block page_title %}Benutzergruppen{% endblock %}
+
+{% block content %}
+<div class="groups-layout">
+    <!-- Bestehende Gruppen -->
+    <div class="groups-list">
+        {% if group_data %}
+        {% for item in group_data %}
+        <div class="card group-card">
+            <div class="card-header">
+                <h3>{{ item.group.title }}</h3>
+                <div class="card-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="editGroup({{ item.group.id }}, '{{ item.group.title }}', '{{ item.group.description or '' }}', [{{ item.members | map(attribute='id') | join(',') }}])">
+                        Bearbeiten
+                    </button>
+                    <form method="POST" action="{{ url_for('employees.delete_employee_group_page', group_id=item.group.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Gruppe wirklich löschen?')">Löschen</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if item.group.description %}
+                <p class="text-muted" style="margin-bottom: var(--spacing-sm);">{{ item.group.description }}</p>
+                {% endif %}
+                <div class="group-members">
+                    <strong>{{ item.members | length }} Mitglieder:</strong>
+                    <div class="member-list">
+                        {% for member in item.members %}
+                        <span class="member-badge">
+                            <span class="member-avatar" style="background-color: {{ member.color_code or '#4a90d9' }}">
+                                {{ member.user.first_name[0] }}{{ member.user.last_name[0] }}
+                            </span>
+                            {{ member.user.first_name }} {{ member.user.last_name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">Noch keine Benutzergruppen definiert.</div>
+        {% endif %}
+    </div>
+
+    <!-- Neue Gruppe erstellen -->
+    <div class="card" id="groupForm">
+        <div class="card-header">
+            <h3 id="groupFormTitle">Neue Benutzergruppe</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('employees.save_employee_group_page') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="group_id" id="edit_group_id" value="">
+
+                <div class="form-group">
+                    <label for="title" class="form-label required">Gruppenname</label>
+                    <input type="text" id="group_title" name="title" class="form-input" required placeholder="z.B. Physiotherapeuten">
+                </div>
+
+                <div class="form-group">
+                    <label for="description" class="form-label">Beschreibung</label>
+                    <textarea id="group_description" name="description" class="form-textarea" rows="2" placeholder="Optionale Beschreibung"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Mitglieder</label>
+                    <div class="member-checkboxes">
+                        {% for emp in employees %}
+                        <label class="form-checkbox-card">
+                            <input type="checkbox" name="member_ids" value="{{ emp.id }}">
+                            <span class="member-avatar-small" style="background-color: {{ emp.color_code or '#4a90d9' }}">
+                                {{ emp.user.first_name[0] }}{{ emp.user.last_name[0] }}
+                            </span>
+                            <span>{{ emp.user.first_name }} {{ emp.user.last_name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">Zurücksetzen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editGroup(id, title, description, memberIds) {
+    document.getElementById('edit_group_id').value = id;
+    document.getElementById('group_title').value = title;
+    document.getElementById('group_description').value = description;
+    document.getElementById('groupFormTitle').textContent = 'Benutzergruppe bearbeiten';
+
+    // Alle Checkboxen zuruecksetzen
+    document.querySelectorAll('input[name="member_ids"]').forEach(cb => {
+        cb.checked = memberIds.includes(parseInt(cb.value));
+    });
+
+    document.getElementById('groupForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('edit_group_id').value = '';
+    document.getElementById('group_title').value = '';
+    document.getElementById('group_description').value = '';
+    document.getElementById('groupFormTitle').textContent = 'Neue Benutzergruppe';
+    document.querySelectorAll('input[name="member_ids"]').forEach(cb => cb.checked = false);
+}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.groups-layout { display: grid; grid-template-columns: 1fr 400px; gap: var(--spacing-lg); align-items: start; }
+.groups-list { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.group-card .card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-actions { display: flex; gap: var(--spacing-xs); }
+.member-list { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
+.member-badge { display: inline-flex; align-items: center; gap: var(--spacing-xs); padding: 2px 10px 2px 2px; background: var(--color-gray-50); border-radius: var(--radius-full); font-size: var(--font-size-sm); }
+.member-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: 600; }
+.member-avatar-small { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.member-checkboxes { display: flex; flex-direction: column; gap: var(--spacing-xs); max-height: 300px; overflow-y: auto; }
+.form-checkbox-card { display: flex; align-items: center; gap: var(--spacing-sm); padding: var(--spacing-xs) var(--spacing-sm); border: 1px solid var(--color-gray-200); border-radius: var(--radius-md); cursor: pointer; transition: all var(--transition-fast); }
+.form-checkbox-card:hover { border-color: var(--color-primary); background: var(--color-gray-50); }
+.text-muted { color: var(--color-gray-500); font-size: var(--font-size-sm); }
+@media (max-width: 768px) {
+    .groups-layout { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

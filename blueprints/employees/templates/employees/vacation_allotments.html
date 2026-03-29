@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Ferienkontingente {{ year }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('employees.index') }}">Mitarbeiter</a>
+<span class="breadcrumb-sep">/</span>
+<span>Ferienkontingente</span>
+{% endblock %}
+
+{% block page_title %}Ferienkontingente {{ year }}{% endblock %}
+
+{% block content %}
+<!-- Jahres-Navigation -->
+<div class="filter-bar" style="margin-bottom: var(--spacing-lg);">
+    <a href="{{ url_for('employees.vacation_allotments_page', year=year-1) }}" class="btn btn-secondary btn-sm">&laquo; {{ year - 1 }}</a>
+    <span style="font-weight: 600; font-size: var(--font-size-lg); margin: 0 var(--spacing-md);">{{ year }}</span>
+    <a href="{{ url_for('employees.vacation_allotments_page', year=year+1) }}" class="btn btn-secondary btn-sm">{{ year + 1 }} &raquo;</a>
+</div>
+
+<form method="POST" action="{{ url_for('employees.save_vacation_allotments_page') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="year" value="{{ year }}">
+
+    <div class="card">
+        <div class="card-body" style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Mitarbeiter</th>
+                        <th>Pensum (%)</th>
+                        <th>Ferientage</th>
+                        <th>Stunden</th>
+                        <th>Std./Tag</th>
+                        <th>Bemerkung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    {% set allot = allotment_map.get(emp.id) %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('employees.detail', employee_id=emp.id) }}">
+                                {{ emp.user.first_name }} {{ emp.user.last_name }}
+                            </a>
+                        </td>
+                        <td>
+                            <input type="number" name="pensum_{{ emp.id }}" class="form-input form-input-sm"
+                                   value="{{ allot.pensum if allot and allot.pensum else emp.pensum_percent }}"
+                                   min="1" max="100" style="width: 80px;">
+                        </td>
+                        <td>
+                            <input type="number" name="days_{{ emp.id }}" class="form-input form-input-sm"
+                                   value="{{ allot.days if allot and allot.days else '' }}"
+                                   step="0.5" min="0" style="width: 80px;" placeholder="25">
+                        </td>
+                        <td>
+                            <input type="number" name="hours_{{ emp.id }}" class="form-input form-input-sm"
+                                   value="{{ allot.hours if allot and allot.hours else '' }}"
+                                   step="0.5" min="0" style="width: 80px;">
+                        </td>
+                        <td>
+                            <input type="number" name="hours_per_day_{{ emp.id }}" class="form-input form-input-sm"
+                                   value="{{ allot.hours_per_day if allot and allot.hours_per_day else '' }}"
+                                   step="0.1" min="0" style="width: 80px;" placeholder="8.4">
+                        </td>
+                        <td>
+                            <input type="text" name="comments_{{ emp.id }}" class="form-input form-input-sm"
+                                   value="{{ allot.comments if allot else '' }}"
+                                   style="min-width: 150px;" placeholder="Bemerkung">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="form-actions" style="margin-top: var(--spacing-lg);">
+        <a href="{{ url_for('employees.index') }}" class="btn btn-secondary">Zurück</a>
+        <button type="submit" class="btn btn-primary">Alle Kontingente speichern</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.data-table th { text-align: left; padding: var(--spacing-sm); border-bottom: 2px solid var(--color-gray-200); color: var(--color-gray-500); font-weight: 500; white-space: nowrap; }
+.data-table td { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-gray-100); }
+.form-input-sm { padding: 4px 8px; font-size: var(--font-size-sm); }
+.filter-bar { display: flex; align-items: center; }
+</style>
+{% endblock %}
