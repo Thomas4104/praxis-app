@@ -58,6 +58,7 @@ class Organization(db.Model):
     reminder_days_1 = db.Column(db.Integer, default=30)
     reminder_days_2 = db.Column(db.Integer, default=60)
     reminder_days_3 = db.Column(db.Integer, default=90)
+    opening_timeschedule_valid_until = db.Column(db.Date)  # Cenplex: Oeffnungszeiten gueltig bis
     reminder_fee_1 = db.Column(db.Numeric(10, 2), default=0)
     reminder_fee_2 = db.Column(db.Numeric(10, 2), default=0)
     reminder_fee_3 = db.Column(db.Numeric(10, 2), default=0)
@@ -245,7 +246,7 @@ class Employee(db.Model):
     work_schedules = db.relationship('WorkSchedule', backref='employee', lazy='dynamic')
     absences = db.relationship('Absence', backref='employee', lazy='dynamic')
     appointments = db.relationship('Appointment', backref='employee', lazy='dynamic')
-    treatment_series = db.relationship('TreatmentSeries', backref='therapist', lazy='dynamic')
+    treatment_series = db.relationship('TreatmentSeries', foreign_keys='TreatmentSeries.therapist_id', backref='therapist', lazy='dynamic')
 
 
 class WorkSchedule(db.Model):
@@ -403,6 +404,7 @@ class Patient(db.Model):
     premium_payer_lastname = db.Column(db.String(100))
     premium_payer_company = db.Column(db.String(200))
     premium_payer_address = db.Column(db.String(300))
+    premium_payer_address2 = db.Column(db.String(300))  # Cenplex: 2. Adresszeile Premium-Zahler
     premium_payer_zipcode = db.Column(db.String(10))
     premium_payer_town = db.Column(db.String(100))
     premium_payer_kanton = db.Column(db.String(5))
@@ -463,7 +465,7 @@ class Patient(db.Model):
     sportsclub = db.relationship('Contact', foreign_keys=[sportsclub_id])
     doctor = db.relationship('Doctor', foreign_keys=[doctor_id])
     referenced_by = db.relationship('Contact', foreign_keys=[referenced_by_id])
-    treatment_series = db.relationship('TreatmentSeries', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
+    treatment_series = db.relationship('TreatmentSeries', foreign_keys='TreatmentSeries.patient_id', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
     appointments = db.relationship('Appointment', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
     invoices = db.relationship('Invoice', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
     documents = db.relationship('PatientDocument', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
@@ -557,7 +559,7 @@ class Doctor(db.Model):
     is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    treatment_series = db.relationship('TreatmentSeries', backref='prescribing_doctor', lazy='dynamic')
+    treatment_series = db.relationship('TreatmentSeries', foreign_keys='TreatmentSeries.prescribing_doctor_id', backref='prescribing_doctor', lazy='dynamic')
 
 
 class Contact(db.Model):
@@ -834,6 +836,7 @@ class TreatmentSeries(db.Model):
     doctor_report_id = db.Column(db.Integer)
     series_finding_id = db.Column(db.Integer, db.ForeignKey('clinical_findings.id'))
     planning_info_json = db.Column(db.Text)
+    billing_case = db.Column(db.Integer, default=0)  # Cenplex: 0=KVG, 1=Suva, 2=Militaer, 3=Privat, 4=Spital, 5=IV, 6=VVG
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -890,7 +893,7 @@ class ClinicalFinding(db.Model):
 
     # Beziehungen
     patient = db.relationship('Patient', backref=db.backref('findings', lazy='dynamic'))
-    series = db.relationship('TreatmentSeries', backref=db.backref('findings', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref=db.backref('findings', lazy='dynamic'))
     template = db.relationship('FindingTemplate')
     created_by = db.relationship('User')
 
@@ -1001,6 +1004,12 @@ class Appointment(db.Model):
     last_sms_sent = db.Column(db.DateTime)
     email_triggered = db.Column(db.Boolean, default=False)
     max_participants = db.Column(db.Integer, nullable=True)  # Max. Teilnehmer bei Gruppentherapie
+    # Cenplex Review: Fehlende Terminfelder
+    taxpoints_json = db.Column(db.Text)  # JSON: Taxpunkte/Tarifpositionen
+    emr_positions_json = db.Column(db.Text)  # JSON: EMR-Positionen
+    is_urgent = db.Column(db.Boolean, default=False)  # Dringender Termin
+    abo_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'))  # Abo-Zuordnung
+    treatment_template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))  # Behandlungsvorlage
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -1126,6 +1135,16 @@ class Invoice(db.Model):
     inv_verification_key = db.Column(db.String(100))
     inv_verification_key_valid_until = db.Column(db.DateTime)
     md_id = db.Column(db.Integer)
+    # Cenplex Review: Fehlende Rechnungsfelder
+    inv_template_id = db.Column(db.Integer)  # Rechnungsvorlage-ID
+    inv_template_name = db.Column(db.String(200))  # Vorlagen-Name
+    credit_is_being_used = db.Column(db.Boolean, default=False)  # Guthaben wird verwendet
+    send_copy_time = db.Column(db.Integer)  # Kopie-Versand Zeitpunkt
+    attach_kogu_only = db.Column(db.Boolean, default=False)  # Nur Kostengutsprache anhaengen
+    assigned_credit = db.Column(db.Integer)  # Zugewiesenes Guthaben
+    inv_comment = db.Column(db.Text)  # Oeffentlicher Kommentar (getrennt von internal_comment)
+    has_taxpoint_issues = db.Column(db.Boolean, default=False)  # Taxpunkt-Probleme
+    abo_break_id = db.Column(db.Integer)  # Abo-Unterbruch Referenz
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -1160,6 +1179,7 @@ class InvoiceItem(db.Model):
     valuta_date = db.Column(db.Date)  # fuer MwSt-Satz
     is_credit = db.Column(db.Boolean, default=False)
     remark = db.Column(db.Text)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'))  # Cenplex: Produkt-Zuordnung
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -1180,6 +1200,7 @@ class Payment(db.Model):
     payed_too_much = db.Column(db.Boolean, default=False)
     is_from_file = db.Column(db.Boolean, default=False)  # Aus CAMT-Import
     is_inkasso = db.Column(db.Boolean, default=False)
+    for_deleted_invoice_id = db.Column(db.Integer)  # Cenplex: Fuer geloeschte Rechnung
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -1380,7 +1401,7 @@ class Task(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     related_patient = db.relationship('Patient', backref='tasks')
-    related_series = db.relationship('TreatmentSeries', backref='tasks')
+    related_series = db.relationship('TreatmentSeries', foreign_keys=[related_series_id], backref='tasks')
     related_invoice = db.relationship('Invoice', backref='tasks')
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='assigned_tasks')
     created_by = db.relationship('User', foreign_keys=[created_by_id], backref='created_tasks')
@@ -1528,7 +1549,7 @@ class TherapyGoal(db.Model):
     status = db.Column(db.String(20), default='open')  # open, in_progress, achieved
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    series = db.relationship('TreatmentSeries', backref=db.backref('goals', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref=db.backref('goals', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('therapy_goals', lazy='dynamic'))
 
 
@@ -1547,7 +1568,7 @@ class Milestone(db.Model):
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    series = db.relationship('TreatmentSeries', backref=db.backref('milestones', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref=db.backref('milestones', lazy='dynamic'))
     patient = db.relationship('Patient', backref=db.backref('milestones', lazy='dynamic'))
 
 
@@ -1569,7 +1590,7 @@ class Measurement(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref=db.backref('measurements', lazy='dynamic'))
-    series = db.relationship('TreatmentSeries', backref=db.backref('measurements', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref=db.backref('measurements', lazy='dynamic'))
     appointment = db.relationship('Appointment', backref=db.backref('measurements', lazy='dynamic'))
     measured_by = db.relationship('Employee', backref=db.backref('measurements_taken', lazy='dynamic'))
 
@@ -1586,7 +1607,7 @@ class HealingPhase(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    series = db.relationship('TreatmentSeries', backref=db.backref('healing_phases', lazy='dynamic'))
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref=db.backref('healing_phases', lazy='dynamic'))
 
 
 # ============================================================
@@ -2051,6 +2072,35 @@ class SubscriptionTemplate(db.Model):
     access_hours_json = db.Column(db.Text)  # JSON: z.B. {"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}
     location_id = db.Column(db.Integer, db.ForeignKey('locations.id'), nullable=True)  # null = alle Standorte
     is_active = db.Column(db.Boolean, default=True)
+    # Cenplex AbotemplateDto: Erweiterte Abo-Vorlagen-Felder
+    sub_duration_type = db.Column(db.Integer, default=0)  # 0=Monate, 1=Tage
+    payment_type = db.Column(db.Integer, default=0)  # Zahlungsart
+    sub_payment_rates = db.Column(db.Integer, default=1)  # Zahlungsraten
+    price_once = db.Column(db.Numeric(10, 2))  # Einmalpreis
+    price_month = db.Column(db.Numeric(10, 2))  # Monatspreis
+    price_rate = db.Column(db.Numeric(10, 2))  # Ratenpreis
+    price_batch_depot = db.Column(db.Numeric(10, 2))  # Batch-Depot-Preis
+    price_break_penalty = db.Column(db.Numeric(10, 2))  # Strafgebuehr
+    sub_access_start_time = db.Column(db.Time)  # Zugangszeit von
+    sub_access_end_time = db.Column(db.Time)  # Zugangszeit bis
+    sub_training_controls = db.Column(db.Integer, default=0)  # Trainingskontrollen
+    sub_credit_amount = db.Column(db.Numeric(10, 2))  # Guthabenbetrag
+    no_sync_egym = db.Column(db.Boolean, default=False)
+    no_sync_milon = db.Column(db.Boolean, default=False)
+    no_sync_mywellness = db.Column(db.Boolean, default=False)
+    gantner_devices = db.Column(db.Text)
+    gantner_locations = db.Column(db.Text)
+    gantner_only_valid_abos = db.Column(db.Boolean, default=False)
+    valid_times = db.Column(db.Text)  # JSON: Gueltige Zeiten
+    sub_tags = db.Column(db.String(500))  # Tags
+    linked_series_template_id = db.Column(db.Integer, db.ForeignKey('treatment_series_templates.id'))  # Serienvorlage
+    one_appointment_per_day = db.Column(db.Boolean, default=False)
+    book_appointment_for_visit = db.Column(db.Boolean, default=False)
+    use_visits_and_duration = db.Column(db.Boolean, default=False)
+    sub_visits = db.Column(db.Integer)  # Anzahl Besuche
+    no_sync_dividat = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)
+    sub_position = db.Column(db.Integer, default=0)  # Sortierung
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('subscription_templates', lazy='dynamic'))
@@ -2076,6 +2126,44 @@ class Subscription(db.Model):
     paused_from = db.Column(db.Date)
     paused_until = db.Column(db.Date)
     visits_used = db.Column(db.Integer, default=0)
+    # Cenplex AboDto: Erweiterte Abo-Felder
+    duration = db.Column(db.Integer)  # Laufzeit
+    duration_type = db.Column(db.Integer, default=0)  # 0=Monate, 1=Tage, 2=Wochen
+    training_controls = db.Column(db.Integer, default=0)  # Trainingskontrollen
+    number_of_visits = db.Column(db.Integer, default=0)  # Anzahl Besuche
+    abo_type = db.Column(db.Integer, default=0)  # Abo-Typ
+    payment_rates = db.Column(db.Integer, default=1)  # Zahlungsraten
+    price = db.Column(db.Numeric(10, 2))  # Preis
+    price_break_penalty = db.Column(db.Numeric(10, 2))  # Strafgebuehr bei Pause
+    access_start_time = db.Column(db.Time)  # Zugangszeit von
+    access_end_time = db.Column(db.Time)  # Zugangszeit bis
+    contract_print_date = db.Column(db.DateTime)  # Vertrag gedruckt am
+    qualicert_print_date = db.Column(db.DateTime)  # Qualicert gedruckt am
+    discount = db.Column(db.Numeric(10, 2), default=0)  # Rabatt
+    abo_message = db.Column(db.Text)  # Nachricht an Kunde
+    message_valid_until = db.Column(db.DateTime)  # Nachricht gueltig bis
+    stop_reminding = db.Column(db.Boolean, default=False)  # Keine Erinnerungen
+    created_by_id = db.Column(db.Integer, db.ForeignKey('employees.id'))  # Erstellt von
+    supervisor_id = db.Column(db.Integer, db.ForeignKey('employees.id'))  # Betreuer
+    apply_vat = db.Column(db.Boolean, default=False)  # MwSt anwenden
+    include_vat = db.Column(db.Boolean, default=False)  # MwSt inklusive
+    contract_received_date = db.Column(db.DateTime)  # Vertrag erhalten am
+    series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))  # Serien-Zuordnung
+    credit_amount = db.Column(db.Numeric(10, 2))  # Guthabenbetrag
+    credit_series_id = db.Column(db.Integer, db.ForeignKey('treatment_series.id'))  # Guthaben-Serie
+    is_preferred_for_batch = db.Column(db.Boolean, default=False)  # Bevorzugt fuer Batch
+    no_sync_egym = db.Column(db.Boolean, default=False)  # Nicht mit eGym sync
+    no_sync_milon = db.Column(db.Boolean, default=False)  # Nicht mit Milon sync
+    no_sync_mywellness = db.Column(db.Boolean, default=False)  # Nicht mit MyWellness sync
+    gantner_devices = db.Column(db.Text)  # Gantner Geraete
+    gantner_locations = db.Column(db.Text)  # Gantner Standorte
+    gantner_only_valid_abos = db.Column(db.Boolean, default=False)  # Nur gueltige Abos
+    invoice_receiver_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Rechnungsempfaenger
+    referrer_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Vermittler
+    apply_vat_to_position_invoice = db.Column(db.Boolean, default=False)
+    include_vat_to_position_invoice = db.Column(db.Boolean, default=False)
+    no_sync_dividat = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)  # Soft Delete
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -2321,7 +2409,7 @@ class GroupAppointmentParticipant(db.Model):
 
     # Beziehungen
     patient = db.relationship('Patient')
-    series = db.relationship('TreatmentSeries')
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id])
 
 
 # ============================================================
@@ -2429,11 +2517,14 @@ class TreatmentPlan(db.Model):
     finished_reason = db.Column(db.Text)
     flag_alerts_json = db.Column(db.Text)  # JSON
     is_deleted = db.Column(db.Boolean, default=False)
+    main_general_plantag_id = db.Column(db.Integer)  # Cenplex: Haupt-Generalplantag
+    general_plantag_ids_json = db.Column(db.Text)  # Cenplex: Generalplantag-IDs
+    diagnose_ids_json = db.Column(db.Text)  # Cenplex: Diagnose-IDs
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     patient = db.relationship('Patient', backref='treatment_plans')
-    series = db.relationship('TreatmentSeries', backref='treatment_plans')
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref='treatment_plans')
     responsible = db.relationship('Employee', foreign_keys=[responsible_id])
     created_by = db.relationship('Employee', foreign_keys=[created_by_id])
     physician = db.relationship('Contact', foreign_keys=[physician_id])
@@ -2529,6 +2620,9 @@ class TreatmentCategory(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     is_deleted = db.Column(db.Boolean, default=False)
     sort_order = db.Column(db.Integer, default=0)
+    templates_json = db.Column(db.Text)  # Cenplex: JSON Template-IDs
+    therapists_json = db.Column(db.Text)  # Cenplex: JSON Therapeuten-IDs
+    tc_user_groups_json = db.Column(db.Text)  # Cenplex: JSON Benutzergruppen
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('treatment_categories', lazy='dynamic'))
@@ -2546,6 +2640,10 @@ class TreatmentSite(db.Model):
     city = db.Column(db.String(100))
     distance_km = db.Column(db.Numeric(10, 2))  # Distanz fuer Kilometerberechnung
     is_active = db.Column(db.Boolean, default=True)
+    ts_position = db.Column(db.Integer, default=0)  # Cenplex: Sortierung
+    is_deleted = db.Column(db.Boolean, default=False)  # Cenplex: Soft Delete
+    short_name = db.Column(db.String(20))  # Cenplex: Kurzbezeichnung
+    background_color = db.Column(db.Integer, default=0)  # Cenplex: Hintergrundfarbe
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('treatment_sites', lazy='dynamic'))
@@ -2570,6 +2668,12 @@ class AppointmentBlocker(db.Model):
     recurrence_json = db.Column(db.Text)  # JSON: Wiederholungsregel
     abo_id = db.Column(db.Integer, db.ForeignKey('subscriptions.id'))
     notes = db.Column(db.Text)
+    is_worktime = db.Column(db.Boolean, default=False)  # Cenplex: Arbeitszeit-Blocker
+    serie_appointment_id = db.Column(db.Integer, db.ForeignKey('appointment_series.id'))  # Cenplex: Serien-Termin
+    blocker_category_id = db.Column(db.Integer)  # Cenplex: Blocker-Kategorie
+    booking_date = db.Column(db.DateTime)  # Cenplex: Buchungsdatum
+    booking_type_id = db.Column(db.String(50))  # Cenplex: Buchungstyp
+    ab_description = db.Column(db.Text)  # Cenplex: Beschreibung
     is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -2592,6 +2696,13 @@ class AppointmentGroup(db.Model):
     is_recurring = db.Column(db.Boolean, default=False)
     recurrence_json = db.Column(db.Text)
     notes = db.Column(db.Text)
+    taxpoints_json = db.Column(db.Text)  # Cenplex: Taxpunkte
+    pauschal_price = db.Column(db.Numeric(10, 2))  # Cenplex: Pauschalpreis
+    is_pauschal = db.Column(db.Boolean, default=False)  # Cenplex: Pauschal-Flag
+    resources_json = db.Column(db.Text)  # Cenplex: Ressourcen-IDs
+    appointment_serie_id = db.Column(db.Integer, db.ForeignKey('appointment_series.id'))  # Cenplex: Serien-Zuordnung
+    last_sync = db.Column(db.DateTime)  # Cenplex: Letzte Synchronisation
+    hangout_url = db.Column(db.String(500))  # Cenplex: Video-URL
     is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -2716,7 +2827,7 @@ class TreatmentReport(db.Model):
     recipient_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))  # Empfaenger (Arzt)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    series = db.relationship('TreatmentSeries', backref='treatment_reports')
+    series = db.relationship('TreatmentSeries', foreign_keys=[series_id], backref='treatment_reports')
     treatment_plan = db.relationship('TreatmentPlan', backref='treatment_reports')
     patient = db.relationship('Patient', backref='treatment_reports')
     created_by = db.relationship('Employee', backref='treatment_reports')
@@ -2768,6 +2879,24 @@ class AppointmentSerie(db.Model):
     valid_from = db.Column(db.Date)
     valid_to = db.Column(db.Date)
     is_active = db.Column(db.Boolean, default=True)
+    # Cenplex Review: Fehlende Serien-Felder
+    series_type = db.Column(db.Integer, default=0)  # Serientyp
+    title = db.Column(db.String(200))  # Serientitel
+    description = db.Column(db.Text)  # Beschreibung
+    category = db.Column(db.String(100))  # Kategorie
+    series_template_id = db.Column(db.Integer)  # Serienvorlage
+    discount_series_template_id = db.Column(db.Integer)  # Rabatt-Serienvorlage
+    planned_participants = db.Column(db.Integer)  # Geplante Teilnehmer
+    planned_interval = db.Column(db.Integer)  # Intervall (Minuten/Tage)
+    planned_interval_type = db.Column(db.Integer)  # 0=taeglich, 1=woechentlich, 2=monatlich
+    online_available = db.Column(db.Boolean, default=False)  # Online buchbar
+    price = db.Column(db.Numeric(10, 2))  # Preis
+    discount_price = db.Column(db.Numeric(10, 2))  # Rabattpreis
+    last_sync = db.Column(db.DateTime)  # Letzter Sync
+    blocker_category_id = db.Column(db.Integer)  # Blocker-Kategorie
+    series_templates_json = db.Column(db.Text)  # JSON: Vorlagen-IDs
+    discount_series_templates_json = db.Column(db.Text)  # JSON: Rabatt-Vorlagen
+    is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     template = db.relationship('TreatmentSeriesTemplate', backref='appointment_series')
