@@ -60,6 +60,9 @@
             <span class="therapist-name">Raeume anzeigen</span>
         </label>
         {% endif %}
+        <span class="filter-separator">|</span>
+        <button class="btn btn-sm btn-secondary" id="openBlockerBtn" title="Sperrzeit erstellen" style="font-size:12px;padding:2px 8px;">+ Sperrzeit</button>
+        <button class="btn btn-sm btn-secondary" id="openWaitlistBtn" title="Warteliste anzeigen" style="font-size:12px;padding:2px 8px;">Warteliste</button>
     </div>
 
     <!-- Feiertags-Banner -->
@@ -199,24 +202,59 @@
                         <span class="detail-label">Notizen:</span>
                         <textarea id="detailNotes" class="form-control" rows="2"></textarea>
                     </div>
+                    <!-- Domizil: Kilometer-Button -->
+                    <div class="detail-info-row" id="detailMileageRow" style="display:none;">
+                        <span class="detail-label">Domizil:</span>
+                        <button class="btn btn-sm btn-secondary" id="detailMileageBtn">Kilometer berechnen</button>
+                    </div>
                 </div>
                 <div class="detail-soap">
-                    <h4>SOAP-Dokumentation</h4>
-                    <div class="form-group">
-                        <label>S — Subjektiv</label>
-                        <textarea id="detailSoapS" class="form-control" rows="2" placeholder="Beschwerden des Patienten..."></textarea>
+                    <!-- Tab-Navigation -->
+                    <div class="detail-tabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--gray-200);padding-bottom:8px;">
+                        <button class="btn btn-sm detail-tab active" data-tab="soap">SOAP</button>
+                        <button class="btn btn-sm detail-tab" data-tab="group" id="detailGroupTab" style="display:none;">Gruppe</button>
+                        <button class="btn btn-sm detail-tab" data-tab="messages">Nachrichten</button>
                     </div>
-                    <div class="form-group">
-                        <label>O — Objektiv</label>
-                        <textarea id="detailSoapO" class="form-control" rows="2" placeholder="Klinische Befunde..."></textarea>
+                    <!-- SOAP Tab -->
+                    <div id="detailTabSoap" class="detail-tab-content">
+                        <div class="form-group">
+                            <label>S — Subjektiv</label>
+                            <textarea id="detailSoapS" class="form-control" rows="2" placeholder="Beschwerden des Patienten..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>O — Objektiv</label>
+                            <textarea id="detailSoapO" class="form-control" rows="2" placeholder="Klinische Befunde..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>A — Assessment</label>
+                            <textarea id="detailSoapA" class="form-control" rows="2" placeholder="Beurteilung..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>P — Plan</label>
+                            <textarea id="detailSoapP" class="form-control" rows="2" placeholder="Weiteres Vorgehen..."></textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>A — Assessment</label>
-                        <textarea id="detailSoapA" class="form-control" rows="2" placeholder="Beurteilung..."></textarea>
+                    <!-- Gruppen-Teilnehmer Tab (Cenplex: GroupAppointmentModel) -->
+                    <div id="detailTabGroup" class="detail-tab-content" style="display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <strong>Teilnehmer</strong>
+                            <span id="detailGroupCount" style="color:var(--gray-500);font-size:12px;"></span>
+                        </div>
+                        <div id="detailGroupList" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <div class="patient-search-wrapper">
+                                <input type="text" id="groupPatientSearch" class="form-control form-control-sm" placeholder="Patient hinzufuegen..." autocomplete="off">
+                                <div class="patient-search-results" id="groupPatientResults"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>P — Plan</label>
-                        <textarea id="detailSoapP" class="form-control" rows="2" placeholder="Weiteres Vorgehen..."></textarea>
+                    <!-- Buchungsnachrichten Tab (Cenplex: BookingMessage) -->
+                    <div id="detailTabMessages" class="detail-tab-content" style="display:none;">
+                        <div id="detailMessagesList" style="max-height:200px;overflow-y:auto;margin-bottom:8px;"></div>
+                        <div style="display:flex;gap:4px;">
+                            <input type="text" id="detailMessageInput" class="form-control form-control-sm" placeholder="Nachricht schreiben..." maxlength="1000">
+                            <button class="btn btn-sm btn-primary" id="detailMessageSend">Senden</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -269,6 +307,236 @@
         <div class="modal-footer">
             <button class="btn btn-secondary" id="cancelAbort">Abbrechen</button>
             <button class="btn btn-danger" id="cancelConfirm">Absagen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Blocker-Erstellungs-Modal (Cenplex: BlockerPlanerDialogViewModel) -->
+<div class="modal-overlay" id="blockerModal" style="display: none;">
+    <div class="modal-content modal-md">
+        <div class="modal-header">
+            <h3>Sperrzeit erstellen</h3>
+            <button class="modal-close" id="blockerClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Typ (Cenplex: AllBlockerTypes)</label>
+                <select id="blockerType" class="form-control">
+                    <option value="0">Manuell / Sonstiges</option>
+                    <option value="1">Adminzeit</option>
+                    <option value="2">Gratiszeit</option>
+                    <option value="3">Gruppenblock</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Titel</label>
+                <input type="text" id="blockerTitle" class="form-control" placeholder="z.B. Mittagspause, Teamsitzung...">
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Mitarbeiter</label>
+                    <div id="blockerEmployees" style="max-height:120px;overflow-y:auto;">
+                        {% for emp in employees %}
+                        <label class="checkbox-label" style="display:block;margin-bottom:4px;">
+                            <input type="checkbox" name="blocker_emp" value="{{ emp.id }}">
+                            {{ emp.user.first_name }} {{ emp.user.last_name }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Raum (optional)</label>
+                    <select id="blockerResource" class="form-control">
+                        <option value="">— Kein Raum —</option>
+                        {% for room in rooms %}
+                        <option value="{{ room.id }}">{{ room.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Startdatum</label>
+                    <input type="date" id="blockerStartDate" class="form-control" value="{{ current_date.isoformat() }}">
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Enddatum</label>
+                    <input type="date" id="blockerEndDate" class="form-control" value="{{ current_date.isoformat() }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Startzeit</label>
+                    <input type="time" id="blockerStartTime" class="form-control" value="12:00">
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Endzeit</label>
+                    <input type="time" id="blockerEndTime" class="form-control" value="13:00">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Wiederholung</label>
+                    <select id="blockerInterval" class="form-control">
+                        <option value="once">Einmalig</option>
+                        <option value="daily">Taeglich (Mo-Fr)</option>
+                        <option value="weekly">Woechentlich</option>
+                        <option value="biweekly">Alle 2 Wochen</option>
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label" style="margin-top:28px;">
+                        <input type="checkbox" id="blockerIgnoreWorktimes"> Arbeitszeiten ignorieren
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Notiz</label>
+                <textarea id="blockerNotes" class="form-control" rows="2" placeholder="Optionale Notiz..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="blockerCancel">Abbrechen</button>
+            <button class="btn btn-primary" id="blockerSave">Sperrzeit erstellen</button>
+        </div>
+    </div>
+</div>
+
+<!-- Warteliste-Panel (Cenplex: WaitListViewModel) -->
+<div class="modal-overlay" id="waitlistModal" style="display: none;">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>Warteliste</h3>
+            <button class="modal-close" id="waitlistClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row" style="margin-bottom:12px;">
+                <div class="form-group form-group-half">
+                    <label>Filter: Therapeut</label>
+                    <select id="waitlistFilterEmp" class="form-control form-control-sm">
+                        <option value="">Alle</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group form-group-half" style="display:flex;align-items:flex-end;">
+                    <button class="btn btn-sm btn-secondary" id="waitlistRefresh" style="margin-right:8px;">Aktualisieren</button>
+                    <button class="btn btn-sm btn-primary" id="waitlistAdd">+ Patient hinzufuegen</button>
+                </div>
+            </div>
+            <div id="waitlistEntries" style="max-height:400px;overflow-y:auto;">
+                <p style="color:var(--gray-500);padding:16px;">Wird geladen...</p>
+            </div>
+            <!-- Schnell-Einplanung -->
+            <div id="waitlistSchedulePanel" style="display:none;margin-top:12px;padding:12px;background:var(--gray-50);border-radius:8px;">
+                <h4 style="margin-bottom:8px;">Einplanen: <span id="waitlistSchedulePatient"></span></h4>
+                <div class="form-row">
+                    <div class="form-group form-group-half">
+                        <label>Therapeut</label>
+                        <select id="waitlistScheduleEmp" class="form-control form-control-sm">
+                            {% for emp in employees %}
+                            <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group form-group-half">
+                        <label>Datum / Uhrzeit</label>
+                        <input type="datetime-local" id="waitlistScheduleTime" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div id="waitlistSuggestions" style="margin-top:8px;"></div>
+                <div style="margin-top:8px;text-align:right;">
+                    <button class="btn btn-sm btn-secondary" id="waitlistScheduleCancel">Abbrechen</button>
+                    <button class="btn btn-sm btn-primary" id="waitlistScheduleConfirm">Einplanen</button>
+                </div>
+            </div>
+        </div>
+        <!-- Neuen Eintrag hinzufuegen -->
+        <div id="waitlistAddPanel" style="display:none;padding:12px 16px;border-top:1px solid var(--gray-200);">
+            <h4 style="margin-bottom:8px;">Neuer Warteliste-Eintrag</h4>
+            <div class="form-group">
+                <label>Patient</label>
+                <div class="patient-search-wrapper">
+                    <input type="text" id="wlPatientSearch" class="form-control form-control-sm" placeholder="Patient suchen..." autocomplete="off">
+                    <div class="patient-search-results" id="wlPatientResults"></div>
+                </div>
+                <input type="hidden" id="wlPatientId">
+                <div id="wlPatientDisplay" class="selected-patient" style="display:none;"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Behandlung</label>
+                    <select id="wlTemplate" class="form-control form-control-sm">
+                        <option value="">— Vorlage waehlen —</option>
+                        {% for t in templates %}
+                        <option value="{{ t.id }}">{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Bevorzugter Therapeut</label>
+                    <select id="wlPrefEmployee" class="form-control form-control-sm">
+                        <option value="">Egal</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}">{{ emp.user.first_name }} {{ emp.user.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Bevorzugte Tage</label>
+                <div style="display:flex;gap:8px;">
+                    <label class="checkbox-label"><input type="checkbox" name="wl_day" value="0"> Mo</label>
+                    <label class="checkbox-label"><input type="checkbox" name="wl_day" value="1"> Di</label>
+                    <label class="checkbox-label"><input type="checkbox" name="wl_day" value="2"> Mi</label>
+                    <label class="checkbox-label"><input type="checkbox" name="wl_day" value="3"> Do</label>
+                    <label class="checkbox-label"><input type="checkbox" name="wl_day" value="4"> Fr</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Bevorzugte Zeiten</label>
+                <div style="display:flex;gap:8px;">
+                    <label class="checkbox-label"><input type="checkbox" name="wl_time" value="08:00-12:00"> Morgens</label>
+                    <label class="checkbox-label"><input type="checkbox" name="wl_time" value="13:00-17:00"> Nachmittags</label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label>Prioritaet</label>
+                    <select id="wlPriority" class="form-control form-control-sm">
+                        <option value="0">Normal</option>
+                        <option value="1">Hoch</option>
+                        <option value="2">Dringend</option>
+                    </select>
+                </div>
+                <div class="form-group form-group-half">
+                    <label>Notiz</label>
+                    <input type="text" id="wlNotes" class="form-control form-control-sm" placeholder="Optionale Notiz...">
+                </div>
+            </div>
+            <div style="text-align:right;margin-top:8px;">
+                <button class="btn btn-sm btn-secondary" id="wlAddCancel">Abbrechen</button>
+                <button class="btn btn-sm btn-primary" id="wlAddSave">Hinzufuegen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Kilometerberechnung-Dialog (Cenplex: MileageCalculationViewModel) -->
+<div class="modal-overlay" id="mileageModal" style="display: none;">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h3>Kilometerberechnung</h3>
+            <button class="modal-close" id="mileageClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="mileageContent">
+                <p style="color:var(--gray-500);">Wird geladen...</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="mileageCloseBtn">Schliessen</button>
         </div>
     </div>
 </div>

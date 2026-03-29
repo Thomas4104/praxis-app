@@ -16,6 +16,7 @@
 
     // Globaler State
     let appointments = [];
+    let blockers = [];
     let workSchedules = {};
     let absences = [];
     let holidays = [];
@@ -80,6 +81,10 @@
         setupDetailModal();
         setupCancelModal();
         setupTherapistFilters();
+        setupBlockerModal();
+        setupWaitlistModal();
+        setupDetailTabs();
+        setupMileageModal();
 
         // Polling alle 30 Sekunden
         setInterval(function() { loadDayData(true); }, 30000);
@@ -277,14 +282,17 @@
             fetchJSON(BASE_URL + '/api/appointments?date=' + dateStr + '&location_id=' + (CFG.locationId || '') + '&employee_ids=' + empIds),
             fetchJSON(BASE_URL + '/api/work-schedules?date=' + dateStr + '&employee_ids=' + empIds),
             fetchJSON(BASE_URL + '/api/absences?date=' + dateStr),
-            fetchJSON(BASE_URL + '/api/holidays?date=' + dateStr)
+            fetchJSON(BASE_URL + '/api/holidays?date=' + dateStr),
+            fetchJSON(BASE_URL + '/api/blockers?start=' + dateStr + 'T00:00:00&end=' + dateStr + 'T23:59:59&employee_ids=' + empIds)
         ]).then(function(results) {
             appointments = results[0];
             workSchedules = results[1];
             absences = results[2];
             holidays = results[3];
+            blockers = results[4] || [];
 
             renderDayAppointments();
+            renderBlockers();
             renderWorkingHours();
             renderAbsences();
             renderHolidayBanner();
@@ -859,6 +867,31 @@
         } else if (emailBtn) {
             emailBtn.style.display = 'none';
         }
+
+        // Gruppen-Tab anzeigen falls Gruppentherapie
+        var groupTab = document.getElementById('detailGroupTab');
+        if (groupTab) {
+            groupTab.style.display = appt.is_group ? 'inline-flex' : 'none';
+        }
+
+        // Domizil: Kilometer-Button anzeigen
+        var mileageRow = document.getElementById('detailMileageRow');
+        if (mileageRow) {
+            mileageRow.style.display = appt.is_domicile ? 'flex' : 'none';
+        }
+        var mileageBtn = document.getElementById('detailMileageBtn');
+        if (mileageBtn) {
+            // Event-Listener nur einmal setzen
+            mileageBtn.onclick = function() { openMileageDialog(appt.id); };
+        }
+
+        // Reset auf SOAP-Tab
+        document.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+        var soapTab = document.querySelector('.detail-tab[data-tab="soap"]');
+        if (soapTab) soapTab.classList.add('active');
+        document.querySelectorAll('.detail-tab-content').forEach(function(tc) { tc.style.display = 'none'; });
+        var soapContent = document.getElementById('detailTabSoap');
+        if (soapContent) soapContent.style.display = 'block';
     }
 
     function saveDetail() {
@@ -957,6 +990,8 @@
         setupQuickAddModal();
         setupDetailModal();
         setupCancelModal();
+        setupDetailTabs();
+        setupMileageModal();
 
         // Multi-Therapeut Filter: Checkboxen
         var filters = document.querySelectorAll('#weekTherapistFilters input[type="checkbox"]');
@@ -1592,6 +1627,539 @@
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // ==========================================================
+    // BLOCKER IM KALENDER ANZEIGEN (Cenplex: AppointmentBlocker)
+    // ==========================================================
+    function renderBlockers() {
+        // Bestehende Blocker-Bloecke entfernen
+        document.querySelectorAll('.blocker-block').forEach(function(el) { el.remove(); });
+
+        if (!blockers || !Array.isArray(blockers)) return;
+
+        var blockerTypeLabels = {0: 'Gesperrt', 1: 'Adminzeit', 2: 'Gratiszeit', 3: 'Gruppenblock'};
+        var blockerTypeColors = {0: '#dc3545', 1: '#fd7e14', 2: '#20c997', 3: '#6f42c1'};
+
+        blockers.forEach(function(b) {
+            var empBody = null;
+            if (b.employee_id) {
+                empBody = document.querySelector('.therapist-column-body[data-employee-id="' + b.employee_id + '"]');
+            }
+            var resBody = null;
+            if (b.resource_id) {
+                resBody = document.querySelector('.therapist-column-body[data-resource-id="' + b.resource_id + '"]');
+            }
+
+            var targets = [];
+            if (empBody) targets.push(empBody);
+            if (resBody) targets.push(resBody);
+            if (targets.length === 0) return;
+
+            var startDt = new Date(b.start_time);
+            var endDt = new Date(b.end_time);
+            var startMinutes = startDt.getHours() * 60 + startDt.getMinutes();
+            var endMinutes = endDt.getHours() * 60 + endDt.getMinutes();
+            var topPx = (startMinutes - START_HOUR * 60) * (SLOT_HEIGHT / 60);
+            var heightPx = (endMinutes - startMinutes) * (SLOT_HEIGHT / 60);
+            if (heightPx < QUARTER_HEIGHT) heightPx = QUARTER_HEIGHT;
+
+            var bType = b.blocker_type || 0;
+            var typeLabel = blockerTypeLabels[bType] || 'Gesperrt';
+            var typeColor = blockerTypeColors[bType] || '#dc3545';
+
+            targets.forEach(function(body) {
+                var block = document.createElement('div');
+                block.className = 'blocker-block';
+                block.dataset.blockerId = b.id;
+                block.style.top = topPx + 'px';
+                block.style.height = heightPx + 'px';
+                block.style.background = hexToRgba(typeColor, 0.15);
+                block.style.borderLeft = '3px solid ' + typeColor;
+                block.style.position = 'absolute';
+                block.style.left = '0';
+                block.style.right = '0';
+                block.style.zIndex = '2';
+                block.style.padding = '2px 4px';
+                block.style.fontSize = '11px';
+                block.style.color = darkenColor(typeColor, 0.7);
+                block.style.pointerEvents = 'auto';
+                block.style.cursor = 'pointer';
+                block.style.overflow = 'hidden';
+                block.style.borderRadius = '3px';
+
+                var timeStr = formatTime(startDt) + ' - ' + formatTime(endDt);
+                block.innerHTML =
+                    '<div style="font-weight:600;">' + escapeHtml(b.title || typeLabel) + '</div>' +
+                    '<div style="opacity:0.7;">' + timeStr + '</div>' +
+                    (b.is_recurring ? '<div style="opacity:0.6;font-size:10px;">Wiederkehrend</div>' : '');
+
+                // Klick: Loeschen-Option
+                block.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (confirm('Sperrzeit "' + (b.title || typeLabel) + '" loeschen?')) {
+                        fetchJSON(BASE_URL + '/api/blockers/' + b.id, { method: 'DELETE' })
+                            .then(function(result) {
+                                if (result.success) {
+                                    showToast('Sperrzeit geloescht', 'success');
+                                    loadDayData(true);
+                                }
+                            });
+                    }
+                });
+
+                body.appendChild(block);
+            });
+        });
+    }
+
+    // ==========================================================
+    // BLOCKER-ERSTELLUNGSDIALOG (Cenplex: BlockerPlanerDialogViewModel)
+    // ==========================================================
+    function setupBlockerModal() {
+        var modal = document.getElementById('blockerModal');
+        if (!modal) return;
+
+        var openBtn = document.getElementById('openBlockerBtn');
+        if (openBtn) {
+            openBtn.addEventListener('click', function() {
+                modal.style.display = 'flex';
+                document.getElementById('blockerStartDate').value = formatDate(currentDate);
+                document.getElementById('blockerEndDate').value = formatDate(currentDate);
+            });
+        }
+
+        document.getElementById('blockerClose').addEventListener('click', function() { modal.style.display = 'none'; });
+        document.getElementById('blockerCancel').addEventListener('click', function() { modal.style.display = 'none'; });
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+
+        document.getElementById('blockerSave').addEventListener('click', function() {
+            var empCheckboxes = document.querySelectorAll('#blockerEmployees input[name="blocker_emp"]:checked');
+            var empIds = [];
+            empCheckboxes.forEach(function(cb) { empIds.push(parseInt(cb.value)); });
+
+            var resourceId = document.getElementById('blockerResource').value;
+            if (empIds.length === 0 && !resourceId) {
+                showToast('Mindestens einen Mitarbeiter oder Raum waehlen', 'error');
+                return;
+            }
+
+            var title = document.getElementById('blockerTitle').value;
+            if (!title) {
+                var typeSelect = document.getElementById('blockerType');
+                title = typeSelect.options[typeSelect.selectedIndex].text;
+            }
+
+            fetchJSON(BASE_URL + '/api/blockers', {
+                method: 'POST',
+                body: JSON.stringify({
+                    employee_ids: empIds,
+                    resource_id: resourceId ? parseInt(resourceId) : null,
+                    title: title,
+                    blocker_type: parseInt(document.getElementById('blockerType').value),
+                    start_date: document.getElementById('blockerStartDate').value,
+                    end_date: document.getElementById('blockerEndDate').value,
+                    start_time: document.getElementById('blockerStartTime').value,
+                    end_time: document.getElementById('blockerEndTime').value,
+                    interval_type: document.getElementById('blockerInterval').value,
+                    location_id: CFG.locationId || null,
+                    notes: document.getElementById('blockerNotes').value,
+                    ignore_worktimes: document.getElementById('blockerIgnoreWorktimes').checked
+                })
+            }).then(function(result) {
+                if (result.success) {
+                    showToast(result.created_count + ' Sperrzeit(en) erstellt', 'success');
+                    modal.style.display = 'none';
+                    loadDayData(true);
+                } else {
+                    showToast(result.error || 'Fehler', 'error');
+                }
+            });
+        });
+    }
+
+    // ==========================================================
+    // WARTELISTE (Cenplex: WaitListViewModel)
+    // ==========================================================
+    function setupWaitlistModal() {
+        var modal = document.getElementById('waitlistModal');
+        if (!modal) return;
+
+        var openBtn = document.getElementById('openWaitlistBtn');
+        if (openBtn) {
+            openBtn.addEventListener('click', function() {
+                modal.style.display = 'flex';
+                loadWaitlist();
+            });
+        }
+
+        document.getElementById('waitlistClose').addEventListener('click', function() { modal.style.display = 'none'; });
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+
+        document.getElementById('waitlistRefresh').addEventListener('click', loadWaitlist);
+        document.getElementById('waitlistFilterEmp').addEventListener('change', loadWaitlist);
+
+        // Neuen Eintrag hinzufuegen
+        document.getElementById('waitlistAdd').addEventListener('click', function() {
+            document.getElementById('waitlistAddPanel').style.display = 'block';
+        });
+        document.getElementById('wlAddCancel').addEventListener('click', function() {
+            document.getElementById('waitlistAddPanel').style.display = 'none';
+        });
+
+        // Patient-Suche fuer Warteliste
+        setupPatientSearch('wlPatientSearch', 'wlPatientResults', 'wlPatientId', 'wlPatientDisplay');
+
+        document.getElementById('wlAddSave').addEventListener('click', function() {
+            var patId = document.getElementById('wlPatientId').value;
+            if (!patId) { showToast('Bitte Patient waehlen', 'error'); return; }
+
+            var prefDays = [];
+            document.querySelectorAll('input[name="wl_day"]:checked').forEach(function(cb) { prefDays.push(parseInt(cb.value)); });
+            var prefTimes = [];
+            document.querySelectorAll('input[name="wl_time"]:checked').forEach(function(cb) { prefTimes.push(cb.value); });
+
+            fetchJSON(BASE_URL + '/api/waiting-list', {
+                method: 'POST',
+                body: JSON.stringify({
+                    patient_id: parseInt(patId),
+                    template_id: document.getElementById('wlTemplate').value ? parseInt(document.getElementById('wlTemplate').value) : null,
+                    preferred_employee_id: document.getElementById('wlPrefEmployee').value ? parseInt(document.getElementById('wlPrefEmployee').value) : null,
+                    preferred_days: prefDays,
+                    preferred_times: prefTimes,
+                    priority: parseInt(document.getElementById('wlPriority').value),
+                    notes: document.getElementById('wlNotes').value
+                })
+            }).then(function(result) {
+                if (result.success) {
+                    showToast('Patient auf Warteliste gesetzt', 'success');
+                    document.getElementById('waitlistAddPanel').style.display = 'none';
+                    loadWaitlist();
+                } else {
+                    showToast(result.error || 'Fehler', 'error');
+                }
+            });
+        });
+
+        // Einplanen-Buttons
+        document.getElementById('waitlistScheduleCancel').addEventListener('click', function() {
+            document.getElementById('waitlistSchedulePanel').style.display = 'none';
+        });
+
+        document.getElementById('waitlistScheduleConfirm').addEventListener('click', function() {
+            var wlId = document.getElementById('waitlistSchedulePanel').dataset.waitlistId;
+            var patId = document.getElementById('waitlistSchedulePanel').dataset.patientId;
+            var empId = document.getElementById('waitlistScheduleEmp').value;
+            var startTime = document.getElementById('waitlistScheduleTime').value;
+
+            if (!startTime) { showToast('Bitte Datum/Uhrzeit waehlen', 'error'); return; }
+
+            fetchJSON(BASE_URL + '/api/appointments', {
+                method: 'POST',
+                body: JSON.stringify({
+                    patient_id: parseInt(patId),
+                    employee_id: parseInt(empId),
+                    start_time: startTime + ':00',
+                    duration_minutes: 30,
+                    appointment_type: 'treatment',
+                    location_id: CFG.locationId || null,
+                    title: 'Behandlung (Warteliste)'
+                })
+            }).then(function(result) {
+                if (result.success) {
+                    // Warteliste-Status aktualisieren
+                    fetchJSON(BASE_URL + '/api/waiting-list/' + wlId + '/schedule', {
+                        method: 'POST',
+                        body: JSON.stringify({ appointment_id: result.id })
+                    }).catch(function() {}); // Fehler ignorieren falls Route nicht existiert
+                    showToast('Termin erstellt', 'success');
+                    document.getElementById('waitlistSchedulePanel').style.display = 'none';
+                    loadWaitlist();
+                    loadDayData(true);
+                } else {
+                    showToast(result.error || 'Fehler', 'error');
+                }
+            });
+        });
+    }
+
+    function loadWaitlist() {
+        var container = document.getElementById('waitlistEntries');
+        if (!container) return;
+
+        fetchJSON(BASE_URL + '/api/waiting-list').then(function(entries) {
+            if (!entries || !Array.isArray(entries) || entries.length === 0) {
+                container.innerHTML = '<p style="color:var(--gray-500);padding:16px;text-align:center;">Keine Eintraege auf der Warteliste.</p>';
+                return;
+            }
+
+            var filterEmp = document.getElementById('waitlistFilterEmp').value;
+            if (filterEmp) {
+                entries = entries.filter(function(e) { return !e.preferred_employee || e.preferred_employee.indexOf(filterEmp) >= 0; });
+            }
+
+            var dayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+            var priorityLabels = {0: '', 1: 'Hoch', 2: 'Dringend'};
+            var priorityColors = {0: '', 1: '#fd7e14', 2: '#dc3545'};
+
+            var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                '<thead><tr style="border-bottom:2px solid var(--gray-200);text-align:left;">' +
+                '<th style="padding:6px 8px;">Patient</th>' +
+                '<th style="padding:6px 8px;">Behandlung</th>' +
+                '<th style="padding:6px 8px;">Prio</th>' +
+                '<th style="padding:6px 8px;">Pref. Tage</th>' +
+                '<th style="padding:6px 8px;">Seit</th>' +
+                '<th style="padding:6px 8px;"></th>' +
+                '</tr></thead><tbody>';
+
+            entries.forEach(function(e) {
+                var prefDaysStr = (e.preferred_days || []).map(function(d) { return dayLabels[d] || '?'; }).join(', ');
+                var prioLabel = priorityLabels[e.priority] || '';
+                var prioColor = priorityColors[e.priority] || '';
+
+                html += '<tr style="border-bottom:1px solid var(--gray-100);">' +
+                    '<td style="padding:6px 8px;font-weight:500;">' + escapeHtml(e.patient_name) + '</td>' +
+                    '<td style="padding:6px 8px;">' + escapeHtml(e.template_name || '-') + '</td>' +
+                    '<td style="padding:6px 8px;">' + (prioLabel ? '<span style="color:' + prioColor + ';font-weight:600;">' + prioLabel + '</span>' : '-') + '</td>' +
+                    '<td style="padding:6px 8px;font-size:11px;">' + (prefDaysStr || 'Alle') + '</td>' +
+                    '<td style="padding:6px 8px;font-size:11px;">' + escapeHtml(e.created_at || '') + '</td>' +
+                    '<td style="padding:6px 8px;"><button class="btn btn-sm btn-primary wl-schedule-btn" data-wl-id="' + e.id + '" data-patient-id="' + e.patient_id + '" data-patient-name="' + escapeHtml(e.patient_name) + '" style="font-size:11px;padding:2px 6px;">Einplanen</button></td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+
+            // Einplanen-Buttons
+            container.querySelectorAll('.wl-schedule-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var panel = document.getElementById('waitlistSchedulePanel');
+                    panel.style.display = 'block';
+                    panel.dataset.waitlistId = btn.dataset.wlId;
+                    panel.dataset.patientId = btn.dataset.patientId;
+                    document.getElementById('waitlistSchedulePatient').textContent = btn.dataset.patientName;
+                    // Aktuelle Zeit vorschlagen
+                    var now = new Date();
+                    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+                    var localIso = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0') + 'T' +
+                        String(now.getHours()).padStart(2, '0') + ':' +
+                        String(now.getMinutes()).padStart(2, '0');
+                    document.getElementById('waitlistScheduleTime').value = localIso;
+                });
+            });
+        });
+    }
+
+    // ==========================================================
+    // DETAIL-MODAL: TABS (SOAP / Gruppe / Nachrichten)
+    // ==========================================================
+    function setupDetailTabs() {
+        document.querySelectorAll('.detail-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                var tabName = tab.dataset.tab;
+                // Tab-Buttons
+                document.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                // Tab-Inhalte
+                document.querySelectorAll('.detail-tab-content').forEach(function(tc) { tc.style.display = 'none'; });
+                var content = document.getElementById('detailTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
+                if (content) content.style.display = 'block';
+
+                // Daten laden bei Tab-Wechsel
+                if (tabName === 'group' && selectedAppointment) loadGroupParticipants(selectedAppointment.id);
+                if (tabName === 'messages' && selectedAppointment) loadBookingMessages(selectedAppointment.id);
+            });
+        });
+
+        // Gruppen-Patient-Suche
+        setupGroupPatientSearch();
+
+        // Nachricht senden
+        var sendBtn = document.getElementById('detailMessageSend');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', function() {
+                if (!selectedAppointment) return;
+                var input = document.getElementById('detailMessageInput');
+                var msg = input.value.trim();
+                if (!msg) return;
+
+                fetchJSON(BASE_URL + '/api/appointments/' + selectedAppointment.id + '/booking-messages', {
+                    method: 'POST',
+                    body: JSON.stringify({ message: msg })
+                }).then(function(result) {
+                    if (result.success) {
+                        input.value = '';
+                        loadBookingMessages(selectedAppointment.id);
+                    } else {
+                        showToast(result.error || 'Fehler', 'error');
+                    }
+                });
+            });
+        }
+    }
+
+    function loadGroupParticipants(appointmentId) {
+        var list = document.getElementById('detailGroupList');
+        if (!list) return;
+        list.innerHTML = '<p style="color:var(--gray-500);font-size:12px;">Wird geladen...</p>';
+
+        fetchJSON(BASE_URL + '/api/appointments/' + appointmentId + '/participants').then(function(participants) {
+            if (!participants || !Array.isArray(participants) || participants.length === 0) {
+                list.innerHTML = '<p style="color:var(--gray-500);font-size:12px;">Keine Teilnehmer.</p>';
+                updateGroupCount(0);
+                return;
+            }
+            var html = '';
+            participants.forEach(function(p) {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--gray-100);">' +
+                    '<span>' + escapeHtml(p.patient_name) + '</span>' +
+                    '<button class="btn btn-sm" data-participant-id="' + p.id + '" style="color:#dc3545;font-size:11px;padding:1px 4px;" title="Entfernen">&times;</button>' +
+                    '</div>';
+            });
+            list.innerHTML = html;
+            updateGroupCount(participants.length);
+
+            // Entfernen-Buttons
+            list.querySelectorAll('button[data-participant-id]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    fetchJSON(BASE_URL + '/api/appointments/' + appointmentId + '/participants/' + btn.dataset.participantId, {
+                        method: 'DELETE'
+                    }).then(function(result) {
+                        loadGroupParticipants(appointmentId);
+                    });
+                });
+            });
+        });
+    }
+
+    function updateGroupCount(count) {
+        var el = document.getElementById('detailGroupCount');
+        if (!el || !selectedAppointment) return;
+        var max = selectedAppointment.max_participants || '?';
+        el.textContent = count + ' / ' + max + ' Teilnehmer';
+    }
+
+    function setupGroupPatientSearch() {
+        var input = document.getElementById('groupPatientSearch');
+        var results = document.getElementById('groupPatientResults');
+        if (!input || !results) return;
+
+        var debounceTimer;
+        input.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            var q = input.value.trim();
+            if (q.length < 2) { results.classList.remove('active'); return; }
+
+            debounceTimer = setTimeout(function() {
+                fetchJSON(BASE_URL + '/api/patients/search?q=' + encodeURIComponent(q)).then(function(patients) {
+                    results.innerHTML = '';
+                    patients.forEach(function(p) {
+                        var item = document.createElement('div');
+                        item.className = 'patient-result-item';
+                        item.innerHTML = '<span class="patient-name">' + escapeHtml(p.name) + '</span>' +
+                            '<span class="patient-info">' + escapeHtml(p.patient_number) + '</span>';
+                        item.addEventListener('click', function() {
+                            if (!selectedAppointment) return;
+                            fetchJSON(BASE_URL + '/api/appointments/' + selectedAppointment.id + '/participants', {
+                                method: 'POST',
+                                body: JSON.stringify({ patient_id: p.id })
+                            }).then(function(result) {
+                                if (result.id) {
+                                    showToast('Teilnehmer hinzugefuegt', 'success');
+                                    loadGroupParticipants(selectedAppointment.id);
+                                } else {
+                                    showToast(result.error || 'Fehler', 'error');
+                                }
+                            });
+                            input.value = '';
+                            results.classList.remove('active');
+                        });
+                        results.appendChild(item);
+                    });
+                    results.classList.add('active');
+                });
+            }, 250);
+        });
+    }
+
+    function loadBookingMessages(appointmentId) {
+        var list = document.getElementById('detailMessagesList');
+        if (!list) return;
+        list.innerHTML = '<p style="color:var(--gray-500);font-size:12px;">Wird geladen...</p>';
+
+        fetchJSON(BASE_URL + '/api/appointments/' + appointmentId + '/booking-messages').then(function(messages) {
+            if (!messages || !Array.isArray(messages) || messages.length === 0) {
+                list.innerHTML = '<p style="color:var(--gray-500);font-size:12px;">Keine Nachrichten.</p>';
+                return;
+            }
+            var html = '';
+            messages.forEach(function(m) {
+                var created = m.created ? new Date(m.created) : null;
+                var timeStr = created ? (formatDateGerman(created) + ', ' + formatTime(created)) : '';
+                var readStr = m.read ? ' (gelesen)' : '';
+                html += '<div style="padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:12px;">' +
+                    '<div style="color:var(--gray-500);font-size:10px;margin-bottom:2px;">' + timeStr + readStr + '</div>' +
+                    '<div>' + escapeHtml(m.message) + '</div>' +
+                    '</div>';
+            });
+            list.innerHTML = html;
+            // Zum Ende scrollen
+            list.scrollTop = list.scrollHeight;
+        });
+    }
+
+    // ==========================================================
+    // KILOMETERBERECHNUNG (Cenplex: MileageCalculationViewModel)
+    // ==========================================================
+    function setupMileageModal() {
+        var modal = document.getElementById('mileageModal');
+        if (!modal) return;
+
+        document.getElementById('mileageClose').addEventListener('click', function() { modal.style.display = 'none'; });
+        document.getElementById('mileageCloseBtn').addEventListener('click', function() { modal.style.display = 'none'; });
+        modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+    }
+
+    function openMileageDialog(appointmentId) {
+        var modal = document.getElementById('mileageModal');
+        var content = document.getElementById('mileageContent');
+        if (!modal || !content) return;
+
+        modal.style.display = 'flex';
+        content.innerHTML = '<p style="color:var(--gray-500);">Wird berechnet...</p>';
+
+        fetchJSON(BASE_URL + '/api/appointments/' + appointmentId + '/mileage').then(function(data) {
+            if (data.error) {
+                content.innerHTML = '<p style="color:#dc3545;">' + escapeHtml(data.error) + '</p>';
+                return;
+            }
+
+            var html = '<div style="font-size:13px;">';
+            html += '<div style="margin-bottom:8px;"><strong>Von:</strong> ' + escapeHtml(data.from_address || '-') + '</div>';
+            html += '<div style="margin-bottom:8px;"><strong>Nach:</strong> ' + escapeHtml(data.to_address || '-') + '</div>';
+
+            if (data.distance_km) {
+                html += '<div style="margin-bottom:8px;padding:8px;background:var(--gray-50);border-radius:6px;">' +
+                    '<strong>Distanz:</strong> ' + data.distance_km + ' km' +
+                    (data.source === 'treatment_site' ? ' (Behandlungsort)' : '') +
+                    '</div>';
+            }
+
+            if (data.previous_appointment) {
+                html += '<div style="margin-top:8px;font-size:11px;color:var(--gray-500);">' +
+                    'Vorheriger Termin: ' + escapeHtml(data.previous_appointment.patient_name || '-') +
+                    (data.previous_appointment.start_time ? ' (' + new Date(data.previous_appointment.start_time).toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) + ')' : '') +
+                    '</div>';
+            }
+
+            if (data.note) {
+                html += '<div style="margin-top:8px;font-size:11px;color:var(--gray-500);font-style:italic;">' + escapeHtml(data.note) + '</div>';
+            }
+
+            html += '</div>';
+            content.innerHTML = html;
+        });
     }
 
     function showToast(message, type) {

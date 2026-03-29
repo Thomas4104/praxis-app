@@ -1006,6 +1006,32 @@ def api_add_waiting_list():
     return jsonify({'success': True, 'id': entry.id, 'message': 'Patient auf Warteliste gesetzt.'}), 201
 
 
+@calendar_bp.route('/api/waiting-list/<int:entry_id>/schedule', methods=['POST'])
+@login_required
+def api_schedule_from_waitlist(entry_id):
+    """Warteliste-Eintrag als eingeplant markieren (Cenplex: MoveAppointment)"""
+    entry = WaitingList.query.get_or_404(entry_id)
+    patient = Patient.query.get_or_404(entry.patient_id)
+    check_org(patient)
+
+    entry.status = 'scheduled'
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Warteliste-Eintrag als eingeplant markiert.'})
+
+
+@calendar_bp.route('/api/waiting-list/<int:entry_id>', methods=['DELETE'])
+@login_required
+def api_delete_waitlist_entry(entry_id):
+    """Warteliste-Eintrag loeschen"""
+    entry = WaitingList.query.get_or_404(entry_id)
+    patient = Patient.query.get_or_404(entry.patient_id)
+    check_org(patient)
+
+    entry.status = 'cancelled'
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Warteliste-Eintrag entfernt.'})
+
+
 # ============================================================
 # Gruppentherapie: Teilnehmer-Verwaltung
 # ============================================================
@@ -1208,6 +1234,11 @@ def api_create_blocker():
         else:
             current_d += timedelta(days=1)
 
+    notes = data.get('notes', '')
+    is_worktime = data.get('is_worktime', False)
+    ignore_worktimes = data.get('ignore_worktimes', False)
+    blocker_category_id = data.get('blocker_category_id')
+
     created = []
     for d in dates:
         for emp_id in (employee_ids or [None]):
@@ -1235,8 +1266,12 @@ def api_create_blocker():
                 end_time=blocker_end,
                 title=title,
                 blocker_type=blocker_type,
-                is_recurring=interval_type != 'once'
+                is_recurring=interval_type != 'once',
+                notes=notes,
+                is_worktime=is_worktime
             )
+            if blocker_category_id:
+                blocker.blocker_category_id = blocker_category_id
             if interval_type != 'once':
                 blocker.recurrence_json = json.dumps({
                     'type': interval_type,
@@ -1296,7 +1331,10 @@ def api_get_blockers():
         'end_time': b.end_time.isoformat(),
         'title': b.title or '',
         'blocker_type': b.blocker_type,
-        'is_recurring': b.is_recurring
+        'is_recurring': b.is_recurring,
+        'notes': b.notes or '',
+        'is_worktime': b.is_worktime or False,
+        'blocker_category_id': b.blocker_category_id
     } for b in blockers])
 
 
