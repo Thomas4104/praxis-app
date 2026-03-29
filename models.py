@@ -1956,6 +1956,73 @@ class PeriodLock(db.Model):
     locked_by = db.relationship('User', backref='period_locks')
 
 
+class BankImport(db.Model):
+    """Bank-Import (CAMT/VESR Datei-Import)"""
+    __tablename__ = 'bank_imports'
+    __table_args__ = (
+        db.Index('ix_bankimport_org_date', 'organization_id', 'import_date'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    import_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    file_name = db.Column(db.String(300), nullable=False)
+    file_type = db.Column(db.String(10))  # camt, vesr
+    camt_version = db.Column(db.String(20))  # camt.054.001.02 bis .08
+    status = db.Column(db.String(20), default='pending')  # pending, partially_matched, completed, cancelled
+    total_transactions = db.Column(db.Integer, default=0)
+    matched_count = db.Column(db.Integer, default=0)
+    unmatched_count = db.Column(db.Integer, default=0)
+    total_amount = db.Column(db.Numeric(12, 2), default=0)
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'), nullable=True)
+    imported_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    organization = db.relationship('Organization', backref=db.backref('bank_imports', lazy='dynamic'))
+    bank_account = db.relationship('BankAccount', backref='bank_imports')
+    imported_by = db.relationship('User', backref='bank_imports')
+    lines = db.relationship('BankImportLine', backref='bank_import', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class BankImportLine(db.Model):
+    """Einzelne Transaktion aus Bank-Import"""
+    __tablename__ = 'bank_import_lines'
+    __table_args__ = (
+        db.Index('ix_bankimportline_import', 'bank_import_id'),
+        db.Index('ix_bankimportline_ref', 'reference_number'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    bank_import_id = db.Column(db.Integer, db.ForeignKey('bank_imports.id'), nullable=False)
+    transaction_date = db.Column(db.Date)
+    valuta_date = db.Column(db.Date)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    credit_debit = db.Column(db.String(4))  # CRDT, DBIT
+    reference_number = db.Column(db.String(50))  # ESR/QR-Referenz (27 Zeichen)
+    remittance_info = db.Column(db.String(500))  # Unstrukturierte Referenz
+    debtor_name = db.Column(db.String(200))
+    debtor_iban = db.Column(db.String(34))
+    creditor_name = db.Column(db.String(200))
+    creditor_iban = db.Column(db.String(34))
+    entry_reference = db.Column(db.String(100))  # Bank-Referenz
+    status = db.Column(db.String(20), default='unmatched')  # matched, unmatched, manual, skipped, booked
+    # Zuordnung
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey('payments.id'), nullable=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
+    match_type = db.Column(db.String(20))  # auto, manual, none
+    match_confidence = db.Column(db.Numeric(5, 2))  # Trefferqualitaet 0-100
+    is_fully_paid = db.Column(db.Boolean, default=False)
+    overpayment = db.Column(db.Numeric(10, 2), default=0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    invoice = db.relationship('Invoice', backref='bank_import_lines')
+    payment = db.relationship('Payment', backref='bank_import_lines')
+    journal_entry = db.relationship('JournalEntry', backref='bank_import_lines')
+
+
 # ============================================================
 # HR & Lohnbuchhaltung
 # ============================================================

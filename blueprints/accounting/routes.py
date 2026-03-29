@@ -5,12 +5,17 @@ from flask import render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from blueprints.accounting import accounting_bp
 from models import (db, Account, JournalEntry, JournalEntryLine, CreditorInvoice,
-                    FixedAsset, CostCenter, PeriodLock, Invoice, Payment, Contact)
+                    FixedAsset, CostCenter, PeriodLock, Invoice, Payment, Contact,
+                    BankAccount, BankImport, BankImportLine)
 from services.accounting_service import (
     get_next_entry_number, is_period_locked, get_account_balance,
     create_journal_entry, storno_entry, run_depreciation,
     generate_balance_sheet, generate_income_statement, generate_vat_report,
     get_open_debtors, get_open_creditors, get_liquidity
+)
+from services.bank_import_service import (
+    process_import_file, assign_line_to_invoice, skip_line,
+    book_import, get_import_history
 )
 from utils.auth import check_org
 
@@ -901,3 +906,181 @@ def api_dashboard_data():
         'umsatz_monat': income_stmt['total_ertrag'],
         'gewinn_monat': income_stmt['gewinn_verlust']
     })
+
+
+# ============================================================
+# Bank-Import (CAMT / VESR)
+# ============================================================
+
+@accounting_bp.route('/bank-import')
+@login_required
+def bank_import():
+    """Bank-Import Uebersicht"""
+    org_id = current_user.organization_id
+
+    # Import-Historie
+    imports = get_import_history(org_id, limit=50)
+
+    # Bankkonten fuer Dropdown
+    bank_accounts = BankAccount.query.filter_by(
+        organization_id=org_id, is_deleted=False
+    ).order_by(BankAccount.bank_name).all()
+
+    return render_template('accounting/bank_import.html',
+                           imports=imports, bank_accounts=bank_accounts)
+
+
+@accounting_bp.route('/bank-import/upload', methods=['POST'])
+@login_required
+def bank_import_upload():
+    """CAMT/VESR Datei hochladen und verarbeiten"""
+    org_id = current_user.organization_id
+
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewaehlt.', 'error')
+        return redirect(url_for('accounting.bank_import'))
+
+    file = request.files['file']
+    if not file.filename:
+        flash('Keine Datei ausgewaehlt.', 'error')
+        return redirect(url_for('accounting.bank_import'))
+
+    # Dateityp pruefen
+    allowed = {'xml', 'v11', 'esr'}
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in allowed:
+        flash(f'Ungültiges Dateiformat (.{ext}). Erlaubt: .xml (CAMT), .v11/.esr (VESR)', 'error')
+        return redirect(url_for('accounting.bank_import'))
+
+    bank_account_id = request.form.get('bank_account_id')
+    bank_account_id = int(bank_account_id) if bank_account_id else None
+
+    try:
+        content = file.read()
+        if ext == 'xml':
+            file_content = content.decode('utf-8')
+        else:
+            # VESR kann verschiedene Encodings haben
+            try:
+                file_content = content.decode('utf-8')
+            except UnicodeDecodeError:
+                file_content = content.decode('latin-1')
+
+        bank_import_obj, error = process_import_file(
+            file_content, file.filename, org_id, current_user.id, bank_account_id
+        )
+
+        if error:
+            flash(f'Import-Fehler: {error}', 'error')
+            return redirect(url_for('accounting.bank_import'))
+
+        flash(f'Import erfolgreich: {bank_import_obj.total_transactions} Transaktionen, '
+              f'{bank_import_obj.matched_count} automatisch zugeordnet, '
+              f'{bank_import_obj.unmatched_count} offen.', 'success')
+        return redirect(url_for('accounting.bank_import_detail', id=bank_import_obj.id))
+
+    except Exception as e:
+        flash(f'Fehler beim Lesen der Datei: {str(e)}', 'error')
+        return redirect(url_for('accounting.bank_import'))
+
+
+@accounting_bp.route('/bank-import/<int:id>')
+@login_required
+def bank_import_detail(id):
+    """Detailansicht eines Bank-Imports"""
+    org_id = current_user.organization_id
+    bank_import_obj = BankImport.query.filter_by(id=id, organization_id=org_id).first_or_404()
+
+    # Import-Zeilen mit Status-Filter
+    status_filter = request.args.get('status', '')
+    query = BankImportLine.query.filter_by(bank_import_id=id)
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+
+    lines = query.order_by(BankImportLine.transaction_date, BankImportLine.id).all()
+
+    # Offene Rechnungen fuer manuelle Zuordnung
+    open_invoices = Invoice.query.filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['sent', 'overdue', 'partially_paid']),
+        Invoice.amount_open > 0
+    ).order_by(Invoice.invoice_number).all()
+
+    return render_template('accounting/bank_import_detail.html',
+                           bank_import=bank_import_obj, lines=lines,
+                           open_invoices=open_invoices,
+                           status_filter=status_filter)
+
+
+@accounting_bp.route('/bank-import/line/<int:line_id>/assign', methods=['POST'])
+@login_required
+def bank_import_assign(line_id):
+    """Manuelle Zuordnung einer Import-Zeile"""
+    org_id = current_user.organization_id
+    invoice_id = request.form.get('invoice_id')
+
+    if not invoice_id:
+        flash('Keine Rechnung ausgewaehlt.', 'error')
+    else:
+        line, error = assign_line_to_invoice(line_id, int(invoice_id), org_id)
+        if error:
+            flash(error, 'error')
+        else:
+            flash(f'Zeile wurde Rechnung zugeordnet.', 'success')
+
+    # Zurueck zur Import-Detailseite
+    bil = BankImportLine.query.get(line_id)
+    if bil:
+        return redirect(url_for('accounting.bank_import_detail', id=bil.bank_import_id))
+    return redirect(url_for('accounting.bank_import'))
+
+
+@accounting_bp.route('/bank-import/line/<int:line_id>/skip', methods=['POST'])
+@login_required
+def bank_import_skip(line_id):
+    """Import-Zeile ueberspringen"""
+    org_id = current_user.organization_id
+    line, error = skip_line(line_id, org_id)
+    if error:
+        flash(error, 'error')
+    else:
+        flash('Zeile wurde uebersprungen.', 'success')
+
+    if line:
+        return redirect(url_for('accounting.bank_import_detail', id=line.bank_import_id))
+    return redirect(url_for('accounting.bank_import'))
+
+
+@accounting_bp.route('/bank-import/<int:id>/book', methods=['POST'])
+@login_required
+def bank_import_book(id):
+    """Alle zugeordneten Zeilen buchen"""
+    org_id = current_user.organization_id
+
+    bank_account_number = request.form.get('bank_account_number', '1020')
+    count, error = book_import(id, org_id, current_user.id, bank_account_number)
+
+    if error:
+        flash(error, 'error')
+    else:
+        flash(f'{count} Zahlungen wurden gebucht.', 'success')
+
+    return redirect(url_for('accounting.bank_import_detail', id=id))
+
+
+@accounting_bp.route('/bank-import/<int:id>/cancel', methods=['POST'])
+@login_required
+def bank_import_cancel(id):
+    """Import abbrechen/stornieren"""
+    org_id = current_user.organization_id
+    bank_import_obj = BankImport.query.filter_by(id=id, organization_id=org_id).first_or_404()
+
+    # Nur pending/partially_matched koennen abgebrochen werden
+    if bank_import_obj.status in ('pending', 'partially_matched'):
+        bank_import_obj.status = 'cancelled'
+        db.session.commit()
+        flash('Import wurde abgebrochen.', 'success')
+    else:
+        flash('Import kann nicht mehr abgebrochen werden.', 'warning')
+
+    return redirect(url_for('accounting.bank_import'))

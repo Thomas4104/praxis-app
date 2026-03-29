@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Bank-Import (CAMT/VESR){% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<span>Bank-Import</span>
+{% endblock %}
+
+{% block page_title %}Bank-Import (CAMT / VESR){% endblock %}
+
+{% block content %}
+<!-- Upload-Bereich -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 16px;">Datei importieren</h3>
+    <p style="color: var(--text-secondary); margin-bottom: 16px;">
+        Laden Sie eine CAMT-Datei (.xml, ISO 20022 camt.054/053) oder VESR-Datei (.v11) hoch.
+        Die Zahlungen werden automatisch den offenen Rechnungen zugeordnet.
+    </p>
+    <form method="POST" action="{{ url_for('accounting.bank_import_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display: grid; grid-template-columns: 1fr 250px auto; gap: 12px; align-items: end;">
+            <div>
+                <label class="form-label">Datei auswählen</label>
+                <input type="file" name="file" accept=".xml,.v11,.esr" class="form-control" required
+                       style="padding: 8px;">
+            </div>
+            <div>
+                <label class="form-label">Bankkonto (optional)</label>
+                <select name="bank_account_id" class="form-control">
+                    <option value="">-- Kein Konto --</option>
+                    {% for ba in bank_accounts %}
+                    <option value="{{ ba.id }}">{{ ba.bank_name or ba.account_name or ba.iban }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn btn-primary" style="white-space: nowrap;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Importieren
+                </button>
+            </div>
+        </div>
+    </form>
+    <div style="margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+        <div style="font-size: 13px; color: var(--text-secondary);">
+            <strong>Unterstützte Formate:</strong><br>
+            CAMT: camt.054.001.02 bis .08, camt.053.001.02 bis .08 (ISO 20022 XML)<br>
+            VESR/ESR: .v11 Format (Schweizer Zahlungsverkehr, Legacy)
+        </div>
+    </div>
+</div>
+
+<!-- Import-Historie -->
+<div class="card" style="padding: 24px;">
+    <h3 style="margin: 0 0 16px;">Import-Historie</h3>
+
+    {% if imports %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Datei</th>
+                    <th>Format</th>
+                    <th style="text-align: right;">Transaktionen</th>
+                    <th style="text-align: right;">Zugeordnet</th>
+                    <th style="text-align: right;">Offen</th>
+                    <th style="text-align: right;">Betrag</th>
+                    <th>Status</th>
+                    <th>Importiert von</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for imp in imports %}
+                <tr>
+                    <td>{{ imp.import_date.strftime('%d.%m.%Y %H:%M') if imp.import_date else '-' }}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                        title="{{ imp.file_name }}">{{ imp.file_name }}</td>
+                    <td>
+                        <span class="badge" style="background: {{ '#3498db' if imp.file_type == 'camt' else '#9b59b6' }}; color: white; font-size: 11px;">
+                            {{ imp.camt_version or imp.file_type|upper }}
+                        </span>
+                    </td>
+                    <td style="text-align: right;">{{ imp.total_transactions }}</td>
+                    <td style="text-align: right;">{{ imp.matched_count }}</td>
+                    <td style="text-align: right;">{{ imp.unmatched_count }}</td>
+                    <td style="text-align: right; font-weight: 600;">CHF {{ '%.2f'|format(imp.total_amount|float) }}</td>
+                    <td>
+                        {% if imp.status == 'completed' %}
+                        <span class="badge" style="background: #27ae60; color: white;">Abgeschlossen</span>
+                        {% elif imp.status == 'partially_matched' %}
+                        <span class="badge" style="background: #f39c12; color: white;">Teilweise zugeordnet</span>
+                        {% elif imp.status == 'pending' %}
+                        <span class="badge" style="background: #3498db; color: white;">Offen</span>
+                        {% elif imp.status == 'cancelled' %}
+                        <span class="badge" style="background: #95a5a6; color: white;">Abgebrochen</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ imp.imported_by.display_name if imp.imported_by else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('accounting.bank_import_detail', id=imp.id) }}" class="btn btn-sm btn-secondary">
+                            Details
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px;">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <p>Noch keine Importe vorhanden.<br>Laden Sie eine CAMT- oder VESR-Datei hoch.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

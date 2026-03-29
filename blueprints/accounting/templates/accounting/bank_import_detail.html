@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Bank-Import: {{ bank_import.file_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.index') }}">Finanzen</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('accounting.bank_import') }}">Bank-Import</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ bank_import.file_name }}</span>
+{% endblock %}
+
+{% block page_title %}Bank-Import Details{% endblock %}
+
+{% block page_actions %}
+{% if bank_import.status in ('pending', 'partially_matched') %}
+<form method="POST" action="{{ url_for('accounting.bank_import_cancel', id=bank_import.id) }}" style="display: inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-secondary" onclick="return confirm('Import wirklich abbrechen?')">
+        Import abbrechen
+    </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Import-Zusammenfassung -->
+<div class="stats-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">{{ bank_import.total_transactions }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Transaktionen</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #27ae60;">{{ bank_import.matched_count }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Zugeordnet</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if bank_import.unmatched_count > 0 else 'var(--text-secondary)' }};">{{ bank_import.unmatched_count }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Offen</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: var(--primary);">CHF {{ '%.2f'|format(bank_import.total_amount|float) }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Gesamtbetrag</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 14px; font-weight: 600;">
+            {% if bank_import.status == 'completed' %}
+            <span style="color: #27ae60;">Abgeschlossen</span>
+            {% elif bank_import.status == 'partially_matched' %}
+            <span style="color: #f39c12;">Teilweise zugeordnet</span>
+            {% elif bank_import.status == 'pending' %}
+            <span style="color: #3498db;">Offen</span>
+            {% elif bank_import.status == 'cancelled' %}
+            <span style="color: #95a5a6;">Abgebrochen</span>
+            {% endif %}
+        </div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Status</div>
+    </div>
+</div>
+
+<!-- Import-Info -->
+<div class="card" style="padding: 16px; margin-bottom: 24px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
+        <div><strong>Datei:</strong> {{ bank_import.file_name }}</div>
+        <div><strong>Format:</strong> {{ bank_import.camt_version or bank_import.file_type|upper }}</div>
+        <div><strong>Importiert:</strong> {{ bank_import.import_date.strftime('%d.%m.%Y %H:%M') if bank_import.import_date else '-' }}</div>
+        <div><strong>Von:</strong> {{ bank_import.imported_by.display_name if bank_import.imported_by else '-' }}</div>
+        {% if bank_import.bank_account %}
+        <div><strong>Bankkonto:</strong> {{ bank_import.bank_account.bank_name or bank_import.bank_account.iban }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Buchen-Button (wenn zugeordnete Zeilen vorhanden) -->
+{% set bookable_count = lines|selectattr('status', 'equalto', 'matched')|list|length %}
+{% if bookable_count > 0 and bank_import.status != 'cancelled' %}
+<div class="card" style="padding: 16px; margin-bottom: 24px; background: #eafaf1; border: 1px solid #27ae60;">
+    <form method="POST" action="{{ url_for('accounting.bank_import_book', id=bank_import.id) }}" style="display: flex; align-items: center; gap: 16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="flex: 1;">
+            <strong>{{ bookable_count }} Zahlungen bereit zum Buchen.</strong>
+            <span style="color: var(--text-secondary);"> Es werden Zahlungen erstellt und Buchungen (Bank an Debitoren) generiert.</span>
+        </div>
+        <div>
+            <label class="form-label" style="font-size: 12px;">Bankkonto</label>
+            <select name="bank_account_number" class="form-control" style="width: 150px;">
+                <option value="1020">1020 Bank</option>
+                <option value="1021">1021 PostFinance</option>
+                <option value="1000">1000 Kasse</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" onclick="return confirm('{{ bookable_count }} Zahlungen jetzt buchen?')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Alle buchen
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Status-Filter -->
+<div style="margin-bottom: 16px; display: flex; gap: 8px;">
+    <a href="{{ url_for('accounting.bank_import_detail', id=bank_import.id) }}"
+       class="btn btn-sm {{ 'btn-primary' if not status_filter else 'btn-secondary' }}">Alle</a>
+    <a href="{{ url_for('accounting.bank_import_detail', id=bank_import.id, status='matched') }}"
+       class="btn btn-sm {{ 'btn-primary' if status_filter == 'matched' else 'btn-secondary' }}">Zugeordnet</a>
+    <a href="{{ url_for('accounting.bank_import_detail', id=bank_import.id, status='unmatched') }}"
+       class="btn btn-sm {{ 'btn-primary' if status_filter == 'unmatched' else 'btn-secondary' }}">Offen</a>
+    <a href="{{ url_for('accounting.bank_import_detail', id=bank_import.id, status='booked') }}"
+       class="btn btn-sm {{ 'btn-primary' if status_filter == 'booked' else 'btn-secondary' }}">Gebucht</a>
+    <a href="{{ url_for('accounting.bank_import_detail', id=bank_import.id, status='skipped') }}"
+       class="btn btn-sm {{ 'btn-primary' if status_filter == 'skipped' else 'btn-secondary' }}">Übersprungen</a>
+</div>
+
+<!-- Transaktions-Tabelle -->
+<div class="card" style="padding: 0;">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Typ</th>
+                    <th style="text-align: right;">Betrag</th>
+                    <th>Referenz</th>
+                    <th>Auftraggeber/Info</th>
+                    <th>Zuordnung</th>
+                    <th>Konfidenz</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                <tr style="{{ 'background: #f8fff8;' if line.status == 'matched' else '' }}{{ 'background: #fff8f8;' if line.status == 'unmatched' else '' }}{{ 'background: #f8f8f8;' if line.status == 'skipped' else '' }}{{ 'background: #f0faf0;' if line.status == 'booked' else '' }}">
+                    <td style="white-space: nowrap;">{{ line.transaction_date.strftime('%d.%m.%Y') if line.transaction_date else '-' }}</td>
+                    <td>
+                        {% if line.credit_debit == 'CRDT' %}
+                        <span class="badge" style="background: #27ae60; color: white; font-size: 10px;">Gutschrift</span>
+                        {% else %}
+                        <span class="badge" style="background: #e74c3c; color: white; font-size: 10px;">Belastung</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; font-weight: 600; white-space: nowrap;
+                               color: {{ '#27ae60' if line.credit_debit == 'CRDT' else '#e74c3c' }};">
+                        {{ '+' if line.credit_debit == 'CRDT' else '-' }}CHF {{ '%.2f'|format(line.amount|float) }}
+                    </td>
+                    <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-family: monospace;"
+                        title="{{ line.reference_number }}">
+                        {{ line.reference_number or '-' }}
+                    </td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                        {% if line.debtor_name %}{{ line.debtor_name }}{% endif %}
+                        {% if line.remittance_info and not line.debtor_name %}
+                        <span style="color: var(--text-secondary); font-size: 12px;">{{ line.remittance_info[:60] }}</span>
+                        {% endif %}
+                        {% if not line.debtor_name and not line.remittance_info %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if line.invoice %}
+                        <a href="{{ url_for('billing.detail', id=line.invoice.id) }}" style="font-weight: 600;">
+                            {{ line.invoice.invoice_number }}
+                        </a>
+                        {% if line.invoice.patient %}
+                        <br><span style="font-size: 12px; color: var(--text-secondary);">{{ line.invoice.patient.last_name }}, {{ line.invoice.patient.first_name }}</span>
+                        {% endif %}
+                        {% if line.is_fully_paid %}
+                        <br><span class="badge" style="background: #27ae60; color: white; font-size: 10px;">Vollständig</span>
+                        {% endif %}
+                        {% if line.overpayment and line.overpayment > 0 %}
+                        <br><span class="badge" style="background: #f39c12; color: white; font-size: 10px;">Überzahlung +{{ '%.2f'|format(line.overpayment|float) }}</span>
+                        {% endif %}
+                        {% elif line.status == 'unmatched' and line.credit_debit == 'CRDT' %}
+                        <span style="color: #e74c3c; font-size: 12px;">Nicht zugeordnet</span>
+                        {% elif line.status == 'skipped' %}
+                        <span style="color: var(--text-secondary); font-size: 12px;">Übersprungen</span>
+                        {% elif line.status == 'booked' %}
+                        <span style="color: #27ae60; font-size: 12px;">Gebucht</span>
+                        {% elif line.credit_debit == 'DBIT' %}
+                        <span style="color: var(--text-secondary); font-size: 12px;">Belastung</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.match_confidence and line.match_confidence > 0 %}
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <div style="width: 40px; height: 6px; background: #ecf0f1; border-radius: 3px; overflow: hidden;">
+                                <div style="width: {{ line.match_confidence|float }}%; height: 100%;
+                                     background: {{ '#27ae60' if line.match_confidence|float >= 90 else '#f39c12' if line.match_confidence|float >= 70 else '#e74c3c' }};
+                                     border-radius: 3px;"></div>
+                            </div>
+                            <span style="font-size: 11px; color: var(--text-secondary);">{{ line.match_confidence|int }}%</span>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if line.status == 'matched' %}
+                        <span class="badge" style="background: #27ae60; color: white;">Zugeordnet</span>
+                        {% elif line.status == 'unmatched' %}
+                        <span class="badge" style="background: #e74c3c; color: white;">Offen</span>
+                        {% elif line.status == 'booked' %}
+                        <span class="badge" style="background: #2ecc71; color: white;">Gebucht</span>
+                        {% elif line.status == 'skipped' %}
+                        <span class="badge" style="background: #95a5a6; color: white;">Übersprungen</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space: nowrap;">
+                        {% if line.status == 'unmatched' and line.credit_debit == 'CRDT' and bank_import.status != 'cancelled' %}
+                        <!-- Manuelle Zuordnung -->
+                        <div style="display: flex; gap: 4px;">
+                            <form method="POST" action="{{ url_for('accounting.bank_import_assign', line_id=line.id) }}" style="display: flex; gap: 4px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="invoice_id" class="form-control" style="width: 150px; font-size: 12px;" required>
+                                    <option value="">Rechnung...</option>
+                                    {% for inv in open_invoices %}
+                                    <option value="{{ inv.id }}">{{ inv.invoice_number }} - CHF {{ '%.2f'|format(inv.amount_open|float) }}{% if inv.patient %} ({{ inv.patient.last_name }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary" title="Zuordnen">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('accounting.bank_import_skip', line_id=line.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-secondary" title="Überspringen">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                        {% elif line.status == 'booked' and line.journal_entry %}
+                        <a href="{{ url_for('accounting.journal') }}" class="btn btn-sm btn-secondary" title="Buchung anzeigen">
+                            Buchung
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if not lines %}
+<div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+    <p>Keine Transaktionen mit diesem Filter.</p>
+</div>
+{% endif %}
+{% endblock %}
