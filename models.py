@@ -1977,7 +1977,6 @@ class BankImport(db.Model):
     imported_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     organization = db.relationship('Organization', backref=db.backref('bank_imports', lazy='dynamic'))
     bank_account = db.relationship('BankAccount', backref='bank_imports')
@@ -2017,7 +2016,6 @@ class BankImportLine(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     invoice = db.relationship('Invoice', backref='bank_import_lines')
     payment = db.relationship('Payment', backref='bank_import_lines')
     journal_entry = db.relationship('JournalEntry', backref='bank_import_lines')

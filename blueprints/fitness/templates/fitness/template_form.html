@@ -15,9 +15,12 @@
 {% block page_title %}{{ 'Vorlage bearbeiten' if vorlage else 'Neue Abo-Vorlage' }}{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 800px;">
+<div class="card" style="max-width: 900px;">
     <form method="POST" style="padding: 24px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Grunddaten -->
+        <h3 style="margin: 0 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Grunddaten</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label class="form-label">Name *</label>
@@ -31,48 +34,9 @@
                 <select name="category" class="form-input">
                     <option value="fitness" {% if vorlage and vorlage.category == 'fitness' %}selected{% endif %}>Fitness</option>
                     <option value="mtt" {% if vorlage and vorlage.category == 'mtt' %}selected{% endif %}>MTT</option>
-                    <option value="prevention" {% if vorlage and vorlage.category == 'prevention' %}selected{% endif %}>Prävention</option>
+                    <option value="prevention" {% if vorlage and vorlage.category == 'prevention' %}selected{% endif %}>Praevention</option>
                     <option value="other" {% if vorlage and vorlage.category == 'other' %}selected{% endif %}>Sonstiges</option>
                 </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Laufzeit (Monate)</label>
-                <input type="number" name="duration_months" class="form-input" min="0"
-                       value="{{ vorlage.duration_months if vorlage else 12 }}"
-                       placeholder="0 = unbegrenzt">
-                <small style="color: var(--text-secondary);">0 = unbegrenzt</small>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Preis (CHF) *</label>
-                <input type="number" name="price" class="form-input" step="0.05" min="0" required
-                       value="{{ vorlage.price if vorlage else '' }}"
-                       placeholder="z.B. 89.00">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Zahlungsintervall</label>
-                <select name="payment_interval" class="form-input">
-                    <option value="monthly" {% if vorlage and vorlage.payment_interval == 'monthly' %}selected{% endif %}>Monatlich</option>
-                    <option value="quarterly" {% if vorlage and vorlage.payment_interval == 'quarterly' %}selected{% endif %}>Quartalsweise</option>
-                    <option value="yearly" {% if vorlage and vorlage.payment_interval == 'yearly' %}selected{% endif %}>Jährlich</option>
-                    <option value="once" {% if vorlage and vorlage.payment_interval == 'once' %}selected{% endif %}>Einmalig</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Kündigungsfrist (Monate)</label>
-                <input type="number" name="cancellation_months" class="form-input" min="0"
-                       value="{{ vorlage.cancellation_months if vorlage else 1 }}">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Max. Besuche</label>
-                <input type="number" name="max_visits" class="form-input" min="0"
-                       value="{{ vorlage.max_visits if vorlage else 0 }}"
-                       placeholder="0 = unbegrenzt">
-                <small style="color: var(--text-secondary);">0 = unbegrenzt, z.B. 10 für 10er-Karte</small>
             </div>
 
             <div class="form-group">
@@ -86,34 +50,254 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" name="auto_renew" {% if not vorlage or vorlage.auto_renew %}checked{% endif %}>
-                    Automatische Verlängerung
-                </label>
+                <label class="form-label">Sortierung</label>
+                <input type="number" name="sub_position" class="form-input" min="0"
+                       value="{{ vorlage.sub_position if vorlage else 0 }}">
             </div>
 
-            <div class="form-group" style="grid-column: 1 / -1;">
-                <label class="form-label">Zugangszeiten (JSON)</label>
-                <textarea name="access_hours_json" class="form-input" rows="3"
-                          placeholder='{"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}'>{{ vorlage.access_hours_json if vorlage and vorlage.access_hours_json else '' }}</textarea>
-                <small style="color: var(--text-secondary);">Optional: JSON-Format für Zugangszeiten</small>
+            <div class="form-group">
+                <label class="form-label">Tags</label>
+                <input type="text" name="sub_tags" class="form-input"
+                       value="{{ vorlage.sub_tags if vorlage else '' }}"
+                       placeholder="z.B. fitness, premium, aktion">
+            </div>
+        </div>
+
+        <!-- Laufzeit & Zahlung -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Laufzeit & Zahlung</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Laufzeit</label>
+                <input type="number" name="duration_months" class="form-input" min="0"
+                       value="{{ vorlage.duration_months if vorlage else 12 }}">
+                <small style="color: var(--text-secondary);">0 = unbegrenzt</small>
             </div>
 
-            {% if vorlage %}
+            <div class="form-group">
+                <label class="form-label">Laufzeit-Typ</label>
+                <select name="sub_duration_type" class="form-input">
+                    <option value="0" {% if vorlage and vorlage.sub_duration_type == 0 %}selected{% endif %}>Monate</option>
+                    <option value="1" {% if vorlage and vorlage.sub_duration_type == 1 %}selected{% endif %}>Tage</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Kuendigungsfrist (Monate)</label>
+                <input type="number" name="cancellation_months" class="form-input" min="0"
+                       value="{{ vorlage.cancellation_months if vorlage else 1 }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Zahlungsintervall</label>
+                <select name="payment_interval" class="form-input">
+                    <option value="monthly" {% if vorlage and vorlage.payment_interval == 'monthly' %}selected{% endif %}>Monatlich</option>
+                    <option value="quarterly" {% if vorlage and vorlage.payment_interval == 'quarterly' %}selected{% endif %}>Quartalsweise</option>
+                    <option value="yearly" {% if vorlage and vorlage.payment_interval == 'yearly' %}selected{% endif %}>Jaehrlich</option>
+                    <option value="once" {% if vorlage and vorlage.payment_interval == 'once' %}selected{% endif %}>Einmalig</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Zahlungstyp</label>
+                <select name="payment_type" class="form-input">
+                    <option value="0" {% if vorlage and vorlage.payment_type == 0 %}selected{% endif %}>Monatlich</option>
+                    <option value="1" {% if vorlage and vorlage.payment_type == 1 %}selected{% endif %}>Raten</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Anzahl Raten</label>
+                <input type="number" name="sub_payment_rates" class="form-input" min="1"
+                       value="{{ vorlage.sub_payment_rates if vorlage else 1 }}">
+            </div>
+        </div>
+
+        <!-- Preise -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Preise (CHF)</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Basispreis *</label>
+                <input type="number" name="price" class="form-input" step="0.05" min="0" required
+                       value="{{ vorlage.price if vorlage else '' }}" placeholder="z.B. 89.00">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Monatspreis</label>
+                <input type="number" name="price_month" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.price_month if vorlage and vorlage.price_month else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Einmalpreis</label>
+                <input type="number" name="price_once" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.price_once if vorlage and vorlage.price_once else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Ratenpreis</label>
+                <input type="number" name="price_rate" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.price_rate if vorlage and vorlage.price_rate else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Badge-Depot</label>
+                <input type="number" name="price_batch_depot" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.price_batch_depot if vorlage and vorlage.price_batch_depot else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Pause-Gebuehr</label>
+                <input type="number" name="price_break_penalty" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.price_break_penalty if vorlage and vorlage.price_break_penalty else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Kredit-Betrag</label>
+                <input type="number" name="sub_credit_amount" class="form-input" step="0.05" min="0"
+                       value="{{ vorlage.sub_credit_amount if vorlage and vorlage.sub_credit_amount else '' }}">
+            </div>
+        </div>
+
+        <!-- Besuche & Training -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Besuche & Training</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Max. Besuche</label>
+                <input type="number" name="max_visits" class="form-input" min="0"
+                       value="{{ vorlage.max_visits if vorlage else 0 }}">
+                <small style="color: var(--text-secondary);">0 = unbegrenzt</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Anz. Besuche (Cenplex)</label>
+                <input type="number" name="sub_visits" class="form-input" min="0"
+                       value="{{ vorlage.sub_visits if vorlage and vorlage.sub_visits else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Trainingskontrollen</label>
+                <input type="number" name="sub_training_controls" class="form-input" min="0"
+                       value="{{ vorlage.sub_training_controls if vorlage else 0 }}">
+            </div>
+
             <div class="form-group">
                 <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" name="is_active" {% if vorlage.is_active %}checked{% endif %}>
-                    Aktiv
+                    <input type="checkbox" name="auto_renew" {% if not vorlage or vorlage.auto_renew %}checked{% endif %}>
+                    Automatische Verlaengerung
                 </label>
             </div>
-            {% endif %}
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="one_appointment_per_day" {% if vorlage and vorlage.one_appointment_per_day %}checked{% endif %}>
+                    Max. 1 Termin/Tag
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="book_appointment_for_visit" {% if vorlage and vorlage.book_appointment_for_visit %}checked{% endif %}>
+                    Termin bei Besuch buchen
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="use_visits_and_duration" {% if vorlage and vorlage.use_visits_and_duration %}checked{% endif %}>
+                    Besuche und Laufzeit kombinieren
+                </label>
+            </div>
         </div>
+
+        <!-- Zugangszeiten -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Zugangszeiten</h3>
+        <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Gueltige Zeiten (JSON)</label>
+                <textarea name="valid_times" class="form-input" rows="3"
+                          placeholder='[{"day": 0, "start": "06:00", "end": "22:00"}, {"day": 5, "start": "08:00", "end": "18:00"}]'>{{ vorlage.valid_times if vorlage and vorlage.valid_times else '' }}</textarea>
+                <small style="color: var(--text-secondary);">JSON-Array: day=0(Mo) bis 6(So), start/end im Format HH:MM</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Zugangszeiten (Legacy)</label>
+                <textarea name="access_hours_json" class="form-input" rows="2"
+                          placeholder='{"Mo-Fr": "06:00-22:00", "Sa-So": "08:00-18:00"}'>{{ vorlage.access_hours_json if vorlage and vorlage.access_hours_json else '' }}</textarea>
+            </div>
+        </div>
+
+        <!-- Geraete-Sync -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Geraete-Synchronisation</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="no_sync_egym" {% if vorlage and vorlage.no_sync_egym %}checked{% endif %}>
+                    Kein eGym-Sync
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="no_sync_milon" {% if vorlage and vorlage.no_sync_milon %}checked{% endif %}>
+                    Kein Milon-Sync
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="no_sync_mywellness" {% if vorlage and vorlage.no_sync_mywellness %}checked{% endif %}>
+                    Kein MyWellness-Sync
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="no_sync_dividat" {% if vorlage and vorlage.no_sync_dividat %}checked{% endif %}>
+                    Kein Dividat-Sync
+                </label>
+            </div>
+        </div>
+
+        <!-- Gantner -->
+        <h3 style="margin: 24px 0 16px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Gantner Zutritt</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Gantner-Geraete (JSON)</label>
+                <input type="text" name="gantner_devices" class="form-input"
+                       value="{{ vorlage.gantner_devices if vorlage and vorlage.gantner_devices else '' }}"
+                       placeholder='z.B. [1, 2, 3]'>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gantner-Standorte (JSON)</label>
+                <input type="text" name="gantner_locations" class="form-input"
+                       value="{{ vorlage.gantner_locations if vorlage and vorlage.gantner_locations else '' }}"
+                       placeholder='z.B. [1, 2]'>
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="gantner_only_valid_abos" {% if vorlage and vorlage.gantner_only_valid_abos %}checked{% endif %}>
+                    Nur gueltige Abos erlauben
+                </label>
+            </div>
+        </div>
+
+        {% if vorlage %}
+        <div style="margin-top: 24px;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="is_active" {% if vorlage.is_active %}checked{% endif %}>
+                Aktiv
+            </label>
+        </div>
+        {% endif %}
 
         <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
             <button type="submit" class="btn btn-primary">
                 {{ 'Speichern' if vorlage else 'Vorlage erstellen' }}
             </button>
             <a href="{{ url_for('fitness.templates') }}" class="btn btn-secondary">Abbrechen</a>
+            {% if vorlage %}
+            <form method="POST" action="{{ url_for('fitness.template_delete', template_id=vorlage.id) }}" style="margin-left: auto;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Vorlage wirklich löschen?')">Löschen</button>
+            </form>
+            {% endif %}
         </div>
     </form>
 </div>

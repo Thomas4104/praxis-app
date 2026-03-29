@@ -36,12 +36,20 @@
                 <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Aktiv</option>
                 <option value="paused" {% if status_filter == 'paused' %}selected{% endif %}>Pausiert</option>
                 <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Abgelaufen</option>
-                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Gekündigt</option>
+                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Gekuendigt</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select name="template" class="form-input">
+                <option value="">Alle Vorlagen</option>
+                {% for v in vorlagen %}
+                <option value="{{ v.id }}" {% if template_filter == v.id|string %}selected{% endif %}>{{ v.name }}</option>
+                {% endfor %}
             </select>
         </div>
         <button type="submit" class="btn btn-secondary">Filtern</button>
-        {% if search or status_filter %}
-        <a href="{{ url_for('fitness.subscriptions') }}" class="btn btn-secondary">Zurücksetzen</a>
+        {% if search or status_filter or template_filter %}
+        <a href="{{ url_for('fitness.subscriptions') }}" class="btn btn-secondary">Zuruecksetzen</a>
         {% endif %}
     </form>
 
@@ -53,7 +61,7 @@
                 <th>Patient</th>
                 <th>Typ</th>
                 <th>Status</th>
-                <th>Gültig bis</th>
+                <th>Gueltig bis</th>
                 <th>Besuche</th>
                 <th>Badge</th>
             </tr>
@@ -76,7 +84,7 @@
                     {% elif abo.status == 'expired' %}
                     <span class="badge badge-secondary">Abgelaufen</span>
                     {% elif abo.status == 'cancelled' %}
-                    <span class="badge badge-danger">Gekündigt</span>
+                    <span class="badge badge-danger">Gekuendigt</span>
                     {% endif %}
                 </td>
                 <td>{{ abo.end_date.strftime('%d.%m.%Y') if abo.end_date else 'Unbegrenzt' }}</td>
@@ -97,18 +105,18 @@
     {% if total_pages > 1 %}
     <div style="padding: 16px; display: flex; justify-content: center; gap: 8px; border-top: 1px solid var(--border);">
         {% if page > 1 %}
-        <a href="{{ url_for('fitness.subscriptions', page=page-1, search=search, status=status_filter) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        <a href="{{ url_for('fitness.subscriptions', page=page-1, search=search, status=status_filter, template=template_filter) }}" class="btn btn-sm btn-secondary">&laquo;</a>
         {% endif %}
         <span style="padding: 6px 12px; color: var(--text-secondary);">Seite {{ page }} von {{ total_pages }} ({{ total }} Abos)</span>
         {% if page < total_pages %}
-        <a href="{{ url_for('fitness.subscriptions', page=page+1, search=search, status=status_filter) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        <a href="{{ url_for('fitness.subscriptions', page=page+1, search=search, status=status_filter, template=template_filter) }}" class="btn btn-sm btn-secondary">&raquo;</a>
         {% endif %}
     </div>
     {% endif %}
     {% else %}
     <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-        {% if search or status_filter %}
-        Keine Abonnemente für diese Filterkriterien gefunden.
+        {% if search or status_filter or template_filter %}
+        Keine Abonnemente fuer diese Filterkriterien gefunden.
         {% else %}
         Noch keine Abonnemente vorhanden.
         <br><br>

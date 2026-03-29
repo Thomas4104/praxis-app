@@ -254,17 +254,26 @@
                 </a>
                 {% if request.blueprint == 'fitness' %}
                 <div class="nav-sub-items" style="padding-left: 36px;">
-                    <a href="{{ url_for('fitness.subscriptions') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.subscriptions' or request.endpoint == 'fitness.subscription_detail' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                    <a href="{{ url_for('fitness.subscriptions') }}" class="nav-item nav-sub-item {% if request.endpoint in ('fitness.subscriptions', 'fitness.subscription_detail', 'fitness.subscription_new', 'fitness.subscription_edit') %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Abos</span>
                     </a>
-                    <a href="{{ url_for('fitness.templates') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.templates' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
-                        <span class="nav-label">Abo-Vorlagen</span>
+                    <a href="{{ url_for('fitness.templates') }}" class="nav-item nav-sub-item {% if request.endpoint in ('fitness.templates', 'fitness.template_new', 'fitness.template_edit') %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Vorlagen</span>
                     </a>
                     <a href="{{ url_for('fitness.visits') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.visits' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Besuche</span>
                     </a>
                     <a href="{{ url_for('fitness.checkin') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.checkin' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Check-in</span>
+                    </a>
+                    <a href="{{ url_for('fitness.automations') }}" class="nav-item nav-sub-item {% if request.endpoint in ('fitness.automations', 'fitness.automation_new', 'fitness.automation_edit') %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Automatisierungen</span>
+                    </a>
+                    <a href="{{ url_for('fitness.gantner_log') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.gantner_log' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Gantner</span>
+                    </a>
+                    <a href="{{ url_for('fitness.settings') }}" class="nav-item nav-sub-item {% if request.endpoint == 'fitness.settings' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
+                        <span class="nav-label">Einstellungen</span>
                     </a>
                 </div>
                 {% endif %}

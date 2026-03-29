@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Gantner Zugangsprotokoll{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<span>Gantner Zutritt</span>
+{% endblock %}
+
+{% block page_title %}Gantner Zugangsprotokoll{% endblock %}
+
+{% block content %}
+<!-- Kennzahlen -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: #27ae60;">{{ zutritte_heute }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Zutritte heute</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700; color: {{ '#e74c3c' if abgelehnt_heute > 0 else 'var(--text-secondary)' }};">{{ abgelehnt_heute }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Abgelehnt heute</div>
+    </div>
+    <div class="card" style="padding: 16px; text-align: center;">
+        <div style="font-size: 24px; font-weight: 700;">{{ total }}</div>
+        <div style="font-size: 13px; color: var(--text-secondary);">Eintraege gesamt</div>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card" style="margin-bottom: 20px; padding: 16px;">
+    <form method="GET" style="display: flex; gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;">
+            <label class="form-label" style="font-size: 12px;">Datum</label>
+            <input type="date" name="date" class="form-input" value="{{ date_filter }}">
+        </div>
+        <div class="form-group" style="margin: 0;">
+            <label class="form-label" style="font-size: 12px;">Zugang</label>
+            <select name="access" class="form-input">
+                <option value="">Alle</option>
+                <option value="granted" {% if access_filter == 'granted' %}selected{% endif %}>Gewaehrt</option>
+                <option value="denied" {% if access_filter == 'denied' %}selected{% endif %}>Abgelehnt</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filtern</button>
+        {% if date_filter or access_filter %}
+        <a href="{{ url_for('fitness.gantner_log') }}" class="btn btn-secondary">Zuruecksetzen</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Protokoll -->
+<div class="card">
+    {% if traces %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Zeitpunkt</th>
+                <th>Patient</th>
+                <th>Badge</th>
+                <th>Abo</th>
+                <th>Zugang</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in traces %}
+            <tr>
+                <td>{{ t.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                <td>
+                    {% if t.patient %}
+                    <a href="{{ url_for('patients.detail', patient_id=t.patient.id) }}">{{ t.patient.first_name }} {{ t.patient.last_name }}</a>
+                    {% else %}—{% endif %}
+                </td>
+                <td>{{ t.batch_id or '—' }}</td>
+                <td>
+                    {% if t.abo %}
+                    <a href="{{ url_for('fitness.subscription_detail', sub_id=t.abo.id) }}">{{ t.abo.subscription_number }}</a>
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if t.access_granted %}
+                    <span class="badge badge-success">Gewaehrt</span>
+                    {% else %}
+                    <span class="badge badge-danger">Abgelehnt</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="padding: 16px; display: flex; justify-content: center; gap: 8px;">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&date={{ date_filter }}&access={{ access_filter }}" class="btn btn-secondary" style="font-size: 13px;">&laquo;</a>
+        {% endif %}
+        <span style="padding: 6px 12px; color: var(--text-secondary);">Seite {{ page }} von {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&date={{ date_filter }}&access={{ access_filter }}" class="btn btn-secondary" style="font-size: 13px;">&raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+        Keine Zugangs-Eintraege{% if date_filter %} fuer {{ date_filter }}{% endif %}.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

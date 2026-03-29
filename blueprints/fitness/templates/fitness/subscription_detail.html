@@ -21,8 +21,12 @@
 {% elif abo.status == 'expired' %}
 <span class="badge badge-secondary" style="margin-left: 12px; vertical-align: middle;">Abgelaufen</span>
 {% elif abo.status == 'cancelled' %}
-<span class="badge badge-danger" style="margin-left: 12px; vertical-align: middle;">Gekündigt</span>
+<span class="badge badge-danger" style="margin-left: 12px; vertical-align: middle;">Gekuendigt</span>
 {% endif %}
+{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('fitness.subscription_edit', sub_id=abo.id) }}" class="btn btn-secondary">Bearbeiten</a>
 {% endblock %}
 
 {% block content %}
@@ -35,7 +39,7 @@
                 <h3 style="margin: 0; font-size: 15px;">Abo-Details</h3>
             </div>
             <div style="padding: 16px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Patient</div>
                         <div style="font-weight: 600;">
@@ -44,7 +48,11 @@
                     </div>
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Abo-Typ</div>
-                        <div style="font-weight: 600;">{{ vorlage.name }}</div>
+                        <div style="font-weight: 600;">{{ vorlage.name if vorlage else '-' }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Badge-Nr.</div>
+                        <div>{{ abo.badge_number or '—' }}</div>
                     </div>
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Start</div>
@@ -56,17 +64,27 @@
                     </div>
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Preis</div>
-                        <div>CHF {{ '%.2f'|format(vorlage.price) }}
+                        <div>CHF {{ '%.2f'|format(abo.price or vorlage.price if vorlage else 0) }}
+                            {% if vorlage %}
                             {% if vorlage.payment_interval == 'monthly' %}/Monat
                             {% elif vorlage.payment_interval == 'quarterly' %}/Quartal
                             {% elif vorlage.payment_interval == 'yearly' %}/Jahr
                             {% else %}einmalig{% endif %}
+                            {% endif %}
                         </div>
                     </div>
+                    {% if abo.discount and abo.discount > 0 %}
                     <div>
-                        <div style="font-size: 12px; color: var(--text-secondary);">Badge-Nr.</div>
-                        <div>{{ abo.badge_number or '—' }}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Rabatt</div>
+                        <div style="color: #27ae60; font-weight: 600;">{{ '%.1f'|format(abo.discount) }}%</div>
                     </div>
+                    {% endif %}
+                    {% if abo.apply_vat %}
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">MwSt</div>
+                        <div>{{ 'Inkl.' if abo.include_vat else 'Exkl.' }}</div>
+                    </div>
+                    {% endif %}
                     {% if rest_besuche is not none %}
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Besuche</div>
@@ -80,6 +98,12 @@
                         <div>{{ abo.visits_used or 0 }} (unbegrenzt)</div>
                     </div>
                     {% endif %}
+                    {% if betreuer %}
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Betreuer</div>
+                        <div>{{ betreuer.first_name }} {{ betreuer.last_name }}</div>
+                    </div>
+                    {% endif %}
                     {% if abo.paused_from %}
                     <div>
                         <div style="font-size: 12px; color: var(--text-secondary);">Pausiert seit</div>
@@ -87,6 +111,17 @@
                     </div>
                     {% endif %}
                 </div>
+
+                {% if abo.abo_message %}
+                <div style="margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffc107;">
+                    <div style="font-size: 12px; color: #856404; font-weight: 600;">Patienten-Nachricht</div>
+                    <div style="color: #856404;">{{ abo.abo_message }}</div>
+                    {% if abo.message_valid_until %}
+                    <div style="font-size: 11px; color: #856404; margin-top: 4px;">Gueltig bis: {{ abo.message_valid_until.strftime('%d.%m.%Y') }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 {% if abo.notes %}
                 <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
                     <div style="font-size: 12px; color: var(--text-secondary);">Bemerkung</div>
@@ -94,6 +129,145 @@
                 </div>
                 {% endif %}
             </div>
+        </div>
+
+        <!-- Pausen (Breaks) -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 15px;">Pausen</h3>
+                <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px;"
+                        onclick="document.getElementById('breakForm').style.display = document.getElementById('breakForm').style.display === 'none' ? 'block' : 'none'">
+                    + Pause
+                </button>
+            </div>
+            <!-- Neue Pause Formular -->
+            <div id="breakForm" style="display: none; padding: 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                <form method="POST" action="{{ url_for('fitness.break_add', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label class="form-label">Von *</label>
+                            <input type="date" name="break_start" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bis *</label>
+                            <input type="date" name="break_end" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Gebuehr (CHF)</label>
+                            <input type="number" name="break_price" class="form-input" step="0.05" value="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Grund</label>
+                        <input type="text" name="break_reason" class="form-input" placeholder="z.B. Ferien, Verletzung">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="font-size: 13px;">Pause hinzufuegen</button>
+                </form>
+            </div>
+            {% if pausen %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Von</th>
+                        <th>Bis</th>
+                        <th>Tage</th>
+                        <th>Grund</th>
+                        <th>Gebuehr</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in pausen %}
+                    <tr>
+                        <td>{{ p.start_date.strftime('%d.%m.%Y') }}</td>
+                        <td>{{ p.end_date.strftime('%d.%m.%Y') }}</td>
+                        <td>{{ (p.end_date - p.start_date).days + 1 }}</td>
+                        <td>{{ p.reason or '—' }}</td>
+                        <td>{% if p.price %}CHF {{ '%.2f'|format(p.price) }}{% else %}—{% endif %}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('fitness.break_delete', break_id=p.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger" style="font-size: 11px; padding: 2px 8px;"
+                                        onclick="return confirm('Pause löschen?')">X</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 16px; text-align: center; color: var(--text-secondary); font-size: 13px;">Keine Pausen eingetragen.</div>
+            {% endif %}
+        </div>
+
+        <!-- Positionen -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 15px;">Positionen</h3>
+                <button type="button" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px;"
+                        onclick="document.getElementById('posForm').style.display = document.getElementById('posForm').style.display === 'none' ? 'block' : 'none'">
+                    + Position
+                </button>
+            </div>
+            <div id="posForm" style="display: none; padding: 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                <form method="POST" action="{{ url_for('fitness.position_add', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label class="form-label">Bezeichnung *</label>
+                            <input type="text" name="pos_name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Anzahl</label>
+                            <input type="number" name="pos_quantity" class="form-input" value="1" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Preis (CHF)</label>
+                            <input type="number" name="pos_price" class="form-input" step="0.05" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">MwSt (%)</label>
+                            <input type="number" name="pos_vat" class="form-input" step="0.1" value="0">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="font-size: 13px;">Hinzufuegen</button>
+                </form>
+            </div>
+            {% if positionen %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Bezeichnung</th>
+                        <th>Anzahl</th>
+                        <th>Preis</th>
+                        <th>MwSt</th>
+                        <th>Total</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pos in positionen %}
+                    <tr>
+                        <td>{{ pos.name }}</td>
+                        <td>{{ pos.quantity }}</td>
+                        <td>CHF {{ '%.2f'|format(pos.unit_price_netto) }}</td>
+                        <td>{{ '%.1f'|format(pos.vat_rate) }}%</td>
+                        <td>CHF {{ '%.2f'|format(pos.quantity * pos.unit_price_netto) }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('fitness.position_delete', pos_id=pos.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger" style="font-size: 11px; padding: 2px 8px;"
+                                        onclick="return confirm('Position löschen?')">X</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding: 16px; text-align: center; color: var(--text-secondary); font-size: 13px;">Keine Positionen.</div>
+            {% endif %}
         </div>
 
         <!-- Besuchshistorie -->
@@ -132,7 +306,7 @@
         </div>
 
         <!-- Rechnungen -->
-        <div class="card">
+        <div class="card" style="margin-bottom: 20px;">
             <div style="padding: 16px; border-bottom: 1px solid var(--border);">
                 <h3 style="margin: 0; font-size: 15px;">Rechnungen</h3>
             </div>
@@ -158,7 +332,7 @@
                             {% elif r.status == 'sent' %}
                             <span class="badge badge-primary">Gesendet</span>
                             {% elif r.status == 'overdue' %}
-                            <span class="badge badge-danger">Überfällig</span>
+                            <span class="badge badge-danger">Ueberfaellig</span>
                             {% else %}
                             <span class="badge badge-secondary">{{ r.status }}</span>
                             {% endif %}
@@ -171,6 +345,28 @@
             <div style="padding: 24px; text-align: center; color: var(--text-secondary);">Keine Rechnungen.</div>
             {% endif %}
         </div>
+
+        <!-- Aktions-Log -->
+        {% if aktionen %}
+        <div class="card">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; font-size: 15px;">Aktivitaetsprotokoll</h3>
+            </div>
+            <div style="padding: 0;">
+                {% for a in aktionen %}
+                <div style="padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; justify-content: space-between;">
+                    <div>
+                        <span style="color: var(--text-secondary);">{{ a.action_date.strftime('%d.%m.%Y %H:%M') }}</span>
+                        {% if a.employee %}
+                        <span style="margin-left: 8px; font-weight: 500;">{{ a.employee.first_name }} {{ a.employee.last_name }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="color: var(--text-secondary);">{{ a.action_content or '—' }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Rechte Spalte: Aktionen -->
@@ -184,18 +380,21 @@
                 <!-- Pausieren -->
                 <form method="POST" action="{{ url_for('fitness.subscription_pause', sub_id=abo.id) }}" style="display: flex; flex-direction: column; gap: 8px;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="date" name="paused_until" class="form-input" style="flex: 1;" placeholder="Bis wann?">
-                        <button type="submit" class="btn btn-warning" style="white-space: nowrap;"
-                                onclick="return confirm('Abo wirklich pausieren?')">Pausieren</button>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                        <input type="date" name="paused_from" class="form-input" style="font-size: 12px;" value="{{ today_str }}" title="Von">
+                        <input type="date" name="paused_until" class="form-input" style="font-size: 12px;" title="Bis">
                     </div>
+                    <input type="text" name="reason" class="form-input" style="font-size: 12px;" placeholder="Grund (optional)">
+                    <button type="submit" class="btn btn-warning" style="width: 100%;"
+                            onclick="return confirm('Abo wirklich pausieren?')">Pausieren</button>
                 </form>
 
-                <!-- Kündigen -->
-                <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
+                <!-- Kuendigen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}" style="margin-top: 4px;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="text" name="reason" class="form-input" style="font-size: 12px; margin-bottom: 6px;" placeholder="Kuendigungsgrund">
                     <button type="submit" class="btn btn-danger" style="width: 100%;"
-                            onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
+                            onclick="return confirm('Abo wirklich kündigen?')">Kuendigen</button>
                 </form>
                 {% endif %}
 
@@ -206,19 +405,19 @@
                     <button type="submit" class="btn btn-success" style="width: 100%;">Fortsetzen</button>
                 </form>
 
-                <!-- Kündigen -->
+                <!-- Kuendigen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_cancel', sub_id=abo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger" style="width: 100%;"
-                            onclick="return confirm('Abo wirklich kündigen?')">Kündigen</button>
+                            onclick="return confirm('Abo wirklich kündigen?')">Kuendigen</button>
                 </form>
                 {% endif %}
 
-                <!-- Verlängern -->
+                <!-- Verlaengern -->
                 {% if abo.end_date %}
                 <form method="POST" action="{{ url_for('fitness.subscription_renew', sub_id=abo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Verlängern</button>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Verlaengern</button>
                 </form>
                 {% endif %}
 
@@ -227,15 +426,24 @@
                 <!-- Badge zuordnen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_badge', sub_id=abo.id) }}" style="display: flex; gap: 8px;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="text" name="badge_number" class="form-input" style="flex: 1;"
+                    <input type="text" name="badge_number" class="form-input" style="flex: 1; font-size: 12px;"
                            placeholder="Badge-Nr." value="{{ abo.badge_number or '' }}">
-                    <button type="submit" class="btn btn-secondary" style="white-space: nowrap;">Badge speichern</button>
+                    <button type="submit" class="btn btn-secondary" style="white-space: nowrap; font-size: 12px;">Badge</button>
                 </form>
 
                 <!-- Rechnung erstellen -->
                 <form method="POST" action="{{ url_for('fitness.subscription_create_invoice', sub_id=abo.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-secondary" style="width: 100%;">Rechnung erstellen</button>
+                </form>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 4px 0;">
+
+                <!-- Loeschen -->
+                <form method="POST" action="{{ url_for('fitness.subscription_delete', sub_id=abo.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger" style="width: 100%; font-size: 12px; opacity: 0.7;"
+                            onclick="return confirm('Abo wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')">Abo loeschen</button>
                 </form>
             </div>
         </div>

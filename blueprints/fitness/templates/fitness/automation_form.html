@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Automatisierung bearbeiten' if automation else 'Neue Automatisierung' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.automations') }}">Automatisierungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Bearbeiten' if automation else 'Neue Automatisierung' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Automatisierung bearbeiten' if automation else 'Neue Automatisierung' }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px;">
+    <form method="POST" style="padding: 24px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label class="form-label">Titel *</label>
+                <input type="text" name="title" class="form-input" required
+                       value="{{ automation.title if automation else '' }}"
+                       placeholder="z.B. Erinnerung vor Ablauf, Willkommens-Mail">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Typ</label>
+                <select name="automation_type" class="form-input" id="autoType">
+                    <option value="0" {% if automation and automation.automation_type == 0 %}selected{% endif %}>Mailing</option>
+                    <option value="1" {% if automation and automation.automation_type == 1 %}selected{% endif %}>Aufgabe (Mission)</option>
+                    <option value="2" {% if automation and automation.automation_type == 2 %}selected{% endif %}>Patienten-Nachricht</option>
+                    <option value="3" {% if automation and automation.automation_type == 3 %}selected{% endif %}>Verlaengerung</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Trigger (Ausloeser)</label>
+                <select name="action" class="form-input">
+                    <option value="0" {% if rules and rules.get('action') == 0 %}selected{% endif %}>Nach Abo-Start</option>
+                    <option value="1" {% if rules and rules.get('action') == 1 %}selected{% endif %}>Nach Abo-Ende</option>
+                    <option value="2" {% if rules and rules.get('action') == 2 %}selected{% endif %}>Vor Abo-Start</option>
+                    <option value="3" {% if rules and rules.get('action') == 3 %}selected{% endif %}>Vor Abo-Ende</option>
+                    <option value="4" {% if rules and rules.get('action') == 4 %}selected{% endif %}>Nach Besuch</option>
+                    <option value="5" {% if rules and rules.get('action') == 5 %}selected{% endif %}>Ohne Besuch (Inaktivitaet)</option>
+                    <option value="6" {% if rules and rules.get('action') == 6 %}selected{% endif %}>Geburtstag</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Tage/Besuche (Schwellwert)</label>
+                <input type="number" name="days_or_visits" class="form-input" min="0"
+                       value="{{ rules.get('days_or_visits', 0) if rules else 0 }}"
+                       placeholder="z.B. 30 = 30 Tage vor Ende">
+                <small style="color: var(--text-secondary);">Anzahl Tage oder Besuche fuer den Trigger</small>
+            </div>
+
+            <div class="form-group" id="extensionTemplate" style="{% if not automation or automation.automation_type != 3 %}display: none;{% endif %}">
+                <label class="form-label">Verlaengerungsvorlage</label>
+                <select name="extend_with_template_id" class="form-input">
+                    <option value="">— Keine —</option>
+                    {% for v in vorlagen %}
+                    <option value="{{ v.id }}" {% if automation and automation.extend_with_template_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Optionen -->
+        <h3 style="margin: 24px 0 12px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Optionen</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="send_once_per_patient" {% if rules and rules.get('send_once_per_patient') %}checked{% endif %}>
+                Nur einmal pro Patient
+            </label>
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="send_once_per_abo" {% if rules and rules.get('send_once_per_abo') %}checked{% endif %}>
+                Nur einmal pro Abo
+            </label>
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="only_send_without_extension" {% if rules and rules.get('only_send_without_extension') %}checked{% endif %}>
+                Nur ohne Verlaengerung
+            </label>
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" name="send_via_mail" {% if rules and rules.get('send_via_mail') %}checked{% endif %}>
+                Per E-Mail senden
+            </label>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">
+                {{ 'Speichern' if automation else 'Automatisierung erstellen' }}
+            </button>
+            <a href="{{ url_for('fitness.automations') }}" class="btn btn-secondary">Abbrechen</a>
+            {% if automation %}
+            <form method="POST" action="{{ url_for('fitness.automation_delete', auto_id=automation.id) }}" style="margin-left: auto;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Automatisierung löschen?')">Loeschen</button>
+            </form>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('autoType').addEventListener('change', function() {
+    document.getElementById('extensionTemplate').style.display = this.value === '3' ? '' : 'none';
+});
+</script>
+{% endblock %}

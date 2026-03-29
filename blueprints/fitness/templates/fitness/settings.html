@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Fitness-Einstellungen{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<span>Einstellungen</span>
+{% endblock %}
+
+{% block page_title %}Fitness-Einstellungen{% endblock %}
+
+{% block content %}
+<!-- Standort-Auswahl -->
+<div class="card" style="margin-bottom: 20px; padding: 16px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <label class="form-label" style="margin: 0; white-space: nowrap;">Standort:</label>
+        <select class="form-input" style="max-width: 300px;" onchange="window.location='{{ url_for('fitness.settings') }}?location_id=' + this.value">
+            {% for loc in locations %}
+            <option value="{{ loc.id }}" {% if loc.id == location_id %}selected{% endif %}>{{ loc.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{% if location_id %}
+<form method="POST" action="{{ url_for('fitness.settings', location_id=location_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Allgemein -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 15px;">Allgemeine Einstellungen</h3>
+        </div>
+        <div style="padding: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Badge-Depot (CHF)</label>
+                    <input type="number" name="depot_price" class="form-input" step="0.05"
+                           value="{{ config.depot_price if config and config.depot_price else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Zahlungsfrist (Tage)</label>
+                    <input type="number" name="payment_due_days" class="form-input"
+                           value="{{ config.payment_due_days if config and config.payment_due_days else 30 }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ZSR-Nummer</label>
+                    <input type="text" name="zsr" class="form-input"
+                           value="{{ config.zsr if config else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">NFC-Writer</label>
+                    <input type="text" name="nfc_writer" class="form-input"
+                           value="{{ config.nfc_writer if config else '' }}" placeholder="Geraetename">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="use_start_as_due_date" {% if config and config.use_start_as_due_date %}checked{% endif %}>
+                        Startdatum als Faelligkeitsdatum
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="hide_qualicert" {% if config and config.hide_qualicert %}checked{% endif %}>
+                        Qualicert ausblenden
+                    </label>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label">Vertragstext</label>
+                <textarea name="contract_text" class="form-input" rows="4">{{ config.contract_text if config else '' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- eGym -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 15px;">eGym Integration</h3>
+        </div>
+        <div style="padding: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">eGym ID</label>
+                    <input type="text" name="egym_id" class="form-input"
+                           value="{{ config.egym_id if config else '' }}" placeholder="Fitness-Center ID">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">eGym Token</label>
+                    <input type="text" name="egym_token" class="form-input"
+                           value="{{ config.egym_token if config else '' }}" placeholder="API Token">
+                </div>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 12px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="egym_sync_patients" {% if egym_settings.get('sync_patients') %}checked{% endif %}>
+                    Patienten synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="egym_sync_batches" {% if egym_settings.get('sync_batches') %}checked{% endif %}>
+                    Badges synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="egym_sync_visits" {% if egym_settings.get('sync_visits') %}checked{% endif %}>
+                    Besuche synchronisieren
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milon -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 15px;">Milon Integration</h3>
+        </div>
+        <div style="padding: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">Milon ID</label>
+                    <input type="text" name="milon_id" class="form-input"
+                           value="{{ config.milon_id if config else '' }}" placeholder="Fitness-Center ID">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Milon Token</label>
+                    <input type="text" name="milon_token" class="form-input"
+                           value="{{ config.milon_token if config else '' }}" placeholder="API Token">
+                </div>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 12px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="milon_sync_patients" {% if milon_settings.get('sync_patients') %}checked{% endif %}>
+                    Patienten synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="milon_sync_batches" {% if milon_settings.get('sync_batches') %}checked{% endif %}>
+                    Badges synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="milon_sync_visits" {% if milon_settings.get('sync_visits') %}checked{% endif %}>
+                    Besuche synchronisieren
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- MyWellness -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 15px;">MyWellness (Technogym) Integration</h3>
+        </div>
+        <div style="padding: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">API Key</label>
+                    <input type="text" name="mywellness_api_key" class="form-input"
+                           value="{{ config.mywellness_api_key if config else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API URL</label>
+                    <input type="text" name="mywellness_url" class="form-input"
+                           value="{{ config.mywellness_url if config else '' }}" placeholder="https://api.mywellness.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Facility ID</label>
+                    <input type="text" name="mywellness_facility_id" class="form-input"
+                           value="{{ config.mywellness_facility_id if config else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Geraetetyp</label>
+                    <select name="mywellness_device_type" class="form-input">
+                        <option value="TGS" {% if mywellness_settings.get('device_type') == 'TGS' %}selected{% endif %}>TGS</option>
+                        <option value="TechnogymBand" {% if mywellness_settings.get('device_type') == 'TechnogymBand' %}selected{% endif %}>Technogym Band</option>
+                        <option value="FacilitySmartTag" {% if mywellness_settings.get('device_type') == 'FacilitySmartTag' %}selected{% endif %}>Facility Smart Tag</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 12px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="mywellness_sync_patients" {% if mywellness_settings.get('sync_patients') %}checked{% endif %}>
+                    Patienten synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="mywellness_sync_batches" {% if mywellness_settings.get('sync_batches') %}checked{% endif %}>
+                    Badges synchronisieren
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="mywellness_sync_visits" {% if mywellness_settings.get('sync_visits') %}checked{% endif %}>
+                    Besuche synchronisieren
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gantner -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 15px;">Gantner Zutrittssystem</h3>
+        </div>
+        <div style="padding: 16px;">
+            <div style="display: flex; gap: 24px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="gantner_use_badge_as_visit" {% if gantner_config.get('use_badge_as_visit') %}checked{% endif %}>
+                    Badge-Scan = automatischer Besuch
+                </label>
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="gantner_track_badge_outs" {% if gantner_config.get('track_badge_outs') %}checked{% endif %}>
+                    Badge-Austritte erfassen
+                </label>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+                <label class="form-label">Oeffnungszeiten (JSON)</label>
+                <textarea name="gantner_opening_times" class="form-input" rows="3"
+                          placeholder='{"Mo-Fr": "06:00-22:00", "Sa": "08:00-20:00", "So": "08:00-18:00"}'>{{ gantner_config.get('custom_opening_times', '') }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; padding-top: 8px;">
+        <button type="submit" class="btn btn-primary">Einstellungen speichern</button>
+        <a href="{{ url_for('fitness.index') }}" class="btn btn-secondary">Abbrechen</a>
+    </div>
+</form>
+{% else %}
+<div class="card" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+    Bitte zuerst einen Standort unter <a href="{{ url_for('practice.index') }}">Praxisverwaltung</a> anlegen.
+</div>
+{% endif %}
+{% endblock %}

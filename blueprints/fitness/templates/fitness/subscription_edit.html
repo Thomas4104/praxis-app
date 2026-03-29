@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Abo {{ abo.subscription_number }} bearbeiten{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.index') }}">Fitness</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.subscriptions') }}">Abonnemente</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('fitness.subscription_detail', sub_id=abo.id) }}">{{ abo.subscription_number }}</a>
+<span class="breadcrumb-sep">/</span>
+<span>Bearbeiten</span>
+{% endblock %}
+
+{% block page_title %}Abo {{ abo.subscription_number }} bearbeiten{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px;">
+    <form method="POST" style="padding: 24px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Rabatt (%)</label>
+                <input type="number" name="discount" class="form-input" step="0.1" min="0" max="100"
+                       value="{{ abo.discount or 0 }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Betreuer</label>
+                <select name="supervisor_id" class="form-input">
+                    <option value="">— Kein Betreuer —</option>
+                    {% for e in employees %}
+                    <option value="{{ e.id }}" {% if abo.supervisor_id == e.id %}selected{% endif %}>
+                        {{ e.first_name }} {{ e.last_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="apply_vat" {% if abo.apply_vat %}checked{% endif %}>
+                    MwSt anwenden
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="include_vat" {% if abo.include_vat %}checked{% endif %}>
+                    MwSt inklusive
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="stop_reminding" {% if abo.stop_reminding %}checked{% endif %}>
+                    Keine Verlaengerungserinnerungen
+                </label>
+            </div>
+        </div>
+
+        <!-- Patienten-Nachricht -->
+        <h3 style="margin: 24px 0 12px 0; font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Patienten-Nachricht</h3>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Nachricht (wird beim Check-in angezeigt)</label>
+                <textarea name="abo_message" class="form-input" rows="3">{{ abo.abo_message or '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gueltig bis</label>
+                <input type="date" name="message_valid_until" class="form-input"
+                       value="{{ abo.message_valid_until.strftime('%Y-%m-%d') if abo.message_valid_until else '' }}">
+            </div>
+        </div>
+
+        <!-- Bemerkung -->
+        <div class="form-group">
+            <label class="form-label">Bemerkung</label>
+            <textarea name="notes" class="form-input" rows="3">{{ abo.notes or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+            <a href="{{ url_for('fitness.subscription_detail', sub_id=abo.id) }}" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
