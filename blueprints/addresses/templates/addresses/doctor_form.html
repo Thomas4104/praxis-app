@@ -12,11 +12,23 @@
 
 {% block page_title %}{{ 'Arzt bearbeiten' if doctor else 'Neuer Arzt' }}{% endblock %}
 
+{% block page_actions %}
+{% if not doctor %}
+<button type="button" class="btn btn-secondary" onclick="openDoctorSearch()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Arztsuche (Register)
+</button>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <div class="card-body">
-        <form method="POST">
+        <form method="POST" id="doctorForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Person -->
+            <h4 class="section-title">Person / Praxis</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Anrede</label>
@@ -24,16 +36,49 @@
                            value="{{ doctor.salutation if doctor else 'Dr. med.' }}">
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Geschlecht</label>
+                    <select name="sex" class="form-select">
+                        <option value="">-- Keine Angabe --</option>
+                        <option value="0" {% if doctor and doctor.sex == 0 %}selected{% endif %}>Männlich</option>
+                        <option value="1" {% if doctor and doctor.sex == 1 %}selected{% endif %}>Weiblich</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Geburtstag</label>
+                    <input type="date" name="birthday" class="form-input"
+                           value="{{ doctor.birthday.strftime('%Y-%m-%d') if doctor and doctor.birthday else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
                     <label class="form-label">Vorname</label>
                     <input type="text" name="first_name" class="form-input"
                            value="{{ doctor.first_name if doctor else '' }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Nachname *</label>
-                    <input type="text" name="last_name" class="form-input" required
-                           value="{{ doctor.last_name if doctor else '' }}">
+                    <input type="text" name="last_name" class="form-input"
+                           value="{{ doctor.last_name if doctor else '' }}"
+                           id="last_name">
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Firma / Praxis</label>
+                    <input type="text" name="company" class="form-input"
+                           value="{{ doctor.company if doctor else '' }}"
+                           id="company" placeholder="Alternativ zum Namen">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Abteilung</label>
+                    <input type="text" name="department" class="form-input"
+                           value="{{ doctor.department if doctor else '' }}">
+                </div>
+            </div>
+            <p class="form-hint">* Entweder Nachname oder Firma/Praxis muss angegeben werden.</p>
+
+            <!-- Fachbereich -->
+            <h4 class="section-title">Fachbereich</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Fachrichtung</label>
@@ -47,9 +92,36 @@
                         <option value="Chirurgie" {% if spec == 'Chirurgie' %}selected{% endif %}>Chirurgie</option>
                         <option value="Paediatrie" {% if spec == 'Paediatrie' %}selected{% endif %}>Pädiatrie</option>
                         <option value="Innere Medizin" {% if spec == 'Innere Medizin' %}selected{% endif %}>Innere Medizin</option>
+                        <option value="Psychiatrie" {% if spec == 'Psychiatrie' %}selected{% endif %}>Psychiatrie</option>
+                        <option value="Kardiologie" {% if spec == 'Kardiologie' %}selected{% endif %}>Kardiologie</option>
+                        <option value="Dermatologie" {% if spec == 'Dermatologie' %}selected{% endif %}>Dermatologie</option>
+                        <option value="Gynäkologie" {% if spec == 'Gynäkologie' or spec == 'Gynaekologie' %}selected{% endif %}>Gynäkologie</option>
+                        <option value="Urologie" {% if spec == 'Urologie' %}selected{% endif %}>Urologie</option>
+                        <option value="HNO" {% if spec == 'HNO' %}selected{% endif %}>HNO</option>
+                        <option value="Augenheilkunde" {% if spec == 'Augenheilkunde' %}selected{% endif %}>Augenheilkunde</option>
+                        <option value="Radiologie" {% if spec == 'Radiologie' %}selected{% endif %}>Radiologie</option>
+                        <option value="Onkologie" {% if spec == 'Onkologie' %}selected{% endif %}>Onkologie</option>
                         <option value="Sonstige" {% if spec == 'Sonstige' %}selected{% endif %}>Sonstige</option>
                     </select>
                 </div>
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Expertise (Komma-getrennt)</label>
+                    {% set exp_val = '' %}
+                    {% if doctor and doctor.expertise %}
+                        {% set exp_val = doctor.expertise %}
+                        {% if exp_val.startswith('[') %}
+                            {% set exp_val = exp_val[1:-1] | replace('"', '') %}
+                        {% endif %}
+                    {% endif %}
+                    <input type="text" name="expertise" class="form-input"
+                           value="{{ exp_val }}"
+                           placeholder="z.B. Sportmedizin, Manuelle Therapie, Akupunktur">
+                </div>
+            </div>
+
+            <!-- Identifikatoren -->
+            <h4 class="section-title">Identifikatoren</h4>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">GLN-Nummer</label>
                     <div class="input-group">
@@ -73,12 +145,22 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Adresse -->
+            <h4 class="section-title">Adresse</h4>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
-                    <label class="form-label">Adresse</label>
+                    <label class="form-label">Strasse</label>
                     <input type="text" name="address" class="form-input"
                            value="{{ doctor.address if doctor else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Postfach</label>
+                    <input type="text" name="postbox" class="form-input"
+                           value="{{ doctor.postbox if doctor else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">PLZ</label>
                     <input type="text" name="zip_code" class="form-input"
@@ -89,7 +171,24 @@
                     <input type="text" name="city" class="form-input"
                            value="{{ doctor.city if doctor else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Kanton</label>
+                    <select name="kanton" class="form-select">
+                        <option value="">-- Kanton --</option>
+                        {% for k in kantone %}
+                        <option value="{{ k }}" {% if doctor and doctor.kanton == k %}selected{% endif %}>{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Land</label>
+                    <input type="text" name="country" class="form-input" maxlength="5"
+                           value="{{ doctor.country if doctor else 'CH' }}">
+                </div>
             </div>
+
+            <!-- Kommunikation -->
+            <h4 class="section-title">Kommunikation</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Telefon</label>
@@ -97,15 +196,40 @@
                            value="{{ doctor.phone if doctor else '' }}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">E-Mail</label>
-                    <input type="email" name="email" class="form-input"
-                           value="{{ doctor.email if doctor else '' }}">
+                    <label class="form-label">Mobil</label>
+                    <input type="tel" name="mobile" class="form-input"
+                           value="{{ doctor.mobile if doctor else '' }}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Fax</label>
                     <input type="text" name="fax" class="form-input"
                            value="{{ doctor.fax if doctor else '' }}">
                 </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">E-Mail</label>
+                    <input type="email" name="email" class="form-input"
+                           value="{{ doctor.email if doctor else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Website</label>
+                    <input type="url" name="homepage" class="form-input" placeholder="https://..."
+                           value="{{ doctor.homepage if doctor else '' }}">
+                </div>
+            </div>
+
+            <!-- Sonstiges -->
+            <h4 class="section-title">Sonstiges</h4>
+            <div class="form-group">
+                <label class="form-label">Anredeformel (fuer Briefe)</label>
+                <input type="text" name="addressing" class="form-input"
+                       value="{{ doctor.addressing if doctor else '' }}"
+                       placeholder="z.B. Sehr geehrter Herr Dr. ...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Beschreibung / Notizen</label>
+                <textarea name="description_text" class="form-textarea" rows="3">{{ doctor.description_text if doctor else '' }}</textarea>
             </div>
 
             <div class="form-actions">
@@ -115,11 +239,43 @@
         </form>
     </div>
 </div>
+
+<!-- Arztsuche-Dialog (Cenplex: SearchDoctorsViewModel) -->
+<div id="doctorSearchModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Arztsuche (Schweizer Register)</h3>
+            <button type="button" class="modal-close" onclick="closeDoctorSearch()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <input type="text" id="searchName" class="form-input" placeholder="Name oder Firma suchen..."
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();searchDoctorsOnline();}">
+                </div>
+                <div class="form-group">
+                    <select id="searchCanton" class="form-select">
+                        <option value="">Alle Kantone</option>
+                        {% for k in kantone %}
+                        <option value="{{ k }}">{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="searchDoctorsOnline()">Suchen</button>
+            </div>
+            <div id="searchResults" class="search-results">
+                <p class="text-muted">Suchbegriff eingeben und Suchen klicken.</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
 .form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
+.section-title { margin: var(--spacing-lg) 0 var(--spacing-md) 0; padding-bottom: var(--spacing-xs); border-bottom: 1px solid var(--color-gray-200); color: var(--color-gray-700); font-size: var(--font-size-base); }
+.form-hint { font-size: var(--font-size-xs); color: var(--color-gray-500); margin-top: calc(-1 * var(--spacing-sm)); }
 .input-group { display: flex; gap: 0; }
 .input-group .form-input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .btn-lookup {
@@ -132,6 +288,36 @@
     transition: background 0.15s;
 }
 .btn-lookup:hover { background: var(--bg-hover, #e8e8e8); }
+/* Modal */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+    align-items: flex-start; justify-content: center; padding-top: 5vh;
+}
+.modal-content {
+    background: var(--bg-primary, #fff); border-radius: var(--border-radius-lg, 8px);
+    width: 90%; max-width: 800px; max-height: 80vh; overflow: hidden;
+    display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-gray-200);
+}
+.modal-header h3 { margin: 0; }
+.modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-gray-500); }
+.modal-body { padding: var(--spacing-lg); overflow-y: auto; flex: 1; }
+.search-results { margin-top: var(--spacing-md); }
+.search-result-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-gray-200); border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-xs); cursor: pointer;
+    transition: background 0.15s;
+}
+.search-result-item:hover { background: var(--color-gray-50); }
+.search-result-name { font-weight: 600; }
+.search-result-details { font-size: var(--font-size-xs); color: var(--color-gray-500); }
 </style>
 {% endblock %}
 
@@ -165,7 +351,6 @@ function lookupZSR() {
 }
 
 function fillDoctorForm(data) {
-    /* Felder automatisch ausfuellen */
     const mapping = {
         'salutation': 'salutation',
         'first_name': 'first_name',
@@ -178,6 +363,9 @@ function fillDoctorForm(data) {
         'city': 'city',
         'phone': 'phone',
         'email': 'email',
+        'company': 'company',
+        'canton': 'kanton',
+        'fax': 'fax',
     };
     for (const [apiField, formField] of Object.entries(mapping)) {
         const el = document.getElementById(formField) || document.querySelector(`[name="${formField}"]`);
@@ -187,5 +375,70 @@ function fillDoctorForm(data) {
     }
     alert('Daten uebernommen. Bitte pruefen und speichern.');
 }
+
+/* Arztsuche-Dialog (Cenplex: SearchDoctorsViewModel) */
+function openDoctorSearch() {
+    document.getElementById('doctorSearchModal').style.display = 'flex';
+}
+
+function closeDoctorSearch() {
+    document.getElementById('doctorSearchModal').style.display = 'none';
+}
+
+function searchDoctorsOnline() {
+    const name = document.getElementById('searchName').value.trim();
+    const canton = document.getElementById('searchCanton').value;
+    const resultsDiv = document.getElementById('searchResults');
+
+    if (!name && !canton) {
+        alert('Bitte mindestens Name oder Kanton angeben.');
+        return;
+    }
+
+    resultsDiv.innerHTML = '<p class="text-muted">Suche läuft...</p>';
+
+    let url = `/addresses/api/search-practitioners?q=${encodeURIComponent(name)}`;
+    if (canton) url += `&canton=${encodeURIComponent(canton)}`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                resultsDiv.innerHTML = `<p class="text-muted">${data.error}</p>`;
+                return;
+            }
+            if (!data.results || data.results.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-muted">Keine Ergebnisse gefunden.</p>';
+                return;
+            }
+
+            let html = '';
+            data.results.forEach(r => {
+                html += `<div class="search-result-item" onclick='importDoctor(${JSON.stringify(r)})'>
+                    <div>
+                        <div class="search-result-name">${r.last_name || ''}, ${r.first_name || ''}</div>
+                        <div class="search-result-details">
+                            ${r.specialty || ''} | ${r.city || ''} ${r.canton || ''} | GLN: ${r.gln_number || '-'} | ZSR: ${r.zsr_number || '-'}
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary">Übernehmen</button>
+                </div>`;
+            });
+            resultsDiv.innerHTML = html;
+        })
+        .catch(e => {
+            resultsDiv.innerHTML = `<p class="text-muted">Fehler: ${e}</p>`;
+        });
+}
+
+function importDoctor(data) {
+    fillDoctorForm(data);
+    closeDoctorSearch();
+}
+
+/* Modal schliessen bei Klick ausserhalb */
+document.getElementById('doctorSearchModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeDoctorSearch();
+});
 </script>
 {% endblock %}

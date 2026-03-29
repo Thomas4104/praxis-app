@@ -29,16 +29,56 @@
 {% endblock %}
 
 {% block content %}
+{% if not doctor.is_active %}
+<div class="alert alert-warning" style="margin-bottom: var(--spacing-lg);">
+    Dieser Arzt ist deaktiviert.
+</div>
+{% endif %}
+
 <div class="detail-grid">
     <!-- Basisdaten -->
     <div class="card">
         <div class="card-header"><h3>Basisdaten</h3></div>
         <div class="card-body">
             <div class="detail-list">
+                {% if doctor.company %}
+                <div class="detail-item">
+                    <span class="detail-label">Firma / Praxis</span>
+                    <span class="detail-value">{{ doctor.company }}</span>
+                </div>
+                {% endif %}
+                {% if doctor.department %}
+                <div class="detail-item">
+                    <span class="detail-label">Abteilung</span>
+                    <span class="detail-value">{{ doctor.department }}</span>
+                </div>
+                {% endif %}
                 <div class="detail-item">
                     <span class="detail-label">Fachrichtung</span>
                     <span class="detail-value">{{ doctor.specialty or '-' }}</span>
                 </div>
+                {% if expertise_list %}
+                <div class="detail-item">
+                    <span class="detail-label">Expertise</span>
+                    <span class="detail-value">
+                        {% for tag in expertise_list %}
+                        <span class="badge badge-info">{{ tag }}</span>
+                        {% endfor %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if doctor.sex is not none %}
+                <div class="detail-item">
+                    <span class="detail-label">Geschlecht</span>
+                    <span class="detail-value">{{ 'Männlich' if doctor.sex == 0 else 'Weiblich' }}</span>
+                </div>
+                {% endif %}
+                {% if doctor.birthday %}
+                <div class="detail-item">
+                    <span class="detail-label">Geburtstag</span>
+                    <span class="detail-value">{{ doctor.birthday.strftime('%d.%m.%Y') }}</span>
+                </div>
+                {% endif %}
                 <div class="detail-item">
                     <span class="detail-label">GLN-Nummer</span>
                     <span class="detail-value">{{ doctor.gln_number or '-' }}</span>
@@ -47,27 +87,78 @@
                     <span class="detail-label">ZSR-Nummer</span>
                     <span class="detail-value">{{ doctor.zsr_number or '-' }}</span>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Adresse & Kommunikation -->
+    <div class="card">
+        <div class="card-header"><h3>Adresse &amp; Kommunikation</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
                 <div class="detail-item">
                     <span class="detail-label">Adresse</span>
-                    <span class="detail-value">{{ doctor.address or '-' }}, {{ doctor.zip_code or '' }} {{ doctor.city or '' }}</span>
+                    <span class="detail-value">
+                        {{ doctor.address or '-' }}
+                        {% if doctor.postbox %}<br>Postfach {{ doctor.postbox }}{% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Ort</span>
+                    <span class="detail-value">{{ doctor.zip_code or '' }} {{ doctor.city or '-' }}{% if doctor.kanton %} ({{ doctor.kanton }}){% endif %}{% if doctor.country and doctor.country != 'CH' %}, {{ doctor.country }}{% endif %}</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Telefon</span>
                     <span class="detail-value">{{ doctor.phone or '-' }}</span>
                 </div>
+                {% if doctor.mobile %}
                 <div class="detail-item">
-                    <span class="detail-label">E-Mail</span>
-                    <span class="detail-value">{{ doctor.email or '-' }}</span>
+                    <span class="detail-label">Mobil</span>
+                    <span class="detail-value">{{ doctor.mobile }}</span>
                 </div>
+                {% endif %}
                 {% if doctor.fax %}
                 <div class="detail-item">
                     <span class="detail-label">Fax</span>
                     <span class="detail-value">{{ doctor.fax }}</span>
                 </div>
                 {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value">{% if doctor.email %}<a href="mailto:{{ doctor.email }}">{{ doctor.email }}</a>{% else %}-{% endif %}</span>
+                </div>
+                {% if doctor.homepage %}
+                <div class="detail-item">
+                    <span class="detail-label">Website</span>
+                    <span class="detail-value"><a href="{{ doctor.homepage }}" target="_blank" rel="noopener">{{ doctor.homepage }}</a></span>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
+
+    <!-- Sonstiges -->
+    {% if doctor.addressing or doctor.description_text %}
+    <div class="card">
+        <div class="card-header"><h3>Sonstiges</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if doctor.addressing %}
+                <div class="detail-item">
+                    <span class="detail-label">Anredeformel</span>
+                    <span class="detail-value">{{ doctor.addressing }}</span>
+                </div>
+                {% endif %}
+                {% if doctor.description_text %}
+                <div class="detail-item">
+                    <span class="detail-label">Beschreibung</span>
+                    <span class="detail-value">{{ doctor.description_text }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Zuweiserstatistik -->
     <div class="card">
@@ -94,7 +185,7 @@
                     </div>
                     <div class="schedule-detail">
                         {{ s.patient.first_name }} {{ s.patient.last_name }}
-                        <small>{{ s.diagnosis_text or s.template.name if s.template else '-' }}</small>
+                        <small>{{ s.diagnosis_text or (s.template.name if s.template else '-') }}</small>
                     </div>
                 </div>
                 {% endfor %}
@@ -109,6 +200,11 @@
 
 {% block extra_css %}
 <style>
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-lg); }
+.detail-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.detail-item { display: flex; justify-content: space-between; padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100); }
+.detail-label { font-size: var(--font-size-sm); color: var(--color-gray-500); min-width: 150px; }
+.detail-value { font-size: var(--font-size-sm); text-align: right; }
 .stat-item { text-align: center; }
 .stat-value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
 .stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
@@ -117,5 +213,6 @@
 .schedule-time { font-size: var(--font-size-sm); white-space: nowrap; min-width: 90px; }
 .schedule-detail { font-size: var(--font-size-sm); }
 .schedule-detail small { display: block; color: var(--color-gray-500); }
+.alert-warning { background: #fff3cd; border: 1px solid #ffc107; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); color: #856404; }
 </style>
 {% endblock %}

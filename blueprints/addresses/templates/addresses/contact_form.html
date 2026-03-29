@@ -17,17 +17,66 @@
     <div class="card-body">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Kontakttyp -->
+            <h4 class="section-title">Kontakttyp</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Typ</label>
+                    <select name="contact_type" class="form-select" id="contactTypeSelect" onchange="toggleTypeFields()">
+                        <option value="0" {% if default_type == 0 %}selected{% endif %}>Allgemein</option>
+                        {% for code, label in contact_types.items() %}
+                        <option value="{{ code }}" {% if default_type == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Kategorie (Freitext)</label>
+                    <input type="text" name="category" class="form-input"
+                           placeholder="z.B. Lieferant, Behörde, Labor..."
+                           value="{{ contact.category if contact else '' }}">
+                </div>
+            </div>
+
+            <!-- Organisation -->
+            <h4 class="section-title">Organisation</h4>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
                     <label class="form-label">Firmenname</label>
                     <input type="text" name="company_name" class="form-input"
-                           value="{{ contact.company_name if contact else '' }}">
+                           value="{{ contact.company_name if contact else '' }}" id="company_name">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Kategorie</label>
-                    <input type="text" name="category" class="form-input"
-                           placeholder="z.B. Lieferant, Behörde..."
-                           value="{{ contact.category if contact else '' }}">
+                    <label class="form-label">Abteilung</label>
+                    <input type="text" name="department" class="form-input"
+                           value="{{ contact.department if contact else '' }}">
+                </div>
+            </div>
+
+            <!-- Person -->
+            <h4 class="section-title">Person</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Anrede</label>
+                    <select name="salutation" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for code, label in salutations.items() %}
+                        <option value="{{ code }}" {% if contact and contact.salutation == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Geschlecht</label>
+                    <select name="sex" class="form-select">
+                        <option value="">-- Keine Angabe --</option>
+                        <option value="0" {% if contact and contact.sex == 0 %}selected{% endif %}>Männlich</option>
+                        <option value="1" {% if contact and contact.sex == 1 %}selected{% endif %}>Weiblich</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Geburtstag</label>
+                    <input type="date" name="birthday" class="form-input"
+                           value="{{ contact.birthday.strftime('%Y-%m-%d') if contact and contact.birthday else '' }}">
                 </div>
             </div>
             <div class="form-row">
@@ -39,15 +88,26 @@
                 <div class="form-group">
                     <label class="form-label">Nachname</label>
                     <input type="text" name="last_name" class="form-input"
-                           value="{{ contact.last_name if contact else '' }}">
+                           value="{{ contact.last_name if contact else '' }}" id="last_name">
                 </div>
             </div>
+            <p class="form-hint">Firmenname oder Nachname muss angegeben werden.</p>
+
+            <!-- Adresse -->
+            <h4 class="section-title">Adresse</h4>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
-                    <label class="form-label">Adresse</label>
+                    <label class="form-label">Strasse</label>
                     <input type="text" name="address" class="form-input"
                            value="{{ contact.address if contact else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Postfach</label>
+                    <input type="text" name="postbox" class="form-input"
+                           value="{{ contact.postbox if contact else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">PLZ</label>
                     <input type="text" name="zip_code" class="form-input"
@@ -58,7 +118,24 @@
                     <input type="text" name="city" class="form-input"
                            value="{{ contact.city if contact else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Kanton</label>
+                    <select name="contact_kanton" class="form-select">
+                        <option value="">-- Kanton --</option>
+                        {% for k in kantone %}
+                        <option value="{{ k }}" {% if contact and contact.contact_kanton == k %}selected{% endif %}>{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Land</label>
+                    <input type="text" name="contact_country" class="form-input" maxlength="5"
+                           value="{{ contact.contact_country if contact else 'CH' }}">
+                </div>
             </div>
+
+            <!-- Kommunikation -->
+            <h4 class="section-title">Kommunikation</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Telefon</label>
@@ -66,10 +143,100 @@
                            value="{{ contact.phone if contact else '' }}">
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Mobil</label>
+                    <input type="tel" name="contact_mobile" class="form-input"
+                           value="{{ contact.contact_mobile if contact else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fax</label>
+                    <input type="text" name="fax" class="form-input"
+                           value="{{ contact.fax if contact else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
                     <label class="form-label">E-Mail</label>
                     <input type="email" name="email" class="form-input"
                            value="{{ contact.email if contact else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Website</label>
+                    <input type="url" name="homepage" class="form-input" placeholder="https://..."
+                           value="{{ contact.homepage if contact else '' }}">
+                </div>
+            </div>
+
+            <!-- Professionelle IDs (fuer Versicherungen/Aerzte) -->
+            <div id="professionalFields">
+                <h4 class="section-title">Professionelle IDs</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">GLN-Nummer</label>
+                        <input type="text" name="gln" class="form-input"
+                               value="{{ contact.gln if contact else '' }}" placeholder="7601...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Empfänger-GLN</label>
+                        <input type="text" name="gln_receiver" class="form-input"
+                               value="{{ contact.gln_receiver if contact else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ZSR-Nummer</label>
+                        <input type="text" name="zsr" class="form-input"
+                               value="{{ contact.zsr if contact else '' }}" placeholder="A123456">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Versicherungs-spezifische Felder -->
+            <div id="insuranceFields" style="display:none;">
+                <h4 class="section-title">Versicherung</h4>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Gesetzcode</label>
+                        <select name="law_code" class="form-select">
+                            <option value="">-- Kein --</option>
+                            {% for code, label in law_codes.items() %}
+                            <option value="{{ code }}" {% if contact and contact.law_code == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tarifcode</label>
+                        <input type="number" name="tarif_code" class="form-input"
+                               value="{{ contact.tarif_code if contact and contact.tarif_code else '' }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="accept_kostengutsprache"
+                               {% if contact and contact.accept_kostengutsprache %}checked{% endif %}>
+                        Akzeptiert Kostengutsprachen
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">E-Mail für Kostengutsprachen</label>
+                    <input type="email" name="email_gutsprache" class="form-input"
+                           value="{{ contact.email_gutsprache if contact else '' }}">
+                </div>
+            </div>
+
+            <!-- Sonstiges -->
+            <h4 class="section-title">Sonstiges</h4>
+            <div class="form-group">
+                <label class="form-label">Anredeformel (fuer Briefe)</label>
+                <input type="text" name="addressing" class="form-input"
+                       value="{{ contact.addressing if contact else '' }}"
+                       placeholder="z.B. Sehr geehrte Damen und Herren">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Affiliate-ID</label>
+                <input type="text" name="affiliate_id" class="form-input"
+                       value="{{ contact.affiliate_id if contact else '' }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Beschreibung</label>
+                <textarea name="description_text" class="form-textarea" rows="2">{{ contact.description_text if contact else '' }}</textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Notizen</label>
@@ -77,7 +244,8 @@
             </div>
 
             <div class="form-actions">
-                <a href="{{ url_for('addresses.index', tab='contacts') }}" class="btn btn-secondary">Abbrechen</a>
+                {% set cancel_tab = 'vendors' if default_type == 3 else ('banks' if default_type == 4 else 'contacts') %}
+                <a href="{{ url_for('addresses.index', tab=cancel_tab) }}" class="btn btn-secondary">Abbrechen</a>
                 <button type="submit" class="btn btn-primary">Speichern</button>
             </div>
         </form>
@@ -88,5 +256,21 @@
 {% block extra_css %}
 <style>
 .form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
+.section-title { margin: var(--spacing-lg) 0 var(--spacing-md) 0; padding-bottom: var(--spacing-xs); border-bottom: 1px solid var(--color-gray-200); color: var(--color-gray-700); font-size: var(--font-size-base); }
+.form-hint { font-size: var(--font-size-xs); color: var(--color-gray-500); margin-top: calc(-1 * var(--spacing-sm)); }
+.checkbox-label { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-sm); cursor: pointer; }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleTypeFields() {
+    const type = parseInt(document.getElementById('contactTypeSelect').value);
+    const insuranceFields = document.getElementById('insuranceFields');
+    // Versicherungs-Felder nur bei Typ 1 (Versicherung) anzeigen
+    insuranceFields.style.display = (type === 1) ? 'block' : 'none';
+}
+// Initial ausfuehren
+document.addEventListener('DOMContentLoaded', toggleTypeFields);
+</script>
 {% endblock %}

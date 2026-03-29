@@ -537,7 +537,7 @@ class Doctor(db.Model):
     organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=True)
     salutation = db.Column(db.String(20))
     first_name = db.Column(db.String(100))
-    last_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=True)  # Cenplex: entweder Nachname oder Firma
     specialty = db.Column(db.String(100))
     gln_number = db.Column(db.String(20))
     zsr_number = db.Column(db.String(20))
@@ -558,6 +558,15 @@ class Doctor(db.Model):
     description_it = db.Column(db.Text)  # Italienisch
     is_deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Cenplex Phase9: Fehlende Arzt-Felder
+    mobile = db.Column(db.String(30))
+    homepage = db.Column(db.String(300))
+    country = db.Column(db.String(5), default='CH')
+    expertise = db.Column(db.String(500))  # JSON-Liste Fachgebiete
+    birthday = db.Column(db.Date)
+    sex = db.Column(db.Integer)  # 0=Maennlich, 1=Weiblich
+    postbox = db.Column(db.String(100))
+    description_text = db.Column(db.Text)  # Allgemeine Notizen
 
     treatment_series = db.relationship('TreatmentSeries', foreign_keys='TreatmentSeries.prescribing_doctor_id', backref='prescribing_doctor', lazy='dynamic')
 

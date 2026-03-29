@@ -32,6 +32,20 @@
     </svg>
     Neuer Kontakt
 </a>
+{% elif tab == 'vendors' %}
+<a href="{{ url_for('addresses.create_contact', type=3) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neuer Lieferant
+</a>
+{% elif tab == 'banks' %}
+<a href="{{ url_for('addresses.create_contact', type=4) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Neue Bank
+</a>
 {% endif %}
 {% endblock %}
 
@@ -44,17 +58,27 @@
        class="detail-tab {% if tab == 'doctors' %}active{% endif %}">Ärzte</a>
     <a href="{{ url_for('addresses.index', tab='contacts') }}"
        class="detail-tab {% if tab == 'contacts' %}active{% endif %}">Kontakte</a>
+    <a href="{{ url_for('addresses.index', tab='vendors') }}"
+       class="detail-tab {% if tab == 'vendors' %}active{% endif %}">Lieferanten</a>
+    <a href="{{ url_for('addresses.index', tab='banks') }}"
+       class="detail-tab {% if tab == 'banks' %}active{% endif %}">Banken</a>
 </div>
 
 <div class="card">
-    <!-- Suche -->
+    <!-- Suche + Inaktive-Toggle -->
     <form class="filter-bar" method="GET" action="{{ url_for('addresses.index') }}">
         <input type="hidden" name="tab" value="{{ tab }}">
         <div class="filter-group">
             <input type="text" name="search" class="form-input"
-                   placeholder="{% if tab == 'insurances' %}Name oder GLN suchen...{% elif tab == 'doctors' %}Name, Fachrichtung oder GLN suchen...{% else %}Firma, Name oder Kategorie suchen...{% endif %}"
+                   placeholder="{% if tab == 'insurances' %}Name, GLN oder E-Mail suchen...{% elif tab == 'doctors' %}Name, Fachrichtung, GLN oder Firma suchen...{% elif tab == 'vendors' %}Firma oder Name suchen...{% elif tab == 'banks' %}Bank suchen...{% else %}Firma, Name, Kategorie oder GLN suchen...{% endif %}"
                    value="{{ search }}" autocomplete="off">
         </div>
+        <label class="checkbox-label filter-checkbox">
+            <input type="checkbox" name="show_inactive" value="1"
+                   {% if show_inactive %}checked{% endif %}
+                   onchange="this.form.submit()">
+            Inaktive anzeigen
+        </label>
         <button type="submit" class="btn btn-secondary">Suchen</button>
     </form>
 
@@ -67,19 +91,24 @@
                     <tr>
                         <th>Name</th>
                         <th>GLN</th>
+                        <th>Ort</th>
                         <th>Telefon</th>
                         <th>E-Mail</th>
+                        <th>Gesetz</th>
                         <th>E-Billing</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for ins in insurances %}
-                    <tr>
+                    <tr class="clickable-row {% if not ins.is_active %}row-inactive{% endif %}"
+                        onclick="window.location='{{ url_for('addresses.insurance_detail', insurance_id=ins.id) }}'">
                         <td><strong>{{ ins.name }}</strong></td>
                         <td>{{ ins.gln_number or '-' }}</td>
+                        <td>{{ ins.city or '-' }}{% if ins.ins_kanton %} ({{ ins.ins_kanton }}){% endif %}</td>
                         <td>{{ ins.phone or '-' }}</td>
                         <td>{{ ins.email or '-' }}</td>
+                        <td>{% if ins.law_code %}<span class="badge badge-info">{{ ins.law_code }}</span>{% else %}-{% endif %}</td>
                         <td>
                             {% if ins.supports_electronic_billing %}
                             <span class="badge badge-success">Ja</span>
@@ -88,7 +117,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{{ url_for('addresses.edit_insurance', insurance_id=ins.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
+                            <a href="{{ url_for('addresses.edit_insurance', insurance_id=ins.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -108,22 +137,25 @@
                 <thead>
                     <tr>
                         <th>Name</th>
+                        <th>Firma</th>
                         <th>Fachrichtung</th>
                         <th>GLN</th>
                         <th>ZSR</th>
-                        <th>Telefon</th>
+                        <th>Ort</th>
                         <th>Zuweisungen</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for doc in doctors %}
-                    <tr class="clickable-row" onclick="window.location='{{ url_for('addresses.doctor_detail', doctor_id=doc.id) }}'">
+                    <tr class="clickable-row {% if not doc.is_active %}row-inactive{% endif %}"
+                        onclick="window.location='{{ url_for('addresses.doctor_detail', doctor_id=doc.id) }}'">
                         <td><strong>{{ doc.salutation }} {{ doc.first_name }} {{ doc.last_name }}</strong></td>
+                        <td>{{ doc.company or '-' }}</td>
                         <td>{{ doc.specialty or '-' }}</td>
                         <td>{{ doc.gln_number or '-' }}</td>
                         <td>{{ doc.zsr_number or '-' }}</td>
-                        <td>{{ doc.phone or '-' }}</td>
+                        <td>{{ doc.city or '-' }}{% if doc.kanton %} ({{ doc.kanton }}){% endif %}</td>
                         <td><span class="badge badge-info">{{ doctor_stats.get(doc.id, 0) }}</span></td>
                         <td>
                             <a href="{{ url_for('addresses.edit_doctor', doctor_id=doc.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
@@ -148,6 +180,7 @@
                         <th>Firma</th>
                         <th>Name</th>
                         <th>Kategorie</th>
+                        <th>Ort</th>
                         <th>Telefon</th>
                         <th>E-Mail</th>
                         <th>Aktionen</th>
@@ -155,14 +188,16 @@
                 </thead>
                 <tbody>
                     {% for c in contacts %}
-                    <tr>
+                    <tr class="clickable-row {% if not c.is_active %}row-inactive{% endif %}"
+                        onclick="window.location='{{ url_for('addresses.contact_detail', contact_id=c.id) }}'">
                         <td><strong>{{ c.company_name or '-' }}</strong></td>
                         <td>{{ c.first_name or '' }} {{ c.last_name or '' }}</td>
                         <td>{{ c.category or '-' }}</td>
+                        <td>{{ c.city or '-' }}</td>
                         <td>{{ c.phone or '-' }}</td>
                         <td>{{ c.email or '-' }}</td>
                         <td>
-                            <a href="{{ url_for('addresses.edit_contact', contact_id=c.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
+                            <a href="{{ url_for('addresses.edit_contact', contact_id=c.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -174,15 +209,89 @@
         {% endif %}
     {% endif %}
 
+    <!-- Tab: Lieferanten -->
+    {% if tab == 'vendors' %}
+        {% if vendors %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Firma</th>
+                        <th>Ansprechpartner</th>
+                        <th>Ort</th>
+                        <th>Telefon</th>
+                        <th>E-Mail</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vendors %}
+                    <tr class="clickable-row {% if not v.is_active %}row-inactive{% endif %}"
+                        onclick="window.location='{{ url_for('addresses.contact_detail', contact_id=v.id) }}'">
+                        <td><strong>{{ v.company_name or '-' }}</strong></td>
+                        <td>{{ v.first_name or '' }} {{ v.last_name or '' }}</td>
+                        <td>{{ v.city or '-' }}{% if v.contact_kanton %} ({{ v.contact_kanton }}){% endif %}</td>
+                        <td>{{ v.phone or '-' }}</td>
+                        <td>{{ v.email or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('addresses.edit_contact', contact_id=v.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>Keine Lieferanten gefunden.</p></div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Tab: Banken -->
+    {% if tab == 'banks' %}
+        {% if banks %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Ort</th>
+                        <th>Telefon</th>
+                        <th>E-Mail</th>
+                        <th>GLN</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in banks %}
+                    <tr class="clickable-row {% if not b.is_active %}row-inactive{% endif %}"
+                        onclick="window.location='{{ url_for('addresses.contact_detail', contact_id=b.id) }}'">
+                        <td><strong>{{ b.company_name or (b.first_name ~ ' ' ~ b.last_name) }}</strong></td>
+                        <td>{{ b.city or '-' }}{% if b.contact_kanton %} ({{ b.contact_kanton }}){% endif %}</td>
+                        <td>{{ b.phone or '-' }}</td>
+                        <td>{{ b.email or '-' }}</td>
+                        <td>{{ b.gln or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('addresses.edit_contact', contact_id=b.id) }}" class="btn btn-sm btn-secondary" onclick="event.stopPropagation()">Bearbeiten</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>Keine Banken gefunden.</p></div>
+        {% endif %}
+    {% endif %}
+
     <!-- Pagination -->
     {% if total_pages > 1 %}
     <div class="pagination">
         {% if page > 1 %}
-        <a href="{{ url_for('addresses.index', tab=tab, page=page-1, search=search) }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
+        <a href="{{ url_for('addresses.index', tab=tab, page=page-1, search=search, show_inactive='1' if show_inactive else '') }}" class="btn btn-sm btn-secondary">&laquo; Zurück</a>
         {% endif %}
         <span class="pagination-info">Seite {{ page }} von {{ total_pages }}</span>
         {% if page < total_pages %}
-        <a href="{{ url_for('addresses.index', tab=tab, page=page+1, search=search) }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
+        <a href="{{ url_for('addresses.index', tab=tab, page=page+1, search=search, show_inactive='1' if show_inactive else '') }}" class="btn btn-sm btn-secondary">Weiter &raquo;</a>
         {% endif %}
     </div>
     {% endif %}
@@ -204,7 +313,13 @@
 .detail-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: var(--color-gray-50); }
+.row-inactive { opacity: 0.5; }
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--spacing-md); padding: var(--spacing-md); }
 .pagination-info { font-size: var(--font-size-sm); color: var(--color-gray-600); }
+.filter-bar { display: flex; align-items: center; gap: var(--spacing-md); flex-wrap: wrap; }
+.filter-checkbox {
+    display: flex; align-items: center; gap: var(--spacing-xs);
+    font-size: var(--font-size-sm); white-space: nowrap; cursor: pointer;
+}
 </style>
 {% endblock %}

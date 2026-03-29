@@ -17,6 +17,9 @@
     <div class="card-body">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Stammdaten -->
+            <h4 class="section-title">Stammdaten</h4>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
                     <label class="form-label">Name *</label>
@@ -24,17 +27,55 @@
                            value="{{ insurance.name if insurance else '' }}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">GLN-Nummer</label>
-                    <input type="text" name="gln_number" class="form-input"
-                           value="{{ insurance.gln_number if insurance else '' }}">
+                    <label class="form-label">Abteilung</label>
+                    <input type="text" name="ins_department" class="form-input"
+                           value="{{ insurance.ins_department if insurance else '' }}">
                 </div>
             </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">GLN-Nummer</label>
+                    <div class="input-group">
+                        <input type="text" name="gln_number" id="gln_number" class="form-input"
+                               value="{{ insurance.gln_number if insurance else '' }}" placeholder="7601...">
+                        <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="validateGLN('gln_number')" title="GLN pruefen">
+                            Prüfen
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Empfänger-GLN</label>
+                    <div class="input-group">
+                        <input type="text" name="recipient_gln" id="recipient_gln" class="form-input"
+                               value="{{ insurance.recipient_gln if insurance else '' }}" placeholder="7601...">
+                        <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="validateGLN('recipient_gln')" title="GLN pruefen">
+                            Prüfen
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">BAG-Nummer</label>
+                    <input type="text" name="bag_number" class="form-input"
+                           value="{{ insurance.bag_number if insurance else '' }}">
+                </div>
+            </div>
+
+            <!-- Adresse -->
+            <h4 class="section-title">Adresse</h4>
             <div class="form-row">
                 <div class="form-group" style="flex: 2;">
-                    <label class="form-label">Adresse</label>
+                    <label class="form-label">Strasse</label>
                     <input type="text" name="address" class="form-input"
                            value="{{ insurance.address if insurance else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Postfach</label>
+                    <input type="text" name="ins_postbox" class="form-input"
+                           value="{{ insurance.ins_postbox if insurance else '' }}">
+                </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">PLZ</label>
                     <input type="text" name="zip_code" class="form-input"
@@ -45,7 +86,19 @@
                     <input type="text" name="city" class="form-input"
                            value="{{ insurance.city if insurance else '' }}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Kanton</label>
+                    <select name="ins_kanton" class="form-select">
+                        <option value="">-- Kanton --</option>
+                        {% for k in kantone %}
+                        <option value="{{ k }}" {% if insurance and insurance.ins_kanton == k %}selected{% endif %}>{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
+
+            <!-- Kommunikation -->
+            <h4 class="section-title">Kommunikation</h4>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Telefon</label>
@@ -53,19 +106,42 @@
                            value="{{ insurance.phone if insurance else '' }}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">E-Mail</label>
-                    <input type="email" name="email" class="form-input"
-                           value="{{ insurance.email if insurance else '' }}">
-                </div>
-                <div class="form-group">
                     <label class="form-label">Fax</label>
                     <input type="text" name="fax" class="form-input"
                            value="{{ insurance.fax if insurance else '' }}">
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">E-Mail</label>
+                    <input type="email" name="email" class="form-input"
+                           value="{{ insurance.email if insurance else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Website</label>
+                    <input type="url" name="website" class="form-input" placeholder="https://..."
+                           value="{{ insurance.website if insurance else '' }}">
+                </div>
+            </div>
 
-            <hr style="margin: var(--spacing-lg) 0;">
-            <h4 style="margin-bottom: var(--spacing-md);">Elektronische Abrechnung</h4>
+            <!-- Abrechnung & Recht -->
+            <h4 class="section-title">Abrechnung &amp; Recht</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Gesetzcode</label>
+                    <select name="law_code" class="form-select">
+                        <option value="">-- Kein --</option>
+                        {% for code, label in law_codes.items() %}
+                        <option value="{{ label }}" {% if insurance and insurance.law_code == label %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tarifcode</label>
+                    <input type="number" name="tarif_code" class="form-input"
+                           value="{{ insurance.tarif_code if insurance and insurance.tarif_code else '' }}">
+                </div>
+            </div>
 
             <div class="form-group">
                 <label class="checkbox-label">
@@ -82,11 +158,31 @@
                     {% set tp = insurance.supports_tiers_payant_json | default('[]', true) %}
                 {% endif %}
                 <div class="checkbox-group" style="flex-direction: row; flex-wrap: wrap; gap: var(--spacing-md);">
-                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="KVG"> KVG</label>
-                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="UVG"> UVG</label>
-                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="IVG"> IVG</label>
-                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="MVG"> MVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="KVG"
+                        {% if tp is string and 'KVG' in tp %}checked{% endif %}> KVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="UVG"
+                        {% if tp is string and 'UVG' in tp %}checked{% endif %}> UVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="IVG"
+                        {% if tp is string and 'IVG' in tp %}checked{% endif %}> IVG</label>
+                    <label class="checkbox-label"><input type="checkbox" name="tiers_payant" value="MVG"
+                        {% if tp is string and 'MVG' in tp %}checked{% endif %}> MVG</label>
                 </div>
+            </div>
+
+            <!-- Kostengutsprache -->
+            <h4 class="section-title">Kostengutsprache</h4>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="accept_kostengutsprache"
+                           {% if insurance and insurance.accept_kostengutsprache %}checked{% endif %}>
+                    Akzeptiert Kostengutsprachen
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-label">E-Mail für Kostengutsprachen</label>
+                <input type="email" name="email_gutsprache" class="form-input"
+                       value="{{ insurance.email_gutsprache if insurance else '' }}"
+                       placeholder="gutsprache@versicherung.ch">
             </div>
 
             <div class="form-actions">
@@ -103,5 +199,44 @@
 .form-actions { display: flex; justify-content: flex-end; gap: var(--spacing-md); padding-top: var(--spacing-lg); }
 .checkbox-group { display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .checkbox-label { display: flex; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-sm); cursor: pointer; }
+.section-title { margin: var(--spacing-lg) 0 var(--spacing-md) 0; padding-bottom: var(--spacing-xs); border-bottom: 1px solid var(--color-gray-200); color: var(--color-gray-700); font-size: var(--font-size-base); }
+.input-group { display: flex; gap: 0; }
+.input-group .form-input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.btn-lookup {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-top-left-radius: 0; border-bottom-left-radius: 0;
+    white-space: nowrap; padding: 6px 12px;
+    border: 1px solid var(--border-color, #ccc); border-left: none;
+    background: var(--bg-secondary, #f5f5f5); cursor: pointer;
+    font-size: 0.85rem; color: var(--text-secondary, #555);
+    transition: background 0.15s;
+}
+.btn-lookup:hover { background: var(--bg-hover, #e8e8e8); }
+.gln-valid { border-color: var(--color-success, #28a745) !important; }
+.gln-invalid { border-color: var(--color-danger, #dc3545) !important; }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function validateGLN(fieldId) {
+    const input = document.getElementById(fieldId);
+    const gln = input.value.trim();
+    if (!gln) { alert('Bitte GLN-Nummer eingeben'); return; }
+
+    fetch(`/addresses/api/validate-gln?gln=${encodeURIComponent(gln)}`)
+        .then(r => r.json())
+        .then(data => {
+            input.classList.remove('gln-valid', 'gln-invalid');
+            if (data.valid) {
+                input.classList.add('gln-valid');
+                alert('GLN-Nummer ist gueltig.');
+            } else {
+                input.classList.add('gln-invalid');
+                alert('GLN-Nummer ist ungueltig: ' + data.error);
+            }
+        })
+        .catch(e => alert('Fehler: ' + e));
+}
+</script>
 {% endblock %}

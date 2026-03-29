@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}{{ contact.company_name or (contact.first_name ~ ' ' ~ contact.last_name) }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('addresses.index', tab='contacts') }}">Adressen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ contact.company_name or contact.last_name }}</span>
+{% endblock %}
+
+{% block page_title %}
+{% if contact.company_name %}{{ contact.company_name }}{% endif %}
+{% if contact.first_name or contact.last_name %}
+    {% if contact.company_name %} - {% endif %}
+    {{ contact.first_name or '' }} {{ contact.last_name or '' }}
+{% endif %}
+{% endblock %}
+
+{% block page_actions %}
+{% if not contact.is_imported %}
+<a href="{{ url_for('addresses.edit_contact', contact_id=contact.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+{% endif %}
+<form method="POST" action="{{ url_for('addresses.toggle_contact', contact_id=contact.id) }}" style="display:inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn {% if contact.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if contact.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if not contact.is_active %}
+<div class="alert alert-warning" style="margin-bottom: var(--spacing-lg);">
+    Dieser Kontakt ist deaktiviert.
+</div>
+{% endif %}
+
+{% if contact.is_imported %}
+<div class="alert alert-info" style="margin-bottom: var(--spacing-lg);">
+    Importierter Kontakt - Bearbeitung ist eingeschränkt.
+</div>
+{% endif %}
+
+<div class="detail-grid">
+    <!-- Stammdaten -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Stammdaten</h3>
+            {% if contact.contact_type and contact.contact_type in contact_types %}
+            <span class="badge badge-info">{{ contact_types[contact.contact_type] }}</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if contact.company_name %}
+                <div class="detail-item">
+                    <span class="detail-label">Firma</span>
+                    <span class="detail-value">{{ contact.company_name }}</span>
+                </div>
+                {% endif %}
+                {% if contact.department %}
+                <div class="detail-item">
+                    <span class="detail-label">Abteilung</span>
+                    <span class="detail-value">{{ contact.department }}</span>
+                </div>
+                {% endif %}
+                {% if contact.salutation is not none and contact.salutation in salutations %}
+                <div class="detail-item">
+                    <span class="detail-label">Anrede</span>
+                    <span class="detail-value">{{ salutations[contact.salutation] }}</span>
+                </div>
+                {% endif %}
+                {% if contact.first_name or contact.last_name %}
+                <div class="detail-item">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{{ contact.first_name or '' }} {{ contact.last_name or '' }}</span>
+                </div>
+                {% endif %}
+                {% if contact.sex is not none %}
+                <div class="detail-item">
+                    <span class="detail-label">Geschlecht</span>
+                    <span class="detail-value">{{ 'Männlich' if contact.sex == 0 else 'Weiblich' }}</span>
+                </div>
+                {% endif %}
+                {% if contact.birthday %}
+                <div class="detail-item">
+                    <span class="detail-label">Geburtstag</span>
+                    <span class="detail-value">{{ contact.birthday.strftime('%d.%m.%Y') }}</span>
+                </div>
+                {% endif %}
+                {% if contact.category %}
+                <div class="detail-item">
+                    <span class="detail-label">Kategorie</span>
+                    <span class="detail-value">{{ contact.category }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Adresse & Kommunikation -->
+    <div class="card">
+        <div class="card-header"><h3>Adresse &amp; Kommunikation</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Adresse</span>
+                    <span class="detail-value">
+                        {{ contact.address or '-' }}
+                        {% if contact.postbox %}<br>Postfach {{ contact.postbox }}{% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Ort</span>
+                    <span class="detail-value">{{ contact.zip_code or '' }} {{ contact.city or '-' }}{% if contact.contact_kanton %} ({{ contact.contact_kanton }}){% endif %}{% if contact.contact_country and contact.contact_country != 'CH' %}, {{ contact.contact_country }}{% endif %}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Telefon</span>
+                    <span class="detail-value">{{ contact.phone or '-' }}</span>
+                </div>
+                {% if contact.contact_mobile %}
+                <div class="detail-item">
+                    <span class="detail-label">Mobil</span>
+                    <span class="detail-value">{{ contact.contact_mobile }}</span>
+                </div>
+                {% endif %}
+                {% if contact.fax %}
+                <div class="detail-item">
+                    <span class="detail-label">Fax</span>
+                    <span class="detail-value">{{ contact.fax }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value">{% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% else %}-{% endif %}</span>
+                </div>
+                {% if contact.homepage %}
+                <div class="detail-item">
+                    <span class="detail-label">Website</span>
+                    <span class="detail-value"><a href="{{ contact.homepage }}" target="_blank" rel="noopener">{{ contact.homepage }}</a></span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Professionelle IDs -->
+    {% if contact.gln or contact.gln_receiver or contact.zsr %}
+    <div class="card">
+        <div class="card-header"><h3>Professionelle IDs</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if contact.gln %}
+                <div class="detail-item">
+                    <span class="detail-label">GLN-Nummer</span>
+                    <span class="detail-value">{{ contact.gln }}</span>
+                </div>
+                {% endif %}
+                {% if contact.gln_receiver %}
+                <div class="detail-item">
+                    <span class="detail-label">Empfänger-GLN</span>
+                    <span class="detail-value">{{ contact.gln_receiver }}</span>
+                </div>
+                {% endif %}
+                {% if contact.zsr %}
+                <div class="detail-item">
+                    <span class="detail-label">ZSR-Nummer</span>
+                    <span class="detail-value">{{ contact.zsr }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Versicherungs-Felder -->
+    {% if contact.contact_type == 1 %}
+    <div class="card">
+        <div class="card-header"><h3>Versicherungsdetails</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if contact.law_code is not none and contact.law_code in law_codes %}
+                <div class="detail-item">
+                    <span class="detail-label">Gesetzcode</span>
+                    <span class="detail-value"><span class="badge badge-info">{{ law_codes[contact.law_code] }}</span></span>
+                </div>
+                {% endif %}
+                {% if contact.tarif_code %}
+                <div class="detail-item">
+                    <span class="detail-label">Tarifcode</span>
+                    <span class="detail-value">{{ contact.tarif_code }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">Kostengutsprache</span>
+                    <span class="detail-value">
+                        {% if contact.accept_kostengutsprache %}
+                        <span class="badge badge-success">Akzeptiert</span>
+                        {% else %}
+                        <span class="badge badge-muted">Nein</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if contact.email_gutsprache %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail Gutsprache</span>
+                    <span class="detail-value"><a href="mailto:{{ contact.email_gutsprache }}">{{ contact.email_gutsprache }}</a></span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Referenzkontakt -->
+    {% if ref_contact %}
+    <div class="card">
+        <div class="card-header"><h3>Referenzkontakt</h3></div>
+        <div class="card-body">
+            <a href="{{ url_for('addresses.contact_detail', contact_id=ref_contact.id) }}">
+                {{ ref_contact.company_name or (ref_contact.first_name ~ ' ' ~ ref_contact.last_name) }}
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Sonstiges -->
+    {% if contact.addressing or contact.description_text or contact.notes or contact.affiliate_id %}
+    <div class="card">
+        <div class="card-header"><h3>Sonstiges</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if contact.addressing %}
+                <div class="detail-item">
+                    <span class="detail-label">Anredeformel</span>
+                    <span class="detail-value">{{ contact.addressing }}</span>
+                </div>
+                {% endif %}
+                {% if contact.affiliate_id %}
+                <div class="detail-item">
+                    <span class="detail-label">Affiliate-ID</span>
+                    <span class="detail-value">{{ contact.affiliate_id }}</span>
+                </div>
+                {% endif %}
+                {% if contact.description_text %}
+                <div class="detail-item">
+                    <span class="detail-label">Beschreibung</span>
+                    <span class="detail-value">{{ contact.description_text }}</span>
+                </div>
+                {% endif %}
+                {% if contact.notes %}
+                <div class="detail-item">
+                    <span class="detail-label">Notizen</span>
+                    <span class="detail-value">{{ contact.notes }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-lg); }
+.detail-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.detail-item { display: flex; justify-content: space-between; padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100); }
+.detail-label { font-size: var(--font-size-sm); color: var(--color-gray-500); min-width: 150px; }
+.detail-value { font-size: var(--font-size-sm); text-align: right; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.alert-warning { background: #fff3cd; border: 1px solid #ffc107; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); color: #856404; }
+.alert-info { background: #d1ecf1; border: 1px solid #bee5eb; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); color: #0c5460; }
+</style>
+{% endblock %}

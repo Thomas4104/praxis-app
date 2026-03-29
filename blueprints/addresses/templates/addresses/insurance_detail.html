@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ insurance.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('addresses.index', tab='insurances') }}">Adressen / Versicherungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ insurance.name }}</span>
+{% endblock %}
+
+{% block page_title %}{{ insurance.name }}{% endblock %}
+
+{% block page_actions %}
+<a href="{{ url_for('addresses.edit_insurance', insurance_id=insurance.id) }}" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+    Bearbeiten
+</a>
+<form method="POST" action="{{ url_for('addresses.toggle_insurance', insurance_id=insurance.id) }}" style="display:inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn {% if insurance.is_active %}btn-warning{% else %}btn-success{% endif %}">
+        {{ 'Deaktivieren' if insurance.is_active else 'Aktivieren' }}
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if not insurance.is_active %}
+<div class="alert alert-warning" style="margin-bottom: var(--spacing-lg);">
+    Diese Versicherung ist deaktiviert.
+</div>
+{% endif %}
+
+<div class="detail-grid">
+    <!-- Stammdaten -->
+    <div class="card">
+        <div class="card-header"><h3>Stammdaten</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Name</span>
+                    <span class="detail-value">{{ insurance.name }}</span>
+                </div>
+                {% if insurance.ins_department %}
+                <div class="detail-item">
+                    <span class="detail-label">Abteilung</span>
+                    <span class="detail-value">{{ insurance.ins_department }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">GLN-Nummer</span>
+                    <span class="detail-value">{{ insurance.gln_number or '-' }}</span>
+                </div>
+                {% if insurance.recipient_gln %}
+                <div class="detail-item">
+                    <span class="detail-label">Empfänger-GLN</span>
+                    <span class="detail-value">{{ insurance.recipient_gln }}</span>
+                </div>
+                {% endif %}
+                {% if insurance.bag_number %}
+                <div class="detail-item">
+                    <span class="detail-label">BAG-Nummer</span>
+                    <span class="detail-value">{{ insurance.bag_number }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Adresse & Kommunikation -->
+    <div class="card">
+        <div class="card-header"><h3>Adresse &amp; Kommunikation</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Adresse</span>
+                    <span class="detail-value">
+                        {{ insurance.address or '-' }}
+                        {% if insurance.ins_postbox %}<br>Postfach {{ insurance.ins_postbox }}{% endif %}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Ort</span>
+                    <span class="detail-value">{{ insurance.zip_code or '' }} {{ insurance.city or '-' }}{% if insurance.ins_kanton %} ({{ insurance.ins_kanton }}){% endif %}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Telefon</span>
+                    <span class="detail-value">{{ insurance.phone or '-' }}</span>
+                </div>
+                {% if insurance.fax %}
+                <div class="detail-item">
+                    <span class="detail-label">Fax</span>
+                    <span class="detail-value">{{ insurance.fax }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail</span>
+                    <span class="detail-value">{% if insurance.email %}<a href="mailto:{{ insurance.email }}">{{ insurance.email }}</a>{% else %}-{% endif %}</span>
+                </div>
+                {% if insurance.website %}
+                <div class="detail-item">
+                    <span class="detail-label">Website</span>
+                    <span class="detail-value"><a href="{{ insurance.website }}" target="_blank" rel="noopener">{{ insurance.website }}</a></span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Abrechnung -->
+    <div class="card">
+        <div class="card-header"><h3>Abrechnung</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                {% if insurance.law_code %}
+                <div class="detail-item">
+                    <span class="detail-label">Gesetzcode</span>
+                    <span class="detail-value"><span class="badge badge-info">{{ insurance.law_code }}</span></span>
+                </div>
+                {% endif %}
+                {% if insurance.tarif_code %}
+                <div class="detail-item">
+                    <span class="detail-label">Tarifcode</span>
+                    <span class="detail-value">{{ insurance.tarif_code }}</span>
+                </div>
+                {% endif %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Billing</span>
+                    <span class="detail-value">
+                        {% if insurance.supports_electronic_billing %}
+                        <span class="badge badge-success">Ja</span>
+                        {% else %}
+                        <span class="badge badge-muted">Nein</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if tiers_payant %}
+                <div class="detail-item">
+                    <span class="detail-label">Tiers Payant</span>
+                    <span class="detail-value">
+                        {% for tp in tiers_payant %}
+                        <span class="badge badge-info">{{ tp }}</span>
+                        {% endfor %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Kostengutsprache -->
+    <div class="card">
+        <div class="card-header"><h3>Kostengutsprache</h3></div>
+        <div class="card-body">
+            <div class="detail-list">
+                <div class="detail-item">
+                    <span class="detail-label">Akzeptiert Kostengutsprachen</span>
+                    <span class="detail-value">
+                        {% if insurance.accept_kostengutsprache %}
+                        <span class="badge badge-success">Ja</span>
+                        {% else %}
+                        <span class="badge badge-muted">Nein</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if insurance.email_gutsprache %}
+                <div class="detail-item">
+                    <span class="detail-label">E-Mail Gutsprache</span>
+                    <span class="detail-value"><a href="mailto:{{ insurance.email_gutsprache }}">{{ insurance.email_gutsprache }}</a></span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistik -->
+    <div class="card">
+        <div class="card-header"><h3>Statistik</h3></div>
+        <div class="card-body">
+            <div style="display: flex; gap: var(--spacing-xl);">
+                <div class="stat-item">
+                    <div class="stat-value">{{ patient_count }}</div>
+                    <div class="stat-label">Versicherte Patienten</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-lg); }
+.detail-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.detail-item { display: flex; justify-content: space-between; padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-gray-100); }
+.detail-label { font-size: var(--font-size-sm); color: var(--color-gray-500); min-width: 150px; }
+.detail-value { font-size: var(--font-size-sm); text-align: right; }
+.stat-item { text-align: center; }
+.stat-value { font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-secondary); }
+.stat-label { font-size: var(--font-size-xs); color: var(--color-gray-500); }
+.alert-warning { background: #fff3cd; border: 1px solid #ffc107; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius); color: #856404; }
+</style>
+{% endblock %}
