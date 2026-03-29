@@ -1192,7 +1192,7 @@ def api_create_blocker():
     org_id = current_user.organization_id
     employee_ids = data.get('employee_ids', [])
     title = data.get('title', '')
-    blocker_type = data.get('blocker_type', 0)
+    blocker_type = data.get('blocker_type', 0)  # 0=Sonstiges, 1=Adminzeit, 2=Gratiszeit, 3=Gruppenblock
     start_date_str = data.get('start_date')
     end_date_str = data.get('end_date')
     start_time_str = data.get('start_time', '08:00')
@@ -1579,7 +1579,9 @@ def api_calculate_mileage(appointment_id):
             'patient_name': f'{previous.patient.first_name} {previous.patient.last_name}' if previous and previous.patient else '',
             'start_time': previous.start_time.isoformat() if previous else ''
         } if previous else None,
-        'note': 'Distanz muss manuell oder per Google Maps API berechnet werden',
+        'reimbursement_rate_per_km': 0.70,
+        'reimbursement_note': 'Schweizer Pauschale: CHF 0.70/km (TARMED)',
+        'note': 'Distanz bitte via Google Maps pruefen und hier eintragen',
         'source': 'calculated'
     })
 

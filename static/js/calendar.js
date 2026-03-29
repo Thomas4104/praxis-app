@@ -1016,11 +1016,13 @@
         Promise.all([
             fetchJSON(BASE_URL + '/api/appointments?start=' + startStr + '&end=' + endStr + '&employee_ids=' + empIds),
             fetchJSON(BASE_URL + '/api/absences?start=' + startStr + '&end=' + endStr),
-            fetchJSON(BASE_URL + '/api/holidays?start=' + startStr + '&end=' + endStr)
+            fetchJSON(BASE_URL + '/api/holidays?start=' + startStr + '&end=' + endStr),
+            fetchJSON(BASE_URL + '/api/blockers?start=' + startStr + 'T00:00:00&end=' + endStr + 'T23:59:59&employee_ids=' + empIds)
         ]).then(function(results) {
             appointments = results[0];
             absences = results[1];
             holidays = results[2];
+            blockers = results[3] || [];
             renderWeekAppointments();
         });
     }
@@ -2151,6 +2153,11 @@
                     'Vorheriger Termin: ' + escapeHtml(data.previous_appointment.patient_name || '-') +
                     (data.previous_appointment.start_time ? ' (' + new Date(data.previous_appointment.start_time).toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) + ')' : '') +
                     '</div>';
+            }
+
+            if (data.reimbursement_note) {
+                html += '<div style="margin-top:8px;padding:8px;background:var(--gray-50);border-radius:6px;font-size:12px;">' +
+                    '<strong>Verguetung:</strong> ' + escapeHtml(data.reimbursement_note) + '</div>';
             }
 
             if (data.note) {
