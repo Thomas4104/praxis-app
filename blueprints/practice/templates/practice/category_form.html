@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Kategorie bearbeiten' if category else 'Neue Kategorie' }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('practice.index', tab='categories') }}">Praxis-Einstellungen</a>
+<span class="breadcrumb-sep">/</span>
+<span>{{ 'Kategorie bearbeiten' if category else 'Neue Kategorie' }}</span>
+{% endblock %}
+
+{% block page_title %}{{ 'Behandlungskategorie bearbeiten' if category else 'Neue Behandlungskategorie' }}{% endblock %}
+
+{% block content %}
+<form method="POST" class="form-container" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid form-grid-2">
+        <!-- Linke Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Grunddaten</h3>
+
+            <div class="form-group">
+                <label for="name" class="form-label required">Name</label>
+                <input type="text" id="name" name="name" class="form-input"
+                       value="{{ category.name if category else '' }}" required
+                       placeholder="z.B. Physiotherapie KVG">
+            </div>
+
+            <div class="form-group">
+                <label for="short_name" class="form-label">Kurzname</label>
+                <input type="text" id="short_name" name="short_name" class="form-input"
+                       value="{{ category.short_name if category else '' }}"
+                       placeholder="z.B. PT" maxlength="20">
+            </div>
+
+            <div class="form-group">
+                <label for="sort_order" class="form-label">Sortierung</label>
+                <input type="number" id="sort_order" name="sort_order" class="form-input"
+                       value="{{ category.sort_order if category else 0 }}" min="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_active"
+                           {% if not category or category.is_active %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Kategorie aktiv</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div class="form-section">
+            <h3 class="form-section-title">Zuordnungen</h3>
+
+            <div class="form-group">
+                <label for="template_ids" class="form-label">Serienvorlagen</label>
+                <select id="template_ids" name="template_ids" class="form-select" multiple
+                        style="min-height: 120px;">
+                    {% for tpl in templates %}
+                    <option value="{{ tpl.id }}"
+                        {% if category and selected_template_ids and tpl.id in selected_template_ids %}selected{% endif %}>
+                        {{ tpl.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">Ctrl/Cmd-Klick fuer Mehrfachauswahl. Welche Vorlagen in dieser Kategorie verfuegbar sind.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="therapist_ids" class="form-label">Therapeuten</label>
+                <select id="therapist_ids" name="therapist_ids" class="form-select" multiple
+                        style="min-height: 120px;">
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}"
+                        {% if category and selected_therapist_ids and emp.id in selected_therapist_ids %}selected{% endif %}>
+                        {{ emp.first_name }} {{ emp.last_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-hint">Welche Therapeuten diese Kategorie behandeln (leer = alle)</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="form-actions">
+        <a href="{{ url_for('practice.index', tab='categories') }}" class="btn btn-secondary">Abbrechen</a>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+    </div>
+</form>
+{% endblock %}

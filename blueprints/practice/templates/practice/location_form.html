@@ -60,6 +60,39 @@
             </div>
 
             <div class="form-group">
+                <label for="loc_fax" class="form-label">Fax</label>
+                <input type="tel" id="loc_fax" name="loc_fax" class="form-input"
+                       value="{{ location.loc_fax if location else '' }}" placeholder="+41 44 000 00 01">
+            </div>
+
+            <div class="form-group">
+                <label for="loc_kanton" class="form-label">Kanton</label>
+                <select id="loc_kanton" name="loc_kanton" class="form-select">
+                    <option value="">-- Kein Kanton --</option>
+                    {% set kantone = [('AG','Aargau'),('AI','Appenzell I.'),('AR','Appenzell A.'),('BE','Bern'),('BL','Basel-Land'),('BS','Basel-Stadt'),('FR','Freiburg'),('GE','Genf'),('GL','Glarus'),('GR','Graubünden'),('JU','Jura'),('LU','Luzern'),('NE','Neuenburg'),('NW','Nidwalden'),('OW','Obwalden'),('SG','St. Gallen'),('SH','Schaffhausen'),('SO','Solothurn'),('SZ','Schwyz'),('TG','Thurgau'),('TI','Tessin'),('UR','Uri'),('VD','Waadt'),('VS','Wallis'),('ZG','Zug'),('ZH','Zürich')] %}
+                    {% for code, label in kantone %}
+                    <option value="{{ code }}" {% if location and location.loc_kanton == code %}selected{% endif %}>{{ code }} - {{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Registrierungsnummern</h3>
+
+            <div class="form-group">
+                <label for="gln_number" class="form-label">GLN/EAN-Nummer</label>
+                <input type="text" id="gln_number" name="gln_number" class="form-input"
+                       value="{{ location.gln_number if location else '' }}" placeholder="7601000000000">
+                <small class="form-hint">Standort-spezifische GLN (optional)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="zsr_number" class="form-label">ZSR-Nummer</label>
+                <input type="text" id="zsr_number" name="zsr_number" class="form-input"
+                       value="{{ location.zsr_number if location else '' }}" placeholder="A000000">
+                <small class="form-hint">Standort-spezifische ZSR (optional)</small>
+            </div>
+
+            <div class="form-group">
                 <label class="form-toggle">
                     <input type="checkbox" name="is_active" id="is_active"
                            {% if not location or location.is_active %}checked{% endif %}>

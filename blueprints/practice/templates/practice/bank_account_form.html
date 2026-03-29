@@ -65,6 +65,38 @@
             </div>
 
             <div class="form-group">
+                <label for="account_type" class="form-label">Kontotyp</label>
+                <select id="account_type" name="account_type" class="form-select">
+                    <option value="0" {% if account and account.account_type == 0 %}selected{% endif %}>Bank</option>
+                    <option value="1" {% if account and account.account_type == 1 %}selected{% endif %}>Post</option>
+                    <option value="2" {% if account and account.account_type == 2 %}selected{% endif %}>Kasse</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="participant_number" class="form-label">Teilnehmernummer (ESR)</label>
+                <input type="text" id="participant_number" name="participant_number" class="form-input"
+                       value="{{ account.participant_number if account else '' }}"
+                       placeholder="ESR-Teilnehmernummer">
+                <small class="form-hint">Für orangen Einzahlungsschein / ESR</small>
+            </div>
+
+            <div class="form-group">
+                <label for="employee_id" class="form-label">Zugeordneter Mitarbeiter</label>
+                <select id="employee_id" name="employee_id" class="form-select">
+                    <option value="">-- Praxiskonto (kein Mitarbeiter) --</option>
+                    {% if employees is defined %}
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}" {% if account and account.employee_id == emp.id %}selected{% endif %}>
+                        {{ emp.first_name }} {{ emp.last_name }}
+                    </option>
+                    {% endfor %}
+                    {% endif %}
+                </select>
+                <small class="form-hint">Für mitarbeiterbezogene Konten (optional)</small>
+            </div>
+
+            <div class="form-group">
                 <label class="form-toggle">
                     <input type="checkbox" name="is_default" id="is_default"
                            {% if account and account.is_default %}checked{% endif %}>

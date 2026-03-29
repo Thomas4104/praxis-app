@@ -13,9 +13,21 @@
             </div>
 
             <div class="form-group">
+                <label for="department" class="form-label">Abteilung</label>
+                <input type="text" id="department" name="department" class="form-input"
+                       value="{{ org.department or '' }}" placeholder="z.B. Physiotherapie">
+            </div>
+
+            <div class="form-group">
                 <label for="address" class="form-label">Adresse</label>
                 <input type="text" id="address" name="address" class="form-input"
                        value="{{ org.address or '' }}" placeholder="Strasse und Hausnummer">
+            </div>
+
+            <div class="form-group">
+                <label for="postbox" class="form-label">Postfach</label>
+                <input type="text" id="postbox" name="postbox" class="form-input"
+                       value="{{ org.postbox or '' }}" placeholder="Postfach">
             </div>
 
             <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
@@ -32,15 +44,40 @@
             </div>
 
             <div class="form-group">
-                <label for="phone" class="form-label">Telefon</label>
-                <input type="tel" id="phone" name="phone" class="form-input"
-                       value="{{ org.phone or '' }}" placeholder="+41 44 000 00 00">
+                <label for="kanton" class="form-label">Kanton</label>
+                <select id="kanton" name="kanton" class="form-select">
+                    <option value="">-- Kein Kanton --</option>
+                    {% set kantone = [('AG','Aargau'),('AI','Appenzell I.'),('AR','Appenzell A.'),('BE','Bern'),('BL','Basel-Land'),('BS','Basel-Stadt'),('FR','Freiburg'),('GE','Genf'),('GL','Glarus'),('GR','Graubünden'),('JU','Jura'),('LU','Luzern'),('NE','Neuenburg'),('NW','Nidwalden'),('OW','Obwalden'),('SG','St. Gallen'),('SH','Schaffhausen'),('SO','Solothurn'),('SZ','Schwyz'),('TG','Thurgau'),('TI','Tessin'),('UR','Uri'),('VD','Waadt'),('VS','Wallis'),('ZG','Zug'),('ZH','Zürich')] %}
+                    {% for code, label in kantone %}
+                    <option value="{{ code }}" {% if org.kanton == code %}selected{% endif %}>{{ code }} - {{ label }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
-            <div class="form-group">
-                <label for="email" class="form-label">E-Mail</label>
-                <input type="email" id="email" name="email" class="form-input"
-                       value="{{ org.email or '' }}" placeholder="info@praxis.ch">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="phone" class="form-label">Telefon</label>
+                    <input type="tel" id="phone" name="phone" class="form-input"
+                           value="{{ org.phone or '' }}" placeholder="+41 44 000 00 00">
+                </div>
+                <div class="form-group">
+                    <label for="mobile" class="form-label">Mobil</label>
+                    <input type="tel" id="mobile" name="mobile" class="form-input"
+                           value="{{ org.mobile or '' }}" placeholder="+41 79 000 00 00">
+                </div>
+            </div>
+
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="fax" class="form-label">Fax</label>
+                    <input type="tel" id="fax" name="fax" class="form-input"
+                           value="{{ org.fax or '' }}" placeholder="+41 44 000 00 01">
+                </div>
+                <div class="form-group">
+                    <label for="email" class="form-label">E-Mail</label>
+                    <input type="email" id="email" name="email" class="form-input"
+                           value="{{ org.email or '' }}" placeholder="info@praxis.ch">
+                </div>
             </div>
 
             <div class="form-group">
@@ -59,6 +96,16 @@
                 </select>
                 <small class="form-hint">Standard für automatische E-Mails und Dokumente</small>
             </div>
+
+            <div class="form-group">
+                <label for="insurance_union" class="form-label">Versicherungsverband</label>
+                <select id="insurance_union" name="insurance_union" class="form-select">
+                    <option value="0" {% if org.insurance_union == 0 %}selected{% endif %}>Kein Verband</option>
+                    <option value="1" {% if org.insurance_union == 1 %}selected{% endif %}>santésuisse</option>
+                    <option value="2" {% if org.insurance_union == 2 %}selected{% endif %}>curafutura</option>
+                    <option value="3" {% if org.insurance_union == 3 %}selected{% endif %}>Andere</option>
+                </select>
+            </div>
         </div>
 
         <!-- Rechte Spalte -->
@@ -70,6 +117,13 @@
                 <input type="text" id="zsr_number" name="zsr_number" class="form-input"
                        value="{{ org.zsr_number or '' }}" placeholder="A000000">
                 <small class="form-hint">Zahlstellenregister-Nummer</small>
+            </div>
+
+            <div class="form-group">
+                <label for="ergo_zsr" class="form-label">ZSR-Nummer Ergotherapie</label>
+                <input type="text" id="ergo_zsr" name="ergo_zsr" class="form-input"
+                       value="{{ org.ergo_zsr or '' }}" placeholder="E000000">
+                <small class="form-hint">Falls separater ZSR für Ergotherapie</small>
             </div>
 
             <div class="form-group">
@@ -90,6 +144,82 @@
                 <input type="text" id="uid_number" name="uid_number" class="form-input"
                        value="{{ org.uid_number or '' }}" placeholder="CHE-123.456.789">
                 <small class="form-hint">Unternehmens-Identifikationsnummer</small>
+            </div>
+
+            <div class="form-group">
+                <label for="suva_number" class="form-label">SUVA-Nummer</label>
+                <input type="text" id="suva_number" name="suva_number" class="form-input"
+                       value="{{ org.suva_number or '' }}" placeholder="SUVA-Nummer">
+            </div>
+
+            <div class="form-group">
+                <label for="tax_number" class="form-label">Steuernummer</label>
+                <input type="text" id="tax_number" name="tax_number" class="form-input"
+                       value="{{ org.tax_number or '' }}" placeholder="Steuernummer">
+            </div>
+
+            <div class="form-group">
+                <label for="medidata_client_id" class="form-label">MediData Client-ID</label>
+                <input type="text" id="medidata_client_id" name="medidata_client_id" class="form-input"
+                       value="{{ org.medidata_client_id or '' }}" placeholder="MediData Kundennummer">
+                <small class="form-hint">Für elektronischen Rechnungsversand</small>
+            </div>
+
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Zahlungskonditionen</h3>
+
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-group">
+                    <label for="payment_due_days" class="form-label">Zahlungsfrist (Tage)</label>
+                    <input type="number" id="payment_due_days" name="payment_due_days" class="form-input"
+                           value="{{ org.payment_due_days or 30 }}" min="1" max="365">
+                </div>
+                <div class="form-group">
+                    <label for="invoice_buffer_time" class="form-label">Rechnungs-Puffer (Tage)</label>
+                    <input type="number" id="invoice_buffer_time" name="invoice_buffer_time" class="form-input"
+                           value="{{ org.invoice_buffer_time or 0 }}" min="0">
+                    <small class="form-hint">Wartezeit vor Rechnungsversand</small>
+                </div>
+            </div>
+
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Mahnwesen</h3>
+
+            <div class="form-grid" style="padding:0; box-shadow:none; display:grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing-sm);">
+                <div class="form-group">
+                    <label class="form-label">1. Mahnung</label>
+                    <div style="display:flex; gap:var(--spacing-xs);">
+                        <input type="number" name="reminder_days_1" class="form-input" style="width:70px"
+                               value="{{ org.reminder_days_1 or 30 }}" min="1" placeholder="Tage">
+                        <span style="align-self:center; font-size:0.8em;">Tage</span>
+                    </div>
+                    <input type="number" name="reminder_fee_1" class="form-input" style="margin-top:4px"
+                           value="{{ org.reminder_fee_1 or 0 }}" min="0" step="0.50" placeholder="Gebühr CHF">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">2. Mahnung</label>
+                    <div style="display:flex; gap:var(--spacing-xs);">
+                        <input type="number" name="reminder_days_2" class="form-input" style="width:70px"
+                               value="{{ org.reminder_days_2 or 60 }}" min="1" placeholder="Tage">
+                        <span style="align-self:center; font-size:0.8em;">Tage</span>
+                    </div>
+                    <input type="number" name="reminder_fee_2" class="form-input" style="margin-top:4px"
+                           value="{{ org.reminder_fee_2 or 0 }}" min="0" step="0.50" placeholder="Gebühr CHF">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">3. Mahnung</label>
+                    <div style="display:flex; gap:var(--spacing-xs);">
+                        <input type="number" name="reminder_days_3" class="form-input" style="width:70px"
+                               value="{{ org.reminder_days_3 or 90 }}" min="1" placeholder="Tage">
+                        <span style="align-self:center; font-size:0.8em;">Tage</span>
+                    </div>
+                    <input type="number" name="reminder_fee_3" class="form-input" style="margin-top:4px"
+                           value="{{ org.reminder_fee_3 or 0 }}" min="0" step="0.50" placeholder="Gebühr CHF">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="cancellation_fee" class="form-label">Standard-Stornogebühr (CHF)</label>
+                <input type="number" id="cancellation_fee" name="cancellation_fee" class="form-input"
+                       value="{{ org.cancellation_fee or 0 }}" min="0" step="0.50">
             </div>
         </div>
     </div>

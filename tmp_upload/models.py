@@ -1375,12 +1375,9 @@ class MedidataResponse(db.Model):
     """MediData-Antworten auf Kostengutsprachen und Rechnungen (Cenplex: MedidataresponseDto)"""
     __tablename__ = 'medidata_responses'
     __table_args__ = (
-        db.Index('ix_medresp_org', 'organization_id'),
         db.Index('ix_medresp_kogu', 'cost_approval_id'),
-        db.Index('ix_medresp_invoice', 'invoice_id'),
     )
     id = db.Column(db.Integer, primary_key=True)
-    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
     cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
     result = db.Column(db.Integer, default=1)  # 0=Accepted, 1=Pending, 2=Rejected
@@ -1405,9 +1402,7 @@ class MedidataResponse(db.Model):
     is_done = db.Column(db.Boolean, default=False)
     file_key = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    organization = db.relationship('Organization', backref='medidata_responses')
     invoice = db.relationship('Invoice', backref='medidata_responses')
     cost_approval = db.relationship('CostApproval', backref=db.backref('medidata_responses', lazy='dynamic'))
 
@@ -1416,12 +1411,9 @@ class MedidataTracking(db.Model):
     """Audit-Trail fuer Kostengutsprache- und Rechnungsaktionen (Cenplex: MedidatatrackingDto)"""
     __tablename__ = 'medidata_trackings'
     __table_args__ = (
-        db.Index('ix_medtrack_org', 'organization_id'),
         db.Index('ix_medtrack_kogu', 'cost_approval_id'),
-        db.Index('ix_medtrack_invoice', 'invoice_id'),
     )
     id = db.Column(db.Integer, primary_key=True)
-    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
     cost_approval_id = db.Column(db.Integer, db.ForeignKey('cost_approvals.id'))
     action_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -1434,9 +1426,7 @@ class MedidataTracking(db.Model):
     is_xml45 = db.Column(db.Boolean, default=False)
     track_parameter = db.Column(db.Text)  # JSON mit zusaetzlichen Parametern
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    organization = db.relationship('Organization', backref='medidata_trackings')
     invoice = db.relationship('Invoice', backref='medidata_trackings')
     cost_approval = db.relationship('CostApproval', backref=db.backref('medidata_trackings', lazy='dynamic'))
     employee = db.relationship('Employee', foreign_keys=[employee_id])

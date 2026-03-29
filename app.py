@@ -103,6 +103,10 @@ def create_app(config_name=None):
     from utils.permissions import has_permission
     app.jinja_env.globals['has_permission'] = has_permission
 
+    # Jinja-Filter: JSON-String parsen
+    import json as _json
+    app.jinja_env.filters['from_json'] = lambda s: _json.loads(s) if s else []
+
     # Kontext-Prozessoren
     @app.context_processor
     def inject_globals():

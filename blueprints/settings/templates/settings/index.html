@@ -53,6 +53,13 @@
             </svg>
             E-Mail
         </a>
+        <a href="{{ url_for('settings.index', category='sms') }}"
+           class="settings-nav-item {% if category == 'sms' %}active{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            SMS-Vorlagen
+        </a>
         <a href="{{ url_for('settings.index', category='billing') }}"
            class="settings-nav-item {% if category == 'billing' %}active{% endif %}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -100,6 +107,8 @@
         {% include 'settings/_cat_calendar.html' %}
         {% elif category == 'email' %}
         {% include 'settings/_cat_email.html' %}
+        {% elif category == 'sms' %}
+        {% include 'settings/_cat_sms.html' %}
         {% elif category == 'billing' %}
         {% include 'settings/_cat_billing.html' %}
         {% elif category == 'users' %}

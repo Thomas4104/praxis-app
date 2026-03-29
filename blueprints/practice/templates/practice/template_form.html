@@ -88,7 +88,7 @@
 
         <!-- Rechte Spalte -->
         <div class="form-section">
-            <h3 class="form-section-title">Erweiterte Einstellungen</h3>
+            <h3 class="form-section-title">Therapie-Einstellungen</h3>
 
             <div class="form-group">
                 <label class="form-toggle">
@@ -104,6 +104,54 @@
                 <label for="max_group_size" class="form-label">Max. Gruppengrösse</label>
                 <input type="number" id="max_group_size" name="max_group_size" class="form-input"
                        value="{{ template.max_group_size if template and template.max_group_size else '' }}" min="2">
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_pauschal"
+                           {% if template and template.is_pauschal %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Pauschalabrechnung</span>
+                </label>
+                <small class="form-hint">Pauschalbetrag statt Einzelpositionen</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_remote"
+                           {% if template and template.is_remote %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Fernbehandlung / Teletherapie</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="no_overbooking"
+                           {% if template and template.no_overbooking %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Überbuchung verhindern</span>
+                </label>
+                <small class="form-hint">Keine parallelen Termine erlauben</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_emr_series"
+                           {% if template and template.is_emr_series %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">EMR-Serie</span>
+                </label>
+                <small class="form-hint">ErfahrungsMedizinisches Register</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_ergo"
+                           {% if template and template.is_ergo %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Ergotherapie-Serie</span>
+                </label>
             </div>
 
             <div class="form-group">
@@ -127,11 +175,62 @@
                 </select>
             </div>
 
+            <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Abrechnung</h3>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="apply_vat"
+                           {% if template and template.apply_vat %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">MwSt. anwenden</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="include_vat"
+                           {% if template and template.include_vat %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">MwSt. inklusiv</span>
+                </label>
+                <small class="form-hint">Preise verstehen sich inkl. MwSt.</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="bill_end_of_month"
+                           {% if template and template.bill_end_of_month %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Abrechnung per Monatsende</span>
+                </label>
+            </div>
+
             <div class="form-group">
                 <label for="auto_billing_after" class="form-label">Auto-Abrechnung nach X Terminen</label>
                 <input type="number" id="auto_billing_after" name="auto_billing_after" class="form-input"
                        value="{{ template.auto_billing_after if template and template.auto_billing_after else '' }}"
                        min="1" placeholder="Leer = keine Auto-Abrechnung">
+            </div>
+
+            <div class="form-group">
+                <label for="intermediate_bill_duration" class="form-label">Zwischenrechnung nach (Tage)</label>
+                <input type="number" id="intermediate_bill_duration" name="intermediate_bill_duration" class="form-input"
+                       value="{{ template.intermediate_bill_duration if template and template.intermediate_bill_duration else '' }}"
+                       min="1" placeholder="Leer = keine Zwischenrechnung">
+            </div>
+
+            <div class="form-group">
+                <label for="bank_account_id" class="form-label">Bankkonto</label>
+                <select id="bank_account_id" name="bank_account_id" class="form-select">
+                    <option value="">-- Standard-Bankkonto --</option>
+                    {% if bank_accounts is defined %}
+                    {% for ba in bank_accounts %}
+                    <option value="{{ ba.id }}" {% if template and template.bank_account_id == ba.id %}selected{% endif %}>
+                        {{ ba.account_name or ba.bank_name }} ({{ ba.iban[:12] }}...)
+                    </option>
+                    {% endfor %}
+                    {% endif %}
+                </select>
             </div>
 
             <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Stornogebühr</h3>
@@ -150,6 +249,28 @@
                 <input type="number" id="cancellation_fee_amount" name="cancellation_fee_amount" class="form-input"
                        value="{{ template.cancellation_fee_amount if template and template.cancellation_fee_amount else '' }}"
                        step="0.01" min="0" placeholder="z.B. 50.00">
+            </div>
+
+            <div class="form-group">
+                <label for="finding_template_id" class="form-label">Befundvorlage</label>
+                <select id="finding_template_id" name="finding_template_id" class="form-select">
+                    <option value="">-- Keine Befundvorlage --</option>
+                    {% if finding_templates is defined %}
+                    {% for ft in finding_templates %}
+                    <option value="{{ ft.id }}" {% if template and template.finding_template_id == ft.id %}selected{% endif %}>{{ ft.name }}</option>
+                    {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_default"
+                           {% if template and template.is_default %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Standardvorlage</span>
+                </label>
+                <small class="form-hint">Wird bei neuen Serien vorausgewählt</small>
             </div>
 
             <div class="form-group">

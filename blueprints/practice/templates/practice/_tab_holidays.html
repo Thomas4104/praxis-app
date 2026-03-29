@@ -46,8 +46,21 @@
             <tbody>
                 {% for h in holidays %}
                 <tr>
-                    <td>{{ h.date.strftime('%d.%m.%Y') }}</td>
-                    <td><strong>{{ h.name }}</strong></td>
+                    <td>
+                        {{ h.date.strftime('%d.%m.%Y') }}
+                        {% if h.end_date and h.end_date != h.date %}
+                         - {{ h.end_date.strftime('%d.%m.%Y') }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ h.name }}</strong>
+                        {% if h.is_vacation %}
+                            <span class="badge badge-warning" style="margin-left:4px;">Ferien</span>
+                        {% endif %}
+                        {% if h.is_yearly %}
+                            <span class="badge badge-info" style="margin-left:4px;">Jährlich</span>
+                        {% endif %}
+                    </td>
                     <td>{{ h.canton.upper() if h.canton else '-' }}</td>
                     <td>
                         {% if h.location %}
@@ -108,6 +121,63 @@
                 </div>
                 <div class="form-group" style="padding-top: 1.6rem;">
                     <button type="submit" class="btn btn-primary">Feiertag hinzufügen</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Betriebsferien / Abwesenheiten -->
+    <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Betriebsferien / Praxisschliessung</h3>
+        <p class="form-hint" style="margin-bottom: var(--spacing-md);">
+            Zeiträume, in denen die Praxis geschlossen ist (z.B. Sommerferien, Weihnachtsferien).
+        </p>
+        <form method="POST" action="{{ url_for('practice.add_holiday') }}" class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="is_vacation" value="1">
+            <div class="form-section" style="padding:0;">
+                <div class="form-group">
+                    <label for="vacation_name" class="form-label required">Bezeichnung</label>
+                    <input type="text" id="vacation_name" name="name" class="form-input" required
+                           placeholder="z.B. Sommerferien">
+                </div>
+                <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                    <div class="form-group">
+                        <label for="vacation_start" class="form-label required">Von</label>
+                        <input type="date" id="vacation_start" name="date" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="vacation_end" class="form-label">Bis</label>
+                        <input type="date" id="vacation_end" name="end_date" class="form-input">
+                        <small class="form-hint">Leer = einzelner Tag</small>
+                    </div>
+                </div>
+            </div>
+            <div class="form-section" style="padding:0;">
+                <div class="form-group">
+                    <label for="vacation_type" class="form-label">Typ</label>
+                    <select id="vacation_type" name="holiday_type" class="form-select">
+                        <option value="1">Betriebsferien</option>
+                        <option value="2">Sonstiges</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="vacation_location" class="form-label">Gilt für Standort</label>
+                    <select id="vacation_location" name="location_id" class="form-select">
+                        <option value="">Alle Standorte</option>
+                        {% for loc in locations %}
+                        <option value="{{ loc.id }}">{{ loc.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_yearly" value="1">
+                        Jährlich wiederkehrend
+                    </label>
+                </div>
+                <div class="form-group" style="padding-top: var(--spacing-xs);">
+                    <button type="submit" class="btn btn-primary">Ferien hinzufügen</button>
                 </div>
             </div>
         </form>

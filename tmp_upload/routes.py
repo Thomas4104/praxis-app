@@ -314,16 +314,6 @@ def edit_email_template(template_id):
     template.template_type = request.form.get('template_type', template.template_type)
     template.subject = request.form.get('subject', '').strip()
     template.body_html = request.form.get('body_html', '').strip()
-    # Neue Felder: Trigger, Einmal-pro-Serie, An Erziehungsberechtigte
-    trigger_time = request.form.get('trigger_time', '').strip()
-    if trigger_time:
-        template.trigger_time = int(trigger_time)
-        template.trigger_unit = request.form.get('trigger_unit', 'hours')
-    else:
-        template.trigger_time = None
-        template.trigger_unit = None
-    template.send_once_per_series = request.form.get('send_once_per_series') == 'on'
-    template.send_to_guardian = request.form.get('send_to_guardian') == 'on'
 
     db.session.commit()
     flash(f'E-Mail-Vorlage "{template.name}" wurde aktualisiert.', 'success')
@@ -337,10 +327,11 @@ def delete_email_template(template_id):
     """E-Mail-Vorlage loeschen"""
     template = EmailTemplate.query.get_or_404(template_id)
     check_org(template)
-    template.is_deleted = True
+    name = template.name
+    db.session.delete(template)
     db.session.commit()
 
-    flash(f'E-Mail-Vorlage "{template.name}" wurde gelöscht.', 'success')
+    flash(f'E-Mail-Vorlage "{name}" wurde gelöscht.', 'success')
     return redirect(url_for('settings.index', category='email'))
 
 
@@ -420,10 +411,6 @@ def edit_sms_template(template_id):
     if trigger_time:
         template.trigger_time = int(trigger_time)
         template.trigger_unit = request.form.get('trigger_unit', 'hours')
-    else:
-        template.trigger_time = None
-        template.trigger_unit = None
-    template.send_once_per_series = request.form.get('send_once_per_series') == 'on'
     db.session.commit()
     flash(f'SMS-Vorlage "{template.name}" wurde aktualisiert.', 'success')
     return redirect(url_for('settings.index', category='sms'))

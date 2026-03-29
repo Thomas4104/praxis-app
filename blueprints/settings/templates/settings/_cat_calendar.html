@@ -89,6 +89,93 @@
                         <span class="toggle-text">Status-Icon</span>
                     </label>
                 </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_series_counter"
+                               {% if appointment_display.get('series_counter', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Serienzähler (z.B. 3/9)</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_documentation_icon"
+                               {% if appointment_display.get('documentation_icon', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Dokumentations-Icon</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="display_billing_icon"
+                               {% if appointment_display.get('billing_icon', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Abrechnungs-Icon</span>
+                    </label>
+                </div>
+
+                <h3 class="form-section-title" style="margin-top: var(--spacing-lg);">Erweiterte Optionen</h3>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="show_print_states"
+                               {% if appointment_display.get('show_print_states', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Druckstatus anzeigen</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="allow_small_columns"
+                               {% if appointment_display.get('allow_small_columns', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Schmale Spalten erlauben</span>
+                    </label>
+                    <small class="form-hint">Mehr Therapeuten parallel sichtbar</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="hide_locations"
+                               {% if appointment_display.get('hide_locations', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Standorte ausblenden</span>
+                    </label>
+                    <small class="form-hint">Bei Einzelstandort-Praxen</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="allow_admin_time"
+                               {% if appointment_display.get('allow_admin_time', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Administrationszeit erlauben</span>
+                    </label>
+                    <small class="form-hint">Nicht-Patienten-Blocker im Kalender</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="show_group_members"
+                               {% if appointment_display.get('show_group_members', True) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Gruppenmitglieder anzeigen</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <input type="checkbox" name="hover_highlight_all"
+                               {% if appointment_display.get('hover_highlight_all', False) %}checked{% endif %}>
+                        <span class="toggle-switch"></span>
+                        <span class="toggle-text">Alle Termine eines Patienten hervorheben</span>
+                    </label>
+                    <small class="form-hint">Beim Hover über einen Termin alle Termine des Patienten markieren</small>
+                </div>
             </div>
         </div>
 

@@ -1,0 +1,132 @@
+<!-- Behandlungskategorien Tab -->
+<div class="form-section" style="padding: var(--spacing-md) var(--spacing-lg);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--spacing-md);">
+        <h3 class="form-section-title" style="margin:0;">Behandlungskategorien</h3>
+    </div>
+    <p class="form-hint" style="margin-bottom: var(--spacing-md);">
+        Kategorien zur Gruppierung von Behandlungen. Ordnen Sie Serienvorlagen und Therapeuten zu.
+    </p>
+
+    <!-- Bestehende Kategorien -->
+    {% if categories %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:40px;">Pos.</th>
+                    <th>Name</th>
+                    <th>Kurzname</th>
+                    <th>Vorlagen</th>
+                    <th>Therapeuten</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in categories %}
+                <tr{% if not cat.is_active %} style="opacity:0.5"{% endif %}>
+                    <td>{{ cat.sort_order }}</td>
+                    <td><strong>{{ cat.name }}</strong></td>
+                    <td>{{ cat.short_name or '-' }}</td>
+                    <td>
+                        {% if cat.templates_json %}
+                            <span class="badge badge-info">{{ (cat.templates_json | from_json | length) }} Vorlagen</span>
+                        {% else %}
+                            <span class="badge badge-muted">Keine</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if cat.therapists_json %}
+                            <span class="badge badge-info">zugewiesen</span>
+                        {% else %}
+                            <span class="badge badge-muted">Alle</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if cat.is_active %}
+                            <span class="badge badge-success">Aktiv</span>
+                        {% else %}
+                            <span class="badge badge-muted">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <a href="{{ url_for('practice.edit_category', category_id=cat.id) }}" class="btn btn-sm btn-secondary" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </a>
+                        <form method="POST" action="{{ url_for('practice.toggle_category', category_id=cat.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm {% if cat.is_active %}btn-warning{% else %}btn-success{% endif %}" title="{{ 'Deaktivieren' if cat.is_active else 'Aktivieren' }}">
+                                {% if cat.is_active %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                                </svg>
+                                {% else %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                {% endif %}
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('practice.delete_category', category_id=cat.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-error" title="Loeschen"
+                                    onclick="return confirm('Kategorie wirklich loeschen?')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Keine Behandlungskategorien definiert.</p>
+    </div>
+    {% endif %}
+
+    <!-- Neue Kategorie -->
+    <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Neue Kategorie</h3>
+        <form method="POST" action="{{ url_for('practice.create_category') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="cat_name" class="form-label required">Name</label>
+                        <input type="text" id="cat_name" name="name" class="form-input" required
+                               placeholder="z.B. Physiotherapie">
+                    </div>
+                    <div class="form-group">
+                        <label for="cat_short_name" class="form-label">Kurzname</label>
+                        <input type="text" id="cat_short_name" name="short_name" class="form-input"
+                               placeholder="z.B. PT" maxlength="20">
+                    </div>
+                </div>
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="cat_templates" class="form-label">Serienvorlagen</label>
+                        <select id="cat_templates" name="template_ids" class="form-select" multiple
+                                style="min-height: 80px;">
+                            {% for tpl in templates %}
+                            <option value="{{ tpl.id }}">{{ tpl.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-hint">Ctrl/Cmd-Klick für Mehrfachauswahl</small>
+                    </div>
+                    <div class="form-group" style="padding-top: var(--spacing-xs);">
+                        <button type="submit" class="btn btn-primary">Kategorie erstellen</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

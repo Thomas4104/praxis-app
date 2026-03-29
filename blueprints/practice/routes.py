@@ -4,7 +4,7 @@ from datetime import datetime, date
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from blueprints.practice import practice_bp
-from models import db, Organization, Location, BankAccount, Holiday, TreatmentSeriesTemplate, TaxPointValue, InsuranceProvider
+from models import db, Organization, Location, BankAccount, Holiday, TreatmentSeriesTemplate, TaxPointValue, InsuranceProvider, Employee, TreatmentCategory, FindingTemplate
 from utils.auth import check_org
 
 
@@ -33,6 +33,8 @@ def index():
         return _templates_tab(org)
     elif tab == 'tax_points':
         return _tax_points_tab(org)
+    elif tab == 'categories':
+        return _categories_tab(org)
 
     return render_template('practice/index.html', tab='base', org=org)
 
@@ -115,17 +117,54 @@ def edit_base():
     org = Organization.query.get(current_user.organization_id)
 
     org.name = request.form.get('name', '').strip()
+    org.department = request.form.get('department', '').strip() or None
     org.address = request.form.get('address', '').strip()
+    org.postbox = request.form.get('postbox', '').strip() or None
     org.city = request.form.get('city', '').strip()
     org.zip_code = request.form.get('zip_code', '').strip()
+    org.kanton = request.form.get('kanton', '').strip() or None
     org.phone = request.form.get('phone', '').strip()
+    org.mobile = request.form.get('mobile', '').strip() or None
+    org.fax = request.form.get('fax', '').strip() or None
     org.email = request.form.get('email', '').strip()
+    org.contact_person = request.form.get('contact_person', '').strip()
+    org.default_language = request.form.get('default_language', 'de').strip()
     org.zsr_number = request.form.get('zsr_number', '').strip()
+    org.ergo_zsr = request.form.get('ergo_zsr', '').strip() or None
     org.gln_number = request.form.get('gln_number', '').strip()
     org.nif_number = request.form.get('nif_number', '').strip()
     org.uid_number = request.form.get('uid_number', '').strip()
-    org.contact_person = request.form.get('contact_person', '').strip()
-    org.default_language = request.form.get('default_language', 'de').strip()
+    org.suva_number = request.form.get('suva_number', '').strip() or None
+    org.tax_number = request.form.get('tax_number', '').strip() or None
+    org.medidata_client_id = request.form.get('medidata_client_id', '').strip() or None
+    try:
+        org.insurance_union = int(request.form.get('insurance_union', '0'))
+    except ValueError:
+        org.insurance_union = 0
+    try:
+        org.payment_due_days = int(request.form.get('payment_due_days', '30'))
+    except ValueError:
+        org.payment_due_days = 30
+    try:
+        org.invoice_buffer_time = int(request.form.get('invoice_buffer_time', '0'))
+    except ValueError:
+        org.invoice_buffer_time = 0
+    try:
+        org.reminder_days_1 = int(request.form.get('reminder_days_1', '30'))
+        org.reminder_days_2 = int(request.form.get('reminder_days_2', '60'))
+        org.reminder_days_3 = int(request.form.get('reminder_days_3', '90'))
+    except ValueError:
+        pass
+    try:
+        org.reminder_fee_1 = float(request.form.get('reminder_fee_1', '0'))
+        org.reminder_fee_2 = float(request.form.get('reminder_fee_2', '0'))
+        org.reminder_fee_3 = float(request.form.get('reminder_fee_3', '0'))
+    except ValueError:
+        pass
+    try:
+        org.cancellation_fee = float(request.form.get('cancellation_fee', '0'))
+    except ValueError:
+        org.cancellation_fee = 0
 
     if not org.name:
         flash('Organisationsname ist ein Pflichtfeld.', 'error')
@@ -194,6 +233,10 @@ def _save_location(location):
     location.zip_code = request.form.get('zip_code', '').strip()
     location.phone = request.form.get('phone', '').strip()
     location.email = request.form.get('email', '').strip()
+    location.loc_fax = request.form.get('loc_fax', '').strip() or None
+    location.loc_kanton = request.form.get('loc_kanton', '').strip() or None
+    location.gln_number = request.form.get('gln_number', '').strip() or None
+    location.zsr_number = request.form.get('zsr_number', '').strip() or None
 
     # Oeffnungszeiten aus Formular
     oeffnungszeiten = {}
@@ -280,11 +323,32 @@ def add_holiday():
         flash('Ungültiges Datum.', 'error')
         return redirect(url_for('practice.index', tab='holidays'))
 
+    # Enddatum fuer Ferien-Zeitraeume
+    end_date_str = request.form.get('end_date', '').strip()
+    end_date = None
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    is_vacation = request.form.get('is_vacation') == '1'
+    is_yearly = request.form.get('is_yearly') == '1'
+    try:
+        holiday_type = int(request.form.get('holiday_type', '0'))
+    except ValueError:
+        holiday_type = 0
+
     holiday = Holiday(
         organization_id=current_user.organization_id,
         name=name,
         date=holiday_date,
-        location_id=int(location_id) if location_id else None
+        end_date=end_date,
+        location_id=int(location_id) if location_id else None,
+        holiday_type=holiday_type,
+        is_vacation=is_vacation,
+        is_yearly=is_yearly,
+        is_global=not bool(location_id)
     )
     db.session.add(holiday)
     db.session.commit()
@@ -439,7 +503,10 @@ def create_bank_account():
     """Neues Bankkonto erstellen"""
     if request.method == 'POST':
         return _save_bank_account(None)
-    return render_template('practice/bank_account_form.html', account=None)
+    employees = Employee.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).order_by(Employee.last_name).all()
+    return render_template('practice/bank_account_form.html', account=None, employees=employees)
 
 
 @practice_bp.route('/bank-accounts/<int:account_id>/edit', methods=['GET', 'POST'])
@@ -450,7 +517,10 @@ def edit_bank_account(account_id):
     check_org(account)
     if request.method == 'POST':
         return _save_bank_account(account)
-    return render_template('practice/bank_account_form.html', account=account)
+    employees = Employee.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).order_by(Employee.last_name).all()
+    return render_template('practice/bank_account_form.html', account=account, employees=employees)
 
 
 @practice_bp.route('/bank-accounts/<int:account_id>/toggle', methods=['POST'])
@@ -538,6 +608,15 @@ def _save_bank_account(account):
     account.bic_swift = request.form.get('bic_swift', '').strip() or None
     account.account_name = request.form.get('account_name', '').strip() or None
 
+    # Erweiterte Felder (Cenplex)
+    try:
+        account.account_type = int(request.form.get('account_type', '0'))
+    except ValueError:
+        account.account_type = 0
+    account.participant_number = request.form.get('participant_number', '').strip() or None
+    emp_id = request.form.get('employee_id', '').strip()
+    account.employee_id = int(emp_id) if emp_id else None
+
     if request.form.get('is_default') == 'on':
         # Alle anderen auf nicht-Standard
         BankAccount.query.filter_by(
@@ -566,7 +645,15 @@ def create_template():
     locations = Location.query.filter_by(
         organization_id=current_user.organization_id, is_active=True
     ).all()
-    return render_template('practice/template_form.html', template=None, locations=locations)
+    bank_accounts = BankAccount.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).all()
+    finding_templates = FindingTemplate.query.filter_by(
+        organization_id=current_user.organization_id
+    ).all()
+    return render_template('practice/template_form.html', template=None,
+                           locations=locations, bank_accounts=bank_accounts,
+                           finding_templates=finding_templates)
 
 
 @practice_bp.route('/templates/<int:template_id>/edit', methods=['GET', 'POST'])
@@ -580,7 +667,15 @@ def edit_template(template_id):
     locations = Location.query.filter_by(
         organization_id=current_user.organization_id, is_active=True
     ).all()
-    return render_template('practice/template_form.html', template=template, locations=locations)
+    bank_accounts = BankAccount.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).all()
+    finding_templates = FindingTemplate.query.filter_by(
+        organization_id=current_user.organization_id
+    ).all()
+    return render_template('practice/template_form.html', template=template,
+                           locations=locations, bank_accounts=bank_accounts,
+                           finding_templates=finding_templates)
 
 
 @practice_bp.route('/templates/<int:template_id>/toggle', methods=['POST'])
@@ -657,6 +752,38 @@ def _save_template(template):
         template.cancellation_fee_amount = float(val) if val else None
     except ValueError:
         template.cancellation_fee_amount = None
+
+    # Erweiterte Cenplex-Felder
+    template.is_pauschal = request.form.get('is_pauschal') == 'on'
+    template.is_remote = request.form.get('is_remote') == 'on'
+    template.no_overbooking = request.form.get('no_overbooking') == 'on'
+    template.is_emr_series = request.form.get('is_emr_series') == 'on'
+    template.is_ergo = request.form.get('is_ergo') == 'on'
+    template.apply_vat = request.form.get('apply_vat') == 'on'
+    template.include_vat = request.form.get('include_vat') == 'on'
+    template.bill_end_of_month = request.form.get('bill_end_of_month') == 'on'
+
+    try:
+        val = request.form.get('intermediate_bill_duration', '')
+        template.intermediate_bill_duration = int(val) if val else None
+    except ValueError:
+        template.intermediate_bill_duration = None
+
+    ba_id = request.form.get('bank_account_id', '').strip()
+    template.bank_account_id = int(ba_id) if ba_id else None
+
+    ft_id = request.form.get('finding_template_id', '').strip()
+    template.finding_template_id = int(ft_id) if ft_id else None
+
+    # Standardvorlage
+    if request.form.get('is_default') == 'on':
+        TreatmentSeriesTemplate.query.filter(
+            TreatmentSeriesTemplate.organization_id == current_user.organization_id,
+            TreatmentSeriesTemplate.id != (template.id if template.id else 0)
+        ).update({'is_default': False})
+        template.is_default = True
+    else:
+        template.is_default = False
 
     template.is_active = request.form.get('is_active') == 'on'
 
@@ -787,3 +914,130 @@ def edit_tax_point(tp_id):
     db.session.commit()
     flash(f'Taxpunktwert für {tp.tariff_type} wurde aktualisiert.', 'success')
     return redirect(url_for('practice.index', tab='tax_points'))
+
+
+# ============================================================
+# Behandlungskategorien
+# ============================================================
+
+def _categories_tab(org):
+    categories = TreatmentCategory.query.filter_by(
+        organization_id=org.id, is_deleted=False
+    ).order_by(TreatmentCategory.sort_order, TreatmentCategory.name).all()
+    templates = TreatmentSeriesTemplate.query.filter_by(
+        organization_id=org.id, is_active=True
+    ).order_by(TreatmentSeriesTemplate.name).all()
+    return render_template('practice/index.html', tab='categories', org=org,
+                           categories=categories, templates=templates)
+
+
+@practice_bp.route('/categories/new', methods=['POST'])
+@login_required
+def create_category():
+    """Neue Behandlungskategorie erstellen"""
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash('Name ist ein Pflichtfeld.', 'error')
+        return redirect(url_for('practice.index', tab='categories'))
+
+    template_ids = request.form.getlist('template_ids')
+    templates_json = json.dumps([int(x) for x in template_ids]) if template_ids else None
+
+    cat = TreatmentCategory(
+        organization_id=current_user.organization_id,
+        name=name,
+        short_name=request.form.get('short_name', '').strip() or None,
+        templates_json=templates_json,
+        sort_order=TreatmentCategory.query.filter_by(
+            organization_id=current_user.organization_id, is_deleted=False
+        ).count()
+    )
+    db.session.add(cat)
+    db.session.commit()
+    flash(f'Kategorie "{name}" wurde erstellt.', 'success')
+    return redirect(url_for('practice.index', tab='categories'))
+
+
+@practice_bp.route('/categories/<int:category_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_category(category_id):
+    """Behandlungskategorie bearbeiten"""
+    category = TreatmentCategory.query.get_or_404(category_id)
+    check_org(category)
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if not name:
+            flash('Name ist ein Pflichtfeld.', 'error')
+            return redirect(url_for('practice.edit_category', category_id=category_id))
+
+        category.name = name
+        category.short_name = request.form.get('short_name', '').strip() or None
+        try:
+            category.sort_order = int(request.form.get('sort_order', '0'))
+        except ValueError:
+            category.sort_order = 0
+        category.is_active = request.form.get('is_active') == 'on'
+
+        template_ids = request.form.getlist('template_ids')
+        category.templates_json = json.dumps([int(x) for x in template_ids]) if template_ids else None
+
+        therapist_ids = request.form.getlist('therapist_ids')
+        category.therapists_json = json.dumps([int(x) for x in therapist_ids]) if therapist_ids else None
+
+        db.session.commit()
+        flash(f'Kategorie "{category.name}" wurde aktualisiert.', 'success')
+        return redirect(url_for('practice.index', tab='categories'))
+
+    # GET: Formular anzeigen
+    templates = TreatmentSeriesTemplate.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).order_by(TreatmentSeriesTemplate.name).all()
+    employees = Employee.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).order_by(Employee.last_name).all()
+
+    selected_template_ids = []
+    if category.templates_json:
+        try:
+            selected_template_ids = json.loads(category.templates_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    selected_therapist_ids = []
+    if category.therapists_json:
+        try:
+            selected_therapist_ids = json.loads(category.therapists_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return render_template('practice/category_form.html', category=category,
+                           templates=templates, employees=employees,
+                           selected_template_ids=selected_template_ids,
+                           selected_therapist_ids=selected_therapist_ids)
+
+
+@practice_bp.route('/categories/<int:category_id>/toggle', methods=['POST'])
+@login_required
+def toggle_category(category_id):
+    """Behandlungskategorie aktivieren/deaktivieren"""
+    category = TreatmentCategory.query.get_or_404(category_id)
+    check_org(category)
+    category.is_active = not category.is_active
+    db.session.commit()
+    status_text = 'aktiviert' if category.is_active else 'deaktiviert'
+    flash(f'Kategorie "{category.name}" wurde {status_text}.', 'success')
+    return redirect(url_for('practice.index', tab='categories'))
+
+
+@practice_bp.route('/categories/<int:category_id>/delete', methods=['POST'])
+@login_required
+def delete_category(category_id):
+    """Behandlungskategorie loeschen (Soft Delete)"""
+    category = TreatmentCategory.query.get_or_404(category_id)
+    check_org(category)
+    category.is_deleted = True
+    category.is_active = False
+    db.session.commit()
+    flash(f'Kategorie "{category.name}" wurde gelöscht.', 'success')
+    return redirect(url_for('practice.index', tab='categories'))

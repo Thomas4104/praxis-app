@@ -73,6 +73,7 @@ STATUS_LABELS = {
 def _create_tracking(kogu_id, action_type, employee_id=None, request_id=None, params=None):
     """Tracking-Eintrag erstellen (Cenplex: MedidatatrackingDto)"""
     tracking = MedidataTracking(
+        organization_id=current_user.organization_id,
         cost_approval_id=kogu_id,
         action_type=action_type,
         employee_id=employee_id or (current_user.employee.id if hasattr(current_user, 'employee') and current_user.employee else None),
@@ -626,6 +627,7 @@ def record_response(id):
     # MedidataResponse erstellen (Cenplex-Muster)
     result_code = 0 if result == 'approved' else (1 if result == 'partially_approved' else 2)
     medidata_resp = MedidataResponse(
+        organization_id=current_user.organization_id,
         cost_approval_id=gutsprache.id,
         result=result_code,
         request_id=gutsprache.request_id,
@@ -699,6 +701,7 @@ def import_xml_response(id):
 
     # MedidataResponse erstellen
     medidata_resp = MedidataResponse(
+        organization_id=current_user.organization_id,
         cost_approval_id=gutsprache.id,
         result=parsed['result'],
         request_id=parsed.get('request_id', gutsprache.request_id),

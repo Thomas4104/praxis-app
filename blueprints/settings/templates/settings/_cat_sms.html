@@ -1,0 +1,196 @@
+<!-- SMS-Vorlagen Kategorie -->
+<div class="settings-section">
+    <h2>SMS-Vorlagen</h2>
+    <p class="form-hint" style="margin-bottom: var(--spacing-lg);">
+        SMS-Vorlagen fuer automatische Terminerinnerungen und Benachrichtigungen.
+    </p>
+
+    <!-- Bestehende SMS-Vorlagen -->
+    {% if sms_templates %}
+    <div class="table-responsive" style="margin-bottom: var(--spacing-lg);">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tpl in sms_templates %}
+                <tr>
+                    <td><strong>{{ tpl.name }}</strong></td>
+                    <td>
+                        {% set type_labels = {
+                            'reminder': 'Erinnerung',
+                            'confirmation': 'Bestätigung',
+                            'cancellation': 'Absage',
+                            'recall': 'Recall',
+                            'custom': 'Benutzerdefiniert'
+                        } %}
+                        {{ type_labels.get(tpl.template_type, tpl.template_type) }}
+                    </td>
+                    <td>
+                        {% if tpl.trigger_time %}
+                            {{ tpl.trigger_time }} {{ tpl.trigger_unit or 'Std.' }} vorher
+                        {% else %}
+                            Manuell
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if tpl.is_active %}
+                            <span class="badge badge-success">Aktiv</span>
+                        {% else %}
+                            <span class="badge badge-muted">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <button type="button" class="btn btn-sm btn-secondary"
+                                onclick="editSmsTemplate({{ tpl.id }})" title="Bearbeiten">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <form method="POST" action="{{ url_for('settings.toggle_sms_template', template_id=tpl.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm {% if tpl.is_active %}btn-warning{% else %}btn-success{% endif %}" title="{{ 'Deaktivieren' if tpl.is_active else 'Aktivieren' }}">
+                                {% if tpl.is_active %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                                </svg>
+                                {% else %}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                {% endif %}
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('settings.delete_sms_template', template_id=tpl.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-error" title="Loeschen"
+                                    onclick="return confirm('SMS-Vorlage wirklich loeschen?')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="margin-bottom: var(--spacing-lg);">
+        <p>Keine SMS-Vorlagen definiert.</p>
+    </div>
+    {% endif %}
+
+    <!-- Neue SMS-Vorlage erstellen -->
+    <div style="border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Neue SMS-Vorlage</h3>
+        <form method="POST" action="{{ url_for('settings.create_sms_template') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-grid form-grid-2" style="padding:0; box-shadow:none;">
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="sms_name" class="form-label required">Name</label>
+                        <input type="text" id="sms_name" name="name" class="form-input" required
+                               placeholder="z.B. Terminerinnerung 24h">
+                    </div>
+                    <div class="form-group">
+                        <label for="sms_type" class="form-label">Typ</label>
+                        <select id="sms_type" name="template_type" class="form-select">
+                            <option value="reminder">Terminerinnerung</option>
+                            <option value="confirmation">Terminbestaetigung</option>
+                            <option value="cancellation">Absage</option>
+                            <option value="recall">Recall</option>
+                            <option value="custom">Benutzerdefiniert</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="sms_body" class="form-label required">Nachricht</label>
+                        <textarea id="sms_body" name="body_html" class="form-input" rows="4" required
+                                  placeholder="Guten Tag {patient_name}, Ihr Termin am {termin_datum} um {termin_zeit}..."></textarea>
+                        <small class="form-hint">Max. 160 Zeichen pro SMS. Platzhalter: {patient_name}, {termin_datum}, {termin_zeit}, {therapeut_name}, {praxis_name}</small>
+                    </div>
+                </div>
+                <div class="form-section" style="padding:0;">
+                    <div class="form-group">
+                        <label for="sms_trigger_time" class="form-label">Versandzeitpunkt</label>
+                        <div style="display:flex; gap: var(--spacing-sm); align-items:center;">
+                            <input type="number" id="sms_trigger_time" name="trigger_time" class="form-input"
+                                   style="width:80px;" placeholder="24" min="0">
+                            <select name="trigger_unit" class="form-select" style="width:120px;">
+                                <option value="hours">Stunden</option>
+                                <option value="minutes">Minuten</option>
+                                <option value="days">Tage</option>
+                            </select>
+                            <span>vor Termin</span>
+                        </div>
+                        <small class="form-hint">Leer = manueller Versand</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="send_once_per_series" value="on">
+                            Nur einmal pro Serie senden
+                        </label>
+                    </div>
+                    <div class="form-group" style="padding-top: var(--spacing-md);">
+                        <button type="submit" class="btn btn-primary">SMS-Vorlage erstellen</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Platzhalter-Referenz -->
+    <div style="margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border, #e2e8f0); padding-top: var(--spacing-lg);">
+        <h3 class="form-section-title">Verfuegbare Platzhalter</h3>
+        <div class="table-responsive">
+            <table class="data-table" style="font-size: 0.85rem;">
+                <thead>
+                    <tr><th>Platzhalter</th><th>Beschreibung</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>{patient_name}</code></td><td>Vollstaendiger Patientenname</td></tr>
+                    <tr><td><code>{patient_vorname}</code></td><td>Vorname des Patienten</td></tr>
+                    <tr><td><code>{patient_nachname}</code></td><td>Nachname des Patienten</td></tr>
+                    <tr><td><code>{termin_datum}</code></td><td>Datum des Termins (TT.MM.JJJJ)</td></tr>
+                    <tr><td><code>{termin_zeit}</code></td><td>Uhrzeit des Termins (HH:MM)</td></tr>
+                    <tr><td><code>{therapeut_name}</code></td><td>Name des Therapeuten</td></tr>
+                    <tr><td><code>{praxis_name}</code></td><td>Name der Praxis</td></tr>
+                    <tr><td><code>{praxis_telefon}</code></td><td>Telefonnummer der Praxis</td></tr>
+                    <tr><td><code>{standort_name}</code></td><td>Name des Standorts</td></tr>
+                    <tr><td><code>{standort_adresse}</code></td><td>Adresse des Standorts</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function editSmsTemplate(templateId) {
+    fetchWithCSRF('/settings/api/email-template/' + templateId)
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        // Einfache Bearbeitung via Prompt
+        var newBody = prompt('SMS-Text bearbeiten:', data.body_html);
+        if (newBody !== null) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/settings/sms/templates/' + templateId + '/edit';
+            form.innerHTML = '<input type="hidden" name="csrf_token" value="' + document.querySelector('input[name=csrf_token]').value + '">' +
+                '<input type="hidden" name="body_html" value="' + newBody.replace(/"/g, '&quot;') + '">';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    })
+    .catch(function() { alert('Fehler beim Laden der Vorlage.'); });
+}
+</script>
