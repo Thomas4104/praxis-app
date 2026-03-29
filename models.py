@@ -694,6 +694,8 @@ class Resource(db.Model):
     blocked_timeschedule_json = db.Column(db.Text)
     blocked_timeschedule_valid_until = db.Column(db.Date)
     picture_path = db.Column(db.String(500))
+    # Cenplex Phase13: Raumverfuegbarkeit (available/partly/booked)
+    room_availability = db.Column(db.String(20), default='available')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

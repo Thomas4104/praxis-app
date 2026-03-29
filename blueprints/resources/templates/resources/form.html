@@ -30,7 +30,7 @@
             <div class="form-group">
                 <label for="resource_type" class="form-label">Typ</label>
                 <select id="resource_type" name="resource_type" class="form-select">
-                    {% set types = [('room', 'Behandlungsraum'), ('Trainingsraum', 'Trainingsraum'), ('Gruppenraum', 'Gruppenraum'), ('device', 'Gerät'), ('Fahrzeug', 'Fahrzeug'), ('Sonstiges', 'Sonstiges')] %}
+                    {% set types = [('room', 'Behandlungsraum'), ('Trainingsraum', 'Trainingsraum'), ('Gruppenraum', 'Gruppenraum'), ('device', 'Geraet'), ('Fahrzeug', 'Fahrzeug'), ('Sonstiges', 'Sonstiges')] %}
                     {% for val, label in types %}
                     <option value="{{ val }}" {% if resource and resource.resource_type == val %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
@@ -40,7 +40,7 @@
             <div class="form-group">
                 <label for="location_id" class="form-label required">Standort</label>
                 <select id="location_id" name="location_id" class="form-select" required>
-                    <option value="">-- Standort wählen --</option>
+                    <option value="">-- Standort waehlen --</option>
                     {% for loc in locations %}
                     <option value="{{ loc.id }}" {% if resource and resource.location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
                     {% endfor %}
@@ -52,6 +52,15 @@
                 <textarea id="description" name="description" class="form-textarea" rows="3"
                           placeholder="Optionale Beschreibung">{{ resource.description if resource and resource.description else '' }}</textarea>
             </div>
+
+            <div class="form-group">
+                <label for="room_availability" class="form-label">Verfuegbarkeit</label>
+                <select id="room_availability" name="room_availability" class="form-select">
+                    <option value="available" {% if resource and resource.room_availability == 'available' %}selected{% endif %}>Verfuegbar</option>
+                    <option value="partly" {% if resource and resource.room_availability == 'partly' %}selected{% endif %}>Teilweise belegt</option>
+                    <option value="booked" {% if resource and resource.room_availability == 'booked' %}selected{% endif %}>Belegt</option>
+                </select>
+            </div>
         </div>
 
         <!-- Rechte Spalte -->
@@ -59,20 +68,16 @@
             <h3 class="form-section-title">Details</h3>
 
             <div class="form-group">
-                <label for="capacity" class="form-label">Kapazität (Personen)</label>
+                <label for="capacity" class="form-label">Kapazitaet (Personen)</label>
                 <input type="number" id="capacity" name="capacity" class="form-input"
                        value="{{ resource.capacity if resource else 1 }}" min="1">
-                <small class="form-hint">Relevant für Gruppenräume</small>
+                <small class="form-hint">Relevant fuer Gruppenraeume</small>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Ausstattung</label>
                 <div class="checkbox-grid">
                     {% set equipment_list = ['Liege', 'Sprossenwand', 'Schlingentisch', 'Laufband', 'Spiegel', 'Waschbecken', 'Klimaanlage', 'Verdunkelung'] %}
-                    {% set current_equipment = [] %}
-                    {% if resource and resource.equipment_json %}
-                        {% set current_equipment = resource.equipment_json | tojson %}
-                    {% endif %}
                     {% for equip in equipment_list %}
                     <label class="checkbox-label">
                         <input type="checkbox" name="equipment" value="{{ equip }}"
@@ -91,6 +96,16 @@
                     <span class="toggle-label">Ressource aktiv</span>
                 </label>
             </div>
+
+            <div class="form-group">
+                <label class="form-toggle">
+                    <input type="checkbox" name="is_shared" id="is_shared"
+                           {% if resource and resource.is_shared %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Standortuebergreifend geteilt</span>
+                </label>
+                <small class="form-hint">Ressource ist fuer alle Standorte verfuegbar</small>
+            </div>
         </div>
     </div>
 
@@ -100,4 +115,126 @@
         <button type="submit" class="btn btn-primary">Speichern</button>
     </div>
 </form>
+
+{% if resource %}
+<!-- Bild-Upload (separates Formular, Cenplex EditImage) -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Ressourcen-Bild</h3>
+    </div>
+    <div class="card-body">
+        {% if resource.picture_path %}
+        <div style="margin-bottom: var(--spacing-md);">
+            <img src="{{ url_for('static', filename=resource.picture_path) }}" alt="{{ resource.name }}"
+                 style="max-width: 400px; max-height: 300px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+        </div>
+        <form method="POST" action="{{ url_for('resources.remove_image', resource_id=resource.id) }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-warning">Bild entfernen</button>
+        </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('resources.upload_image', resource_id=resource.id) }}" enctype="multipart/form-data" style="margin-top: var(--spacing-md);">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="image" class="form-label">Bild hochladen</label>
+                <input type="file" id="image" name="image" class="form-input" accept="image/png,image/jpeg,image/gif,image/webp">
+                <small class="form-hint">Max. 800x600px empfohlen. Erlaubte Formate: PNG, JPG, GIF, WebP</small>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Hochladen</button>
+        </form>
+    </div>
+</div>
+
+<!-- Blockierte Zeiten (Cenplex BlockedTimeschedule) -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Blockierte Zeiten</h3>
+    </div>
+    <div class="card-body">
+        {% if blocked_times is defined and blocked_times %}
+        <div class="table-responsive" style="margin-bottom: var(--spacing-md);">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tag</th>
+                        <th>Von</th>
+                        <th>Bis</th>
+                        <th>Grund</th>
+                        <th>Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bt in blocked_times %}
+                    <tr>
+                        <td>{{ bt.day }}</td>
+                        <td>{{ bt.start }}</td>
+                        <td>{{ bt.end }}</td>
+                        <td>{{ bt.reason or '-' }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('resources.update_blocked_times', resource_id=resource.id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="remove">
+                                <input type="hidden" name="block_index" value="{{ loop.index0 }}">
+                                <button type="submit" class="btn btn-sm btn-error" title="Entfernen">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if resource.blocked_timeschedule_valid_until %}
+        <p class="text-muted" style="margin-bottom: var(--spacing-md);">
+            Gueltig bis: {{ resource.blocked_timeschedule_valid_until.strftime('%d.%m.%Y') }}
+        </p>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('resources.update_blocked_times', resource_id=resource.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="add">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="block_day" class="form-label">Tag</label>
+                    <select id="block_day" name="block_day" class="form-select">
+                        <option value="Montag">Montag</option>
+                        <option value="Dienstag">Dienstag</option>
+                        <option value="Mittwoch">Mittwoch</option>
+                        <option value="Donnerstag">Donnerstag</option>
+                        <option value="Freitag">Freitag</option>
+                        <option value="Samstag">Samstag</option>
+                        <option value="Sonntag">Sonntag</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="block_start" class="form-label">Von</label>
+                    <input type="time" id="block_start" name="block_start" class="form-input" value="08:00">
+                </div>
+                <div class="form-group">
+                    <label for="block_end" class="form-label">Bis</label>
+                    <input type="time" id="block_end" name="block_end" class="form-input" value="17:00">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex: 2;">
+                    <label for="block_reason" class="form-label">Grund</label>
+                    <input type="text" id="block_reason" name="block_reason" class="form-input" placeholder="Optional: Grund der Blockierung">
+                </div>
+                <div class="form-group">
+                    <label for="valid_until" class="form-label">Gueltig bis</label>
+                    <input type="date" id="valid_until" name="valid_until" class="form-input"
+                           value="{{ resource.blocked_timeschedule_valid_until.strftime('%Y-%m-%d') if resource.blocked_timeschedule_valid_until else '' }}">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-secondary">Blockzeit hinzufuegen</button>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

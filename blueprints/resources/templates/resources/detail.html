@@ -39,13 +39,10 @@
 </div>
 {% endif %}
 
-{% if latest_maintenance and latest_maintenance.next_due %}
-    {% set today = import('datetime').date.today() if false else none %}
-    {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
-    <div class="alert alert-error">
-        <strong>Wartung überfällig!</strong> Die nächste Wartung war fällig am {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}.
-    </div>
-    {% endif %}
+{% if latest_maintenance and latest_maintenance.next_due and latest_maintenance.next_due < today %}
+<div class="alert alert-error">
+    <strong>Wartung ueberfaellig!</strong> Die naechste Wartung war faellig am {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}.
+</div>
 {% endif %}
 
 <div class="detail-grid">
@@ -55,6 +52,13 @@
             <h3>Ressourcendaten</h3>
         </div>
         <div class="card-body">
+            {% if resource.picture_path %}
+            <div style="margin-bottom: var(--spacing-md); text-align: center;">
+                <img src="{{ url_for('static', filename=resource.picture_path) }}" alt="{{ resource.name }}"
+                     style="max-width: 100%; max-height: 200px; border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+            </div>
+            {% endif %}
+
             <div class="detail-list">
                 <div class="detail-item">
                     <span class="detail-label">Name</span>
@@ -75,16 +79,16 @@
                 </div>
                 {% endif %}
                 <div class="detail-item">
-                    <span class="detail-label">Kapazität</span>
+                    <span class="detail-label">Kapazitaet</span>
                     <span class="detail-value">{{ resource.capacity }} {% if resource.capacity > 1 %}Personen{% else %}Person{% endif %}</span>
                 </div>
-                {% if resource.equipment_json %}
+                {% if equipment_list %}
                 <div class="detail-item">
                     <span class="detail-label">Ausstattung</span>
                     <span class="detail-value">
-                        {% for equip in resource.equipment_json | tojson | default('[]', true) %}
+                        {% for equip in equipment_list %}
+                            <span class="badge badge-muted" style="margin: 2px;">{{ equip }}</span>
                         {% endfor %}
-                        {{ resource.equipment_json }}
                     </span>
                 </div>
                 {% endif %}
@@ -98,11 +102,33 @@
                         {% endif %}
                     </span>
                 </div>
+                <div class="detail-item">
+                    <span class="detail-label">Verfuegbarkeit</span>
+                    <span class="detail-value">
+                        {% if resource.room_availability == 'available' %}
+                            <span class="badge badge-success">Verfuegbar</span>
+                        {% elif resource.room_availability == 'partly' %}
+                            <span class="badge badge-warning">Teilweise belegt</span>
+                        {% elif resource.room_availability == 'booked' %}
+                            <span class="badge badge-error">Belegt</span>
+                        {% else %}
+                            <span class="badge badge-success">Verfuegbar</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if resource.is_shared %}
+                <div class="detail-item">
+                    <span class="detail-label">Geteilt</span>
+                    <span class="detail-value">
+                        <span class="badge badge-info">Standortuebergreifend</span>
+                    </span>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Wartung (nur für Geräte) -->
+    <!-- Wartung (nur fuer Geraete) -->
     {% if resource.resource_type in ('device', 'Geraet', 'Fahrzeug') %}
     <div class="card">
         <div class="card-header">
@@ -117,10 +143,10 @@
                 </div>
                 {% if latest_maintenance.next_due %}
                 <div class="detail-item">
-                    <span class="detail-label">Nächste Wartung</span>
+                    <span class="detail-label">Naechste Wartung</span>
                     <span class="detail-value">
-                        {% if latest_maintenance.next_due.isoformat() < current_datetime.strftime('%Y-%m-%d') %}
-                            <span class="badge badge-error">{{ latest_maintenance.next_due.strftime('%d.%m.%Y') }} (überfällig)</span>
+                        {% if latest_maintenance.next_due < today %}
+                            <span class="badge badge-error">{{ latest_maintenance.next_due.strftime('%d.%m.%Y') }} (ueberfaellig)</span>
                         {% else %}
                             {{ latest_maintenance.next_due.strftime('%d.%m.%Y') }}
                         {% endif %}
@@ -135,10 +161,10 @@
                 {% endif %}
             </div>
             {% else %}
-            <p class="text-muted">Noch keine Wartungseinträge vorhanden.</p>
+            <p class="text-muted">Noch keine Wartungseintraege vorhanden.</p>
             {% endif %}
 
-            <!-- Wartungseintrag hinzufügen -->
+            <!-- Wartungseintrag hinzufuegen -->
             <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--color-gray-200);">
                 <h4 style="margin-bottom: var(--spacing-md);">Wartung eintragen</h4>
                 <form method="POST" action="{{ url_for('resources.add_maintenance', resource_id=resource.id) }}">
@@ -147,7 +173,7 @@
                         <div class="form-group">
                             <label for="performed_at" class="form-label">Wartungsdatum</label>
                             <input type="date" id="performed_at" name="performed_at" class="form-input"
-                                   value="{{ current_datetime.strftime('%Y-%m-%d') }}">
+                                   value="{{ today.strftime('%Y-%m-%d') }}">
                         </div>
                         <div class="form-group">
                             <label for="interval_months" class="form-label">Intervall (Monate)</label>
@@ -156,7 +182,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="performed_by" class="form-label">Durchgeführt von</label>
+                        <label for="performed_by" class="form-label">Durchgefuehrt von</label>
                         <input type="text" id="performed_by" name="performed_by" class="form-input"
                                placeholder="Name des Technikers">
                     </div>
@@ -173,6 +199,107 @@
     {% endif %}
 </div>
 
+<!-- Blockierte Zeiten -->
+{% if blocked_times %}
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header">
+        <h3>Blockierte Zeiten</h3>
+    </div>
+    <div class="card-body">
+        {% if resource.blocked_timeschedule_valid_until %}
+        <p class="text-muted" style="margin-bottom: var(--spacing-sm);">
+            Gueltig bis: {{ resource.blocked_timeschedule_valid_until.strftime('%d.%m.%Y') }}
+        </p>
+        {% endif %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tag</th>
+                        <th>Von</th>
+                        <th>Bis</th>
+                        <th>Grund</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bt in blocked_times %}
+                    <tr>
+                        <td>{{ bt.day }}</td>
+                        <td>{{ bt.start }}</td>
+                        <td>{{ bt.end }}</td>
+                        <td>{{ bt.reason or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Eingebetteter Wochenkalender (Cenplex AppointmentWeekControl) -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Termine diese Woche</h3>
+        <div class="calendar-nav" style="display: flex; align-items: center; gap: var(--spacing-xs);">
+            <a href="{{ url_for('resources.detail', resource_id=resource.id, week=week_offset - 1) }}" class="btn btn-sm btn-secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </a>
+            <span style="font-size: var(--font-size-sm); min-width: 140px; text-align: center;">
+                {{ week_start.strftime('%d.%m.') }} - {{ week_end.strftime('%d.%m.%Y') }}
+            </span>
+            <a href="{{ url_for('resources.detail', resource_id=resource.id, week=week_offset + 1) }}" class="btn btn-sm btn-secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </a>
+            {% if week_offset != 0 %}
+            <a href="{{ url_for('resources.detail', resource_id=resource.id) }}" class="btn btn-sm btn-secondary">Heute</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="resource-calendar">
+            <div class="calendar-grid">
+                <!-- Header -->
+                <div class="calendar-header-cell calendar-time-col"></div>
+                {% for day in weekdays %}
+                <div class="calendar-header-cell {% if day.is_today %}calendar-today{% endif %}">
+                    <span class="calendar-day-name">{{ day.name }}</span>
+                    <span class="calendar-day-date">{{ day.formatted }}</span>
+                </div>
+                {% endfor %}
+
+                <!-- Stundenzeilen -->
+                {% for hour in hours %}
+                <div class="calendar-time-cell">{{ '%02d' | format(hour) }}:00</div>
+                {% for day in weekdays %}
+                <div class="calendar-cell {% if day.is_today %}calendar-today{% endif %}" data-day="{{ loop.index0 }}" data-hour="{{ hour }}">
+                    {% for booking in bookings %}
+                    {% if booking.day == loop.index0 and booking.start_hour == hour %}
+                    <div class="calendar-event {% if booking.is_small %}event-small{% endif %}"
+                         style="background-color: {{ booking.color }}20; border-left: 3px solid {{ booking.color }};
+                                height: {{ (booking.duration / 60 * 100)|int }}%;
+                                min-height: 24px;
+                                top: {{ (booking.start_minute / 60 * 100)|int }}%;">
+                        <span class="event-time">{{ '%02d' | format(booking.start_hour) }}:{{ '%02d' | format(booking.start_minute) }} - {{ '%02d' | format(booking.end_hour) }}:{{ '%02d' | format(booking.end_minute) }}</span>
+                        {% if not booking.is_small %}
+                        <span class="event-title">{{ booking.patient or booking.title }}</span>
+                        <span class="event-therapist">{{ booking.series_info or booking.therapist }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Wartungshistorie -->
 {% if maintenance_records and maintenance_records | length > 0 %}
 <div class="card" style="margin-top: var(--spacing-lg);">
@@ -186,8 +313,8 @@
                     <tr>
                         <th>Datum</th>
                         <th>Beschreibung</th>
-                        <th>Durchgeführt von</th>
-                        <th>Nächste Wartung</th>
+                        <th>Durchgefuehrt von</th>
+                        <th>Naechste Wartung</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -205,4 +332,92 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.resource-calendar {
+    overflow-x: auto;
+}
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    min-width: 700px;
+}
+.calendar-header-cell {
+    padding: var(--spacing-sm) var(--spacing-xs);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 2px solid var(--color-gray-300);
+    background: var(--color-gray-50);
+}
+.calendar-header-cell.calendar-today {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+.calendar-time-col {
+    border-right: 1px solid var(--color-gray-200);
+}
+.calendar-day-name {
+    display: block;
+    font-size: var(--font-size-sm);
+}
+.calendar-day-date {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+}
+.calendar-time-cell {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    text-align: right;
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+    border-right: 1px solid var(--color-gray-200);
+    border-bottom: 1px solid var(--color-gray-100);
+    height: 60px;
+}
+.calendar-cell {
+    border-bottom: 1px solid var(--color-gray-100);
+    border-right: 1px solid var(--color-gray-100);
+    height: 60px;
+    position: relative;
+    padding: 2px;
+}
+.calendar-cell.calendar-today {
+    background: var(--color-primary-bg);
+}
+.calendar-event {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    overflow: hidden;
+    cursor: pointer;
+    z-index: 1;
+}
+.calendar-event:hover {
+    opacity: 0.8;
+}
+.event-time {
+    font-weight: 600;
+    display: block;
+    white-space: nowrap;
+}
+.event-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.event-therapist {
+    display: block;
+    font-size: 10px;
+    color: var(--color-gray-600);
+}
+.event-small .event-time {
+    font-size: 10px;
+}
+</style>
 {% endblock %}
