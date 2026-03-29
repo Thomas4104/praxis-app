@@ -31,6 +31,9 @@
         if (widgetConfig.indexOf('offene_rechnungen') >= 0) loadOffeneRechnungen();
         if (widgetConfig.indexOf('ungelesene_emails') >= 0) loadUngeleseneEmails();
         if (widgetConfig.indexOf('absenzen') >= 0) loadAbsenzen();
+        if (widgetConfig.indexOf('notizen') >= 0) loadNotizen();
+        if (widgetConfig.indexOf('behandlungshistorie') >= 0) loadBehandlungshistorie();
+        if (widgetConfig.indexOf('arbeitszeiten') >= 0) loadArbeitszeiten();
     }
 
     function fetchJSON(url, callback) {
@@ -311,6 +314,154 @@
                 html += '<p class="widget-empty-sm">Niemand abwesend</p>';
             }
 
+            html += '</div>';
+            el.innerHTML = html;
+        });
+    }
+
+    // === Notizen (Cenplex: NotesBox) ===
+    window.loadNotizen = function() {
+        fetchJSON('/api/dashboard/notizen', function(data) {
+            var el = document.getElementById('notizen-content');
+            if (!el) return;
+            if (!data.notizen || data.notizen.length === 0) {
+                el.innerHTML = '<p class="widget-empty">Keine Notizen vorhanden.</p><p class="widget-empty-sm" style="cursor:pointer" onclick="openNoteEditor()">+ Neue Notiz erstellen</p>';
+                return;
+            }
+            var noteColors = ['#fff', '#fff3cd', '#d4edda', '#cce5ff', '#f8d7da', '#e2d5f1', '#fce4ec'];
+            var html = '<div class="notizen-liste">';
+            data.notizen.forEach(function(n) {
+                var bg = noteColors[n.color] || '#fff';
+                html += '<div class="notiz-item" style="background:' + bg + '; border-left:3px solid ' + (n.is_pinned ? '#f39c12' : '#ddd') + '; padding:0.5rem 0.75rem; margin-bottom:0.5rem; border-radius:4px; cursor:pointer;" onclick="openNoteEditor(' + n.id + ')">';
+                if (n.title) html += '<div style="font-weight:500; font-size:0.85rem;">' + escapeHtml(n.title) + '</div>';
+                html += '<div style="font-size:0.8rem; color:#666;">' + escapeHtml((n.content || '').substring(0, 80)) + (n.content && n.content.length > 80 ? '...' : '') + '</div>';
+                html += '<div style="font-size:0.7rem; color:#aaa; margin-top:2px; display:flex; justify-content:space-between;">';
+                html += '<span>' + n.updated_at + '</span>';
+                html += '<button class="btn btn-ghost" style="padding:0; font-size:0.7rem; color:#e74c3c;" onclick="event.stopPropagation(); deleteNote(' + n.id + ')">Löschen</button>';
+                html += '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        });
+    }
+
+    // Notiz-Editor oeffnen (inline)
+    window.openNoteEditor = function(noteId) {
+        var el = document.getElementById('notizen-content');
+        if (!el) return;
+
+        if (noteId) {
+            // Bestehende Notiz laden
+            fetchJSON('/api/dashboard/notizen', function(data) {
+                var note = (data.notizen || []).find(function(n) { return n.id === noteId; });
+                renderNoteForm(el, note || {});
+            });
+        } else {
+            renderNoteForm(el, {});
+        }
+    };
+
+    function renderNoteForm(container, note) {
+        var html = '<div class="notiz-editor" style="padding:0.5rem;">';
+        html += '<input type="text" id="noteTitle" class="form-input" placeholder="Titel (optional)" value="' + escapeHtml(note.title || '') + '" style="margin-bottom:0.5rem; font-size:0.85rem;">';
+        html += '<textarea id="noteContent" class="form-input" rows="3" placeholder="Notiz...">' + escapeHtml(note.content || '') + '</textarea>';
+        html += '<div style="display:flex; gap:0.5rem; margin-top:0.5rem; align-items:center;">';
+        html += '<select id="noteColor" class="form-input" style="width:auto; font-size:0.8rem;">';
+        var colorNames = ['Standard', 'Gelb', 'Grün', 'Blau', 'Rot', 'Lila', 'Rosa'];
+        for (var i = 0; i < colorNames.length; i++) {
+            html += '<option value="' + i + '"' + (note.color === i ? ' selected' : '') + '>' + colorNames[i] + '</option>';
+        }
+        html += '</select>';
+        html += '<label style="font-size:0.8rem;"><input type="checkbox" id="notePinned"' + (note.is_pinned ? ' checked' : '') + '> Anpinnen</label>';
+        html += '<div style="flex:1"></div>';
+        html += '<button class="btn btn-secondary btn-sm" onclick="loadNotizen()">Abbrechen</button>';
+        html += '<button class="btn btn-primary btn-sm" onclick="saveNote(' + (note.id || 'null') + ')">Speichern</button>';
+        html += '</div></div>';
+        container.innerHTML = html;
+    }
+
+    window.saveNote = function(noteId) {
+        var payload = {
+            title: document.getElementById('noteTitle').value,
+            content: document.getElementById('noteContent').value,
+            color: parseInt(document.getElementById('noteColor').value) || 0,
+            is_pinned: document.getElementById('notePinned').checked
+        };
+        if (noteId) payload.id = noteId;
+
+        fetchWithCSRF('/api/dashboard/notizen', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(function(r) { return r.json(); })
+          .then(function() { loadNotizen(); });
+    };
+
+    window.deleteNote = function(noteId) {
+        if (!confirm('Notiz löschen?')) return;
+        fetchWithCSRF('/api/dashboard/notizen/' + noteId, {
+            method: 'DELETE'
+        }).then(function(r) { return r.json(); })
+          .then(function() { loadNotizen(); });
+    };
+
+    // Notiz-Button
+    var addNoteBtn = document.getElementById('addNoteBtn');
+    if (addNoteBtn) {
+        addNoteBtn.addEventListener('click', function() { openNoteEditor(); });
+    }
+
+    // === Behandlungshistorie (Cenplex: TreatmentHistoryBox) ===
+    function loadBehandlungshistorie() {
+        fetchJSON('/api/dashboard/behandlungshistorie', function(data) {
+            var el = document.getElementById('behandlungshistorie-content');
+            if (!el) return;
+            if (!data.behandlungen || data.behandlungen.length === 0) {
+                el.innerHTML = '<p class="widget-empty">Keine offenen Behandlungen.</p>';
+                return;
+            }
+            var html = '<div class="behandlungshistorie-liste">';
+            data.behandlungen.forEach(function(b) {
+                var statusIcon = b.status === 'in_progress' ? '<span style="color:#f39c12;" title="In Bearbeitung">●</span>' : '<span style="color:#e74c3c;" title="Ohne Dokumentation">○</span>';
+                html += '<div class="behandlung-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid #f0f0f0;">';
+                html += statusIcon;
+                html += '<div style="flex:1; min-width:0;">';
+                html += '<div style="font-size:0.85rem; font-weight:500;">' + escapeHtml(b.patient_name) + '</div>';
+                html += '<div style="font-size:0.75rem; color:#888;">' + escapeHtml(b.behandlung) + ' · ' + b.datum + ' ' + b.zeit + '</div>';
+                html += '</div>';
+                html += '<span style="font-size:0.75rem; color:#888;">' + escapeHtml(b.therapeut) + '</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        });
+    }
+
+    // === Arbeitszeiten (Cenplex: WorktimeBox) ===
+    function loadArbeitszeiten() {
+        fetchJSON('/api/dashboard/arbeitszeiten', function(data) {
+            var el = document.getElementById('arbeitszeiten-content');
+            if (!el) return;
+            if (!data.arbeitszeiten || data.arbeitszeiten.length === 0) {
+                el.innerHTML = '<p class="widget-empty">Keine Arbeitszeiten für heute.</p>';
+                return;
+            }
+            var html = '<div class="arbeitszeiten-liste">';
+            data.arbeitszeiten.forEach(function(a) {
+                html += '<div class="arbeitszeit-item" style="display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid #f0f0f0;">';
+                html += '<div style="width:4px; height:24px; border-radius:2px; background:' + (a.farbe || '#4a90d9') + '"></div>';
+                html += '<div style="flex:1;">';
+                html += '<span style="font-size:0.85rem; font-weight:500;">' + escapeHtml(a.name) + '</span>';
+                html += '</div>';
+                html += '<div style="font-size:0.8rem; color:#666;">';
+                a.zeiten.forEach(function(z, idx) {
+                    if (idx > 0) html += ', ';
+                    html += z.start + ' – ' + z.ende;
+                });
+                html += '</div>';
+                html += '</div>';
+            });
             html += '</div>';
             el.innerHTML = html;
         });

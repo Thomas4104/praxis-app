@@ -3593,3 +3593,27 @@ class MissionToEmployee(db.Model):
 
     task = db.relationship('Task', backref=db.backref('mission_assignments', lazy='dynamic'))
     employee = db.relationship('Employee', backref='mission_assignments')
+
+
+# ============================================================
+# Dashboard-Notizen (Cenplex: NotesBoxViewModel)
+# ============================================================
+
+class DashboardNote(db.Model):
+    """Persoenliche Notizen auf dem Dashboard"""
+    __tablename__ = 'dashboard_notes'
+    __table_args__ = (
+        db.Index('ix_dashboard_note_user', 'user_id'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organizations.id'), nullable=False)
+    title = db.Column(db.String(200))
+    content = db.Column(db.Text)
+    color = db.Column(db.Integer, default=0)  # 0=Standard, 1-6=Farbcodes
+    is_pinned = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref=db.backref('dashboard_notes', lazy='dynamic'))
+    organization = db.relationship('Organization', backref='dashboard_notes')

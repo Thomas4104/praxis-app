@@ -19,15 +19,18 @@ DEFAULT_WIDGET_CONFIG = {
         'ki_tagesuebersicht', 'heutige_termine', 'offene_aufgaben',
         'patientenverlauf', 'umsatzuebersicht', 'geburtstage',
         'schnellaktionen', 'auslastung', 'offene_rechnungen',
-        'ungelesene_emails', 'absenzen'
+        'ungelesene_emails', 'absenzen', 'notizen',
+        'behandlungshistorie', 'arbeitszeiten'
     ],
     'therapist': [
         'ki_tagesuebersicht', 'heutige_termine', 'offene_aufgaben',
-        'patientenverlauf', 'schnellaktionen', 'auslastung'
+        'patientenverlauf', 'schnellaktionen', 'auslastung',
+        'notizen', 'behandlungshistorie'
     ],
     'reception': [
         'heutige_termine', 'offene_aufgaben', 'ungelesene_emails',
-        'schnellaktionen', 'geburtstage', 'absenzen'
+        'schnellaktionen', 'geburtstage', 'absenzen', 'notizen',
+        'arbeitszeiten'
     ]
 }
 
@@ -311,8 +314,7 @@ def dashboard_auslastung():
     wochentag = today.weekday()  # 0=Montag
 
     therapeuten = Employee.query.options(
-        joinedload(Employee.user),
-        selectinload(Employee.work_schedules)
+        joinedload(Employee.user)
     ).filter_by(organization_id=current_user.organization_id, is_active=True).all()
     result = []
 
@@ -323,9 +325,7 @@ def dashboard_auslastung():
 
         # Arbeitszeit heute (aus vorgeladenen WorkSchedules filtern)
         arbeitszeit_minuten = 0
-        for ws in emp.work_schedules:
-            if ws.day_of_week != wochentag:
-                continue
+        for ws in emp.work_schedules.filter_by(day_of_week=wochentag).all():
             start_dt = datetime.combine(date.today(), ws.start_time)
             end_dt = datetime.combine(date.today(), ws.end_time)
             arbeitszeit_minuten += (end_dt - start_dt).total_seconds() / 60
@@ -394,6 +394,42 @@ def dashboard_geburtstage():
                 'alter': alter + 1 if diff >= 0 else alter,
                 'ist_heute': diff == 0,
                 'tage_bis': diff
+            })
+
+    # Mitarbeiter-Geburtstage (Cenplex: Birthdays zeigt auch Mitarbeiter)
+    mitarbeiter = Employee.query.options(
+        joinedload(Employee.user)
+    ).filter(
+        Employee.organization_id == org_id,
+        Employee.is_active == True,
+        Employee.birthday.isnot(None)
+    ).all()
+
+    for m in mitarbeiter:
+        geb = m.birthday
+        emp_user = m.user
+        if not emp_user:
+            continue
+        try:
+            geb_dieses_jahr = geb.replace(year=heute.year)
+        except ValueError:
+            geb_dieses_jahr = geb.replace(year=heute.year, day=28)
+
+        diff = (geb_dieses_jahr - heute).days
+
+        if -1 <= diff <= 7:
+            alter = heute.year - geb.year
+            if (heute.month, heute.day) < (geb.month, geb.day):
+                alter -= 1
+
+            result.append({
+                'id': m.id,
+                'name': f'{emp_user.first_name} {emp_user.last_name}',
+                'datum': geb_dieses_jahr.strftime('%d.%m.'),
+                'alter': alter + 1 if diff >= 0 else alter,
+                'ist_heute': diff == 0,
+                'tage_bis': diff,
+                'typ': 'mitarbeiter'
             })
 
     # Sortieren: heute zuerst, dann nach Tagen
@@ -703,6 +739,9 @@ def dashboard_config_get():
             {'id': 'offene_rechnungen', 'name': 'Offene Rechnungen', 'icon': 'invoice'},
             {'id': 'ungelesene_emails', 'name': 'Ungelesene E-Mails', 'icon': 'mail'},
             {'id': 'absenzen', 'name': 'Absenzen', 'icon': 'absence'},
+            {'id': 'notizen', 'name': 'Notizen', 'icon': 'note'},
+            {'id': 'behandlungshistorie', 'name': 'Behandlungshistorie', 'icon': 'clipboard'},
+            {'id': 'arbeitszeiten', 'name': 'Arbeitszeiten', 'icon': 'clock'},
         ]
     })
 
@@ -825,6 +864,163 @@ def global_search():
         })
 
     return jsonify({'results': results})
+
+
+# ============================================================
+# Phase 11: Neue Dashboard-Widgets (Cenplex-Angleichung)
+# ============================================================
+
+@dashboard_bp.route('/api/dashboard/notizen', methods=['GET'])
+@login_required
+def dashboard_notizen():
+    """Persoenliche Notizen laden (Cenplex: NotesBox)"""
+    from models import DashboardNote
+    notizen = DashboardNote.query.filter_by(
+        user_id=current_user.id,
+        organization_id=current_user.organization_id
+    ).order_by(DashboardNote.is_pinned.desc(), DashboardNote.updated_at.desc()).limit(10).all()
+
+    return jsonify({'notizen': [{
+        'id': n.id,
+        'title': n.title or '',
+        'content': n.content or '',
+        'color': n.color or 0,
+        'is_pinned': n.is_pinned,
+        'updated_at': n.updated_at.strftime('%d.%m.%Y %H:%M') if n.updated_at else ''
+    } for n in notizen]})
+
+
+@dashboard_bp.route('/api/dashboard/notizen', methods=['POST'])
+@login_required
+def dashboard_notiz_erstellen():
+    """Notiz erstellen oder aktualisieren"""
+    from models import DashboardNote
+    data = request.get_json()
+    notiz_id = data.get('id')
+
+    if notiz_id:
+        # Aktualisieren
+        notiz = DashboardNote.query.get_or_404(notiz_id)
+        if notiz.user_id != current_user.id:
+            return jsonify({'error': 'Keine Berechtigung'}), 403
+        notiz.title = data.get('title', notiz.title)
+        notiz.content = data.get('content', notiz.content)
+        notiz.color = data.get('color', notiz.color)
+        notiz.is_pinned = data.get('is_pinned', notiz.is_pinned)
+    else:
+        # Neu erstellen
+        notiz = DashboardNote(
+            user_id=current_user.id,
+            organization_id=current_user.organization_id,
+            title=data.get('title', ''),
+            content=data.get('content', ''),
+            color=data.get('color', 0),
+            is_pinned=data.get('is_pinned', False)
+        )
+        db.session.add(notiz)
+
+    db.session.commit()
+    return jsonify({'success': True, 'id': notiz.id})
+
+
+@dashboard_bp.route('/api/dashboard/notizen/<int:id>', methods=['DELETE'])
+@login_required
+def dashboard_notiz_loeschen(id):
+    """Notiz loeschen"""
+    from models import DashboardNote
+    notiz = DashboardNote.query.get_or_404(id)
+    if notiz.user_id != current_user.id:
+        return jsonify({'error': 'Keine Berechtigung'}), 403
+    db.session.delete(notiz)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@dashboard_bp.route('/api/dashboard/behandlungshistorie', methods=['GET'])
+@login_required
+def dashboard_behandlungshistorie():
+    """Unvollstaendige/offene Behandlungen (Cenplex: TreatmentHistoryBox)"""
+    org_id = current_user.organization_id
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+
+    # Termine die completed sind aber noch kein Bericht/Doku haben
+    # oder Termine mit Status 'in_progress' (angefangen aber nicht abgeschlossen)
+    query = Appointment.query.options(
+        joinedload(Appointment.patient),
+        joinedload(Appointment.employee).joinedload(Employee.user)
+    ).join(
+        Employee, Appointment.employee_id == Employee.id
+    ).filter(
+        Employee.organization_id == org_id,
+        Appointment.start_time <= datetime.now(),
+        db.or_(
+            Appointment.status == 'in_progress',
+            db.and_(
+                Appointment.status.in_(['completed', 'confirmed']),
+                Appointment.soap_subjective.is_(None)
+            )
+        )
+    )
+    if employee and current_user.role == 'therapist':
+        query = query.filter(Appointment.employee_id == employee.id)
+
+    termine = query.order_by(Appointment.start_time.desc()).limit(10).all()
+
+    result = []
+    for t in termine:
+        emp = t.employee
+        emp_user = emp.user if emp else None
+        result.append({
+            'id': t.id,
+            'patient_name': f'{t.patient.first_name} {t.patient.last_name}' if t.patient else '-',
+            'patient_id': t.patient_id,
+            'datum': t.start_time.strftime('%d.%m.%Y'),
+            'zeit': t.start_time.strftime('%H:%M'),
+            'therapeut': f'{emp_user.first_name} {emp_user.last_name}' if emp_user else '-',
+            'behandlung': t.title or t.appointment_type or 'Behandlung',
+            'status': t.status
+        })
+
+    return jsonify({'behandlungen': result})
+
+
+@dashboard_bp.route('/api/dashboard/arbeitszeiten', methods=['GET'])
+@login_required
+def dashboard_arbeitszeiten():
+    """Heutige Arbeitszeiten/Reservierungen (Cenplex: WorktimeBox)"""
+    org_id = current_user.organization_id
+    heute = date.today()
+    wochentag = heute.weekday()
+
+    # Alle aktiven Mitarbeiter mit Arbeitszeiten heute
+    from models import WorkSchedule
+    therapeuten = Employee.query.options(
+        joinedload(Employee.user)
+    ).filter_by(organization_id=org_id, is_active=True).all()
+
+    result = []
+    for emp in therapeuten:
+        emp_user = emp.user
+        if not emp_user:
+            continue
+
+        tagesplan = []
+        for ws in emp.work_schedules.filter_by(day_of_week=wochentag).all():
+            tagesplan.append({
+                'start': ws.start_time.strftime('%H:%M') if ws.start_time else '',
+                'ende': ws.end_time.strftime('%H:%M') if ws.end_time else '',
+                'pause_start': ws.break_start.strftime('%H:%M') if hasattr(ws, 'break_start') and ws.break_start else None,
+                'pause_ende': ws.break_end.strftime('%H:%M') if hasattr(ws, 'break_end') and ws.break_end else None
+            })
+
+        if tagesplan:
+            result.append({
+                'name': f'{emp_user.first_name} {emp_user.last_name}',
+                'farbe': emp.color_code or '#4a90d9',
+                'zeiten': tagesplan
+            })
+
+    return jsonify({'arbeitszeiten': result})
 
 
 # ============================================================

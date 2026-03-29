@@ -1,9 +1,10 @@
 """Routen fuer Aufgaben-Verwaltung"""
-from datetime import datetime, date
-from flask import render_template, request, jsonify, redirect, url_for, flash
+from datetime import datetime, date, timezone
+from flask import render_template, request, jsonify, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from blueprints.tasks import tasks_bp
-from models import db, Task, TaskComment, Patient, User, Employee
+from models import (db, Task, TaskComment, Patient, User, Employee,
+                    MissionToEmployee, MissionResponse, MissionNote)
 from utils.auth import check_org, get_org_id
 
 
@@ -53,8 +54,16 @@ def index():
     aufgaben = query.offset((page - 1) * per_page).limit(per_page).all()
     total_pages = (total + per_page - 1) // per_page
 
-    # Mitarbeiter fuer Zuweisung
+    # Mitarbeiter fuer Zuweisung (User-Objekte)
     mitarbeiter = User.query.filter_by(
+        organization_id=current_user.organization_id, is_active=True
+    ).all()
+
+    # Employee-Objekte fuer Weiterleitung (mit employee_id)
+    from sqlalchemy.orm import joinedload
+    employees = Employee.query.options(
+        joinedload(Employee.user)
+    ).filter_by(
         organization_id=current_user.organization_id, is_active=True
     ).all()
 
@@ -65,9 +74,11 @@ def index():
                            priority_filter=priority,
                            status_filter=status,
                            mitarbeiter=mitarbeiter,
+                           employees=employees,
                            page=page,
                            total_pages=total_pages,
-                           total=total)
+                           total=total,
+                           today=date.today())
 
 
 @tasks_bp.route('/create', methods=['POST'])
@@ -90,10 +101,28 @@ def create():
             related_patient_id=data.get('patient_id'),
             related_series_id=data.get('series_id'),
             related_invoice_id=data.get('invoice_id'),
+            task_color=int(data.get('task_color', 0)),
+            task_force_response=bool(data.get('task_force_response', False)),
             status='open',
             task_type='manual'
         )
         db.session.add(aufgabe)
+        db.session.flush()  # ID generieren
+
+        # Multi-Empfaenger (Cenplex: MissiontoemployeesDto)
+        recipient_ids = data.get('recipient_ids', [])
+        if data.get('assigned_to_id'):
+            emp = Employee.query.filter_by(user_id=data['assigned_to_id']).first()
+            if emp and emp.id not in recipient_ids:
+                recipient_ids.append(emp.id)
+
+        for emp_id in recipient_ids:
+            assignment = MissionToEmployee(
+                task_id=aufgabe.id,
+                employee_id=int(emp_id)
+            )
+            db.session.add(assignment)
+
         db.session.commit()
         return jsonify({'success': True, 'id': aufgabe.id, 'message': 'Aufgabe erstellt.'})
     else:
@@ -108,10 +137,20 @@ def create():
             created_by_id=current_user.id,
             due_date=datetime.strptime(request.form['due_date'], '%Y-%m-%d').date() if request.form.get('due_date') else None,
             related_patient_id=request.form.get('patient_id', type=int),
+            task_color=request.form.get('task_color', 0, type=int),
+            task_force_response=bool(request.form.get('task_force_response')),
             status='open',
             task_type='manual'
         )
         db.session.add(aufgabe)
+        db.session.flush()
+        # MissionToEmployee fuer Hauptempfaenger
+        assigned_id = request.form.get('assigned_to_id', type=int)
+        if assigned_id:
+            emp = Employee.query.filter_by(user_id=assigned_id).first()
+            if emp:
+                assignment = MissionToEmployee(task_id=aufgabe.id, employee_id=emp.id)
+                db.session.add(assignment)
         db.session.commit()
         flash('Aufgabe erfolgreich erstellt.', 'success')
         return redirect(url_for('tasks.index'))
@@ -264,3 +303,299 @@ def generate_tasks():
         'removed': removed,
         'message': f'{created} Aufgaben erstellt, {removed} erledigte entfernt.'
     })
+
+
+# ============================================================
+# Phase 11: Erweiterte Aufgaben-Features (Cenplex-Angleichung)
+# ============================================================
+
+@tasks_bp.route('/api/<int:id>/edit', methods=['POST'])
+@login_required
+def edit(id):
+    """Aufgabe bearbeiten (Cenplex: UpdateMission)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+    data = request.get_json()
+
+    if 'title' in data:
+        aufgabe.title = data['title']
+    if 'description' in data:
+        aufgabe.description = data['description']
+    if 'priority' in data:
+        aufgabe.priority = data['priority']
+    if 'category' in data:
+        aufgabe.category = data['category']
+    if 'due_date' in data:
+        aufgabe.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d').date() if data['due_date'] else None
+    if 'task_color' in data:
+        aufgabe.task_color = int(data['task_color'])
+    if 'task_force_response' in data:
+        aufgabe.task_force_response = bool(data['task_force_response'])
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Aufgabe aktualisiert.'})
+
+
+@tasks_bp.route('/api/<int:id>/read', methods=['POST'])
+@login_required
+def mark_read(id):
+    """Aufgabe als gelesen markieren (Cenplex: MissionRead)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+    if employee:
+        assignment = MissionToEmployee.query.filter_by(
+            task_id=aufgabe.id, employee_id=employee.id
+        ).first()
+        if assignment and not assignment.read_date:
+            assignment.read_date = datetime.now(timezone.utc)
+            assignment.has_updates = False
+            db.session.commit()
+
+    # Status aktualisieren wenn noch 'open'
+    if aufgabe.status == 'open':
+        aufgabe.has_updates = False
+        db.session.commit()
+
+    return jsonify({'success': True})
+
+
+@tasks_bp.route('/api/<int:id>/start', methods=['POST'])
+@login_required
+def start(id):
+    """Aufgabe starten (Cenplex: MissionStarted)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    if aufgabe.status == 'open':
+        aufgabe.status = 'in_progress'
+
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+    if employee:
+        assignment = MissionToEmployee.query.filter_by(
+            task_id=aufgabe.id, employee_id=employee.id
+        ).first()
+        if assignment and not assignment.started:
+            assignment.started = datetime.now(timezone.utc)
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Aufgabe gestartet.'})
+
+
+@tasks_bp.route('/api/<int:id>/respond', methods=['POST'])
+@login_required
+def respond(id):
+    """Auf Aufgabe antworten (Cenplex: RespondToMission)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    data = request.get_json()
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Nachricht darf nicht leer sein.'}), 400
+
+    employee = Employee.query.filter_by(user_id=current_user.id).first()
+    if not employee:
+        return jsonify({'error': 'Kein Mitarbeiter-Profil'}), 400
+
+    # Empfaenger: Ersteller der Aufgabe
+    receiver_id = data.get('receiver_id')
+    if not receiver_id and aufgabe.created_by:
+        creator_emp = Employee.query.filter_by(user_id=aufgabe.created_by_id).first()
+        receiver_id = creator_emp.id if creator_emp else employee.id
+
+    response = MissionResponse(
+        task_id=aufgabe.id,
+        sender_id=employee.id,
+        receiver_id=receiver_id or employee.id,
+        response=message
+    )
+    aufgabe.has_updates = True
+    db.session.add(response)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'response': {
+            'id': response.id,
+            'sender': f'{employee.user.first_name} {employee.user.last_name}' if employee.user else 'System',
+            'message': response.response,
+            'created_at': response.created_at.strftime('%d.%m.%Y %H:%M')
+        }
+    })
+
+
+@tasks_bp.route('/api/<int:id>/forward', methods=['POST'])
+@login_required
+def forward(id):
+    """Aufgabe weiterleiten (Cenplex: ForwardMission)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    data = request.get_json()
+    employee_id = data.get('employee_id')
+    message = data.get('message', '')
+
+    if not employee_id:
+        return jsonify({'error': 'Empfänger fehlt'}), 400
+
+    # Neuen Empfaenger hinzufuegen
+    existing = MissionToEmployee.query.filter_by(
+        task_id=aufgabe.id, employee_id=int(employee_id)
+    ).first()
+    if not existing:
+        assignment = MissionToEmployee(
+            task_id=aufgabe.id,
+            employee_id=int(employee_id),
+            notes=message
+        )
+        db.session.add(assignment)
+
+    # Auch als assigned_to setzen wenn noch kein Empfaenger
+    target_emp = Employee.query.get(int(employee_id))
+    if target_emp and target_emp.user_id:
+        aufgabe.assigned_to_id = target_emp.user_id
+
+    aufgabe.has_updates = True
+    db.session.commit()
+
+    emp_name = ''
+    if target_emp and target_emp.user:
+        emp_name = f'{target_emp.user.first_name} {target_emp.user.last_name}'
+
+    return jsonify({'success': True, 'message': f'Aufgabe weitergeleitet an {emp_name}.'})
+
+
+@tasks_bp.route('/api/<int:id>/full-detail')
+@login_required
+def full_detail(id):
+    """Erweiterte Aufgabe-Details mit Antworten, Zuweisungen, Historie"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    # Kommentare
+    comments = [{
+        'id': c.id,
+        'user': f'{c.user.first_name} {c.user.last_name}' if c.user else 'System',
+        'comment': c.comment,
+        'created_at': c.created_at.strftime('%d.%m.%Y %H:%M')
+    } for c in aufgabe.comments.all()]
+
+    # Antworten (MissionResponses)
+    responses = []
+    for r in aufgabe.mission_responses.order_by(MissionResponse.created_at.desc()).all():
+        sender_name = ''
+        if r.sender and r.sender.user:
+            sender_name = f'{r.sender.user.first_name} {r.sender.user.last_name}'
+        responses.append({
+            'id': r.id,
+            'sender': sender_name,
+            'message': r.response,
+            'read_date': r.read_date.strftime('%d.%m.%Y %H:%M') if r.read_date else None,
+            'created_at': r.created_at.strftime('%d.%m.%Y %H:%M')
+        })
+
+    # Zuweisungen (MissionToEmployee)
+    assignments = []
+    for a in aufgabe.mission_assignments.all():
+        emp_name = ''
+        if a.employee and a.employee.user:
+            emp_name = f'{a.employee.user.first_name} {a.employee.user.last_name}'
+        assignments.append({
+            'id': a.id,
+            'employee': emp_name,
+            'employee_id': a.employee_id,
+            'read_date': a.read_date.strftime('%d.%m.%Y %H:%M') if a.read_date else None,
+            'started': a.started.strftime('%d.%m.%Y %H:%M') if a.started else None,
+            'finished': a.finished.strftime('%d.%m.%Y %H:%M') if a.finished else None,
+            'notes': a.notes
+        })
+
+    # Mission-Notizen
+    mission_notes = []
+    for n in aufgabe.mission_notes.order_by(MissionNote.created_at.desc()).all():
+        emp_name = ''
+        if n.employee and n.employee.user:
+            emp_name = f'{n.employee.user.first_name} {n.employee.user.last_name}'
+        mission_notes.append({
+            'id': n.id,
+            'employee': emp_name,
+            'notes': n.notes,
+            'created_at': n.created_at.strftime('%d.%m.%Y %H:%M')
+        })
+
+    # Links parsen (task_links_json)
+    import json
+    links = {}
+    if aufgabe.task_links_json:
+        try:
+            links = json.loads(aufgabe.task_links_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    priority_map = {'critical': 'Kritisch', 'high': 'Hoch', 'normal': 'Mittel', 'low': 'Niedrig'}
+    category_map = {
+        'patientendaten': 'Patientendaten', 'versicherung': 'Versicherung',
+        'arzt': 'Arzt', 'verordnung': 'Verordnung', 'abrechnung': 'Abrechnung',
+        'gutsprache': 'Gutsprache', 'sonstiges': 'Sonstiges'
+    }
+    color_names = ['Standard', 'Gelb', 'Grün', 'Blau', 'Rot', 'Lila', 'Rosa']
+
+    return jsonify({
+        'id': aufgabe.id,
+        'title': aufgabe.title,
+        'description': aufgabe.description,
+        'priority': aufgabe.priority,
+        'priority_label': priority_map.get(aufgabe.priority, aufgabe.priority),
+        'category': aufgabe.category,
+        'category_label': category_map.get(aufgabe.category, aufgabe.category),
+        'status': aufgabe.status,
+        'task_type': aufgabe.task_type,
+        'due_date': aufgabe.due_date.strftime('%d.%m.%Y') if aufgabe.due_date else None,
+        'due_date_iso': aufgabe.due_date.isoformat() if aufgabe.due_date else None,
+        'assigned_to': f'{aufgabe.assigned_to.first_name} {aufgabe.assigned_to.last_name}' if aufgabe.assigned_to else None,
+        'assigned_to_id': aufgabe.assigned_to_id,
+        'created_by': f'{aufgabe.created_by.first_name} {aufgabe.created_by.last_name}' if aufgabe.created_by else None,
+        'patient': f'{aufgabe.related_patient.first_name} {aufgabe.related_patient.last_name}' if aufgabe.related_patient else None,
+        'patient_id': aufgabe.related_patient_id,
+        'auto_generated': aufgabe.auto_generated,
+        'task_color': aufgabe.task_color or 0,
+        'task_color_name': color_names[aufgabe.task_color] if aufgabe.task_color and aufgabe.task_color < len(color_names) else 'Standard',
+        'task_force_response': aufgabe.task_force_response,
+        'has_updates': aufgabe.has_updates,
+        'links': links,
+        'created_at': aufgabe.created_at.strftime('%d.%m.%Y %H:%M'),
+        'completed_at': aufgabe.completed_at.strftime('%d.%m.%Y %H:%M') if aufgabe.completed_at else None,
+        'comments': comments,
+        'responses': responses,
+        'assignments': assignments,
+        'mission_notes': mission_notes
+    })
+
+
+@tasks_bp.route('/api/<int:id>/add-recipients', methods=['POST'])
+@login_required
+def add_recipients(id):
+    """Empfaenger zur Aufgabe hinzufuegen (Cenplex: Multi-Empfaenger)"""
+    aufgabe = Task.query.get_or_404(id)
+    check_org(aufgabe)
+
+    data = request.get_json()
+    employee_ids = data.get('employee_ids', [])
+    added = 0
+
+    for emp_id in employee_ids:
+        existing = MissionToEmployee.query.filter_by(
+            task_id=aufgabe.id, employee_id=int(emp_id)
+        ).first()
+        if not existing:
+            assignment = MissionToEmployee(
+                task_id=aufgabe.id,
+                employee_id=int(emp_id)
+            )
+            db.session.add(assignment)
+            added += 1
+
+    db.session.commit()
+    return jsonify({'success': True, 'added': added})

@@ -69,13 +69,19 @@
     <!-- Aufgabenliste -->
     {% if aufgaben %}
     <div class="task-list">
+        {% set color_map = {0: 'transparent', 1: '#fff3cd', 2: '#d4edda', 3: '#cce5ff', 4: '#f8d7da', 5: '#e2d5f1', 6: '#fce4ec'} %}
         {% for aufgabe in aufgaben %}
-        <div class="task-item" style="display:flex; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid #eee; cursor:pointer; gap:0.75rem;" onclick="showDetail({{ aufgabe.id }})">
-            <!-- Checkbox -->
+        <div class="task-item" style="display:flex; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid #eee; cursor:pointer; gap:0.75rem; {% if aufgabe.task_color %}border-left:4px solid {{ color_map.get(aufgabe.task_color, 'transparent') }};background:{{ color_map.get(aufgabe.task_color, 'transparent') }}20;{% endif %}" onclick="showDetail({{ aufgabe.id }})">
+            <!-- Status-Checkbox -->
             {% if aufgabe.status != 'completed' %}
             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); completeTask({{ aufgabe.id }})" title="Erledigt" style="padding:2px;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{ '#f39c12' if aufgabe.status == 'in_progress' else '#aaa' }}" stroke-width="2">
+                    {% if aufgabe.status == 'in_progress' %}
                     <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 6v6l4 2" stroke-width="2"></path>
+                    {% else %}
+                    <circle cx="12" cy="12" r="10"></circle>
+                    {% endif %}
                 </svg>
             </button>
             {% else %}
@@ -95,9 +101,13 @@
             <!-- Inhalt -->
             <div style="flex:1; min-width:0;">
                 <div style="font-weight:500; {{ 'text-decoration:line-through; color:#999;' if aufgabe.status == 'completed' else '' }}">
+                    {% if aufgabe.has_updates %}<span style="color:#e74c3c; font-weight:bold;" title="Neue Updates">●</span> {% endif %}
                     {{ aufgabe.title }}
                     {% if aufgabe.auto_generated %}
                     <span style="font-size:0.7rem; color:#999; margin-left:4px;">auto</span>
+                    {% endif %}
+                    {% if aufgabe.task_force_response %}
+                    <span style="font-size:0.7rem; color:#e74c3c; margin-left:4px;" title="Antwort erforderlich">!</span>
                     {% endif %}
                 </div>
                 <div style="font-size:0.8rem; color:#888;">
@@ -107,12 +117,15 @@
                     {% if aufgabe.category %}
                         {{ {'patientendaten': 'Patientendaten', 'versicherung': 'Versicherung', 'arzt': 'Arzt', 'verordnung': 'Verordnung', 'abrechnung': 'Abrechnung', 'gutsprache': 'Gutsprache', 'sonstiges': 'Sonstiges'}.get(aufgabe.category, aufgabe.category) }}
                     {% endif %}
+                    {% if aufgabe.created_by %}
+                     · Von: {{ aufgabe.created_by.first_name }}
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Faelligkeitsdatum -->
             {% if aufgabe.due_date %}
-            <span style="font-size:0.8rem; color:{{ '#e74c3c' if aufgabe.due_date < today else '#888' }};">
+            <span style="font-size:0.8rem; {% if aufgabe.due_date < today %}color:#e74c3c; font-weight:600;{% elif (aufgabe.due_date - today).days <= 2 %}color:#f39c12;{% else %}color:#888;{% endif %}">
                 {{ aufgabe.due_date.strftime('%d.%m.%Y') }}
             </span>
             {% endif %}
@@ -126,6 +139,19 @@
         </div>
         {% endfor %}
     </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="display:flex; justify-content:center; gap:0.5rem; padding:1rem;">
+        {% if page > 1 %}
+        <a href="{{ url_for('tasks.index', tab=tab, category=category_filter, priority=priority_filter, page=page-1) }}" class="btn btn-ghost btn-sm">&laquo; Zurück</a>
+        {% endif %}
+        <span style="padding:0.5rem; font-size:0.85rem; color:#666;">Seite {{ page }} von {{ total_pages }} ({{ total }} Aufgaben)</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('tasks.index', tab=tab, category=category_filter, priority=priority_filter, page=page+1) }}" class="btn btn-ghost btn-sm">Weiter &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state" style="padding:2rem; text-align:center;">
         <p>Keine Aufgaben gefunden.</p>
@@ -133,18 +159,23 @@
     {% endif %}
 </div>
 
-<!-- Detail-Panel -->
-<div id="detailPanel" style="display:none; position:fixed; top:0; right:0; bottom:0; width:400px; background:white; box-shadow:-2px 0 10px rgba(0,0,0,0.1); z-index:100; overflow-y:auto; padding:1.5rem;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h3 id="detailTitle" style="margin:0;"></h3>
-        <button class="btn btn-ghost btn-sm" onclick="hideDetail()">✕</button>
+<!-- Detail-Panel (erweitert mit Antworten, Zuweisungen, Weiterleiten, Bearbeiten) -->
+<div id="detailPanel" style="display:none; position:fixed; top:0; right:0; bottom:0; width:480px; background:white; box-shadow:-2px 0 10px rgba(0,0,0,0.15); z-index:100; overflow-y:auto;">
+    <div style="position:sticky; top:0; background:white; padding:1rem 1.5rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; z-index:1;">
+        <h3 id="detailTitle" style="margin:0; font-size:1.1rem;"></h3>
+        <div style="display:flex; gap:0.25rem;">
+            <button class="btn btn-ghost btn-sm" id="detailEditBtn" title="Bearbeiten">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="hideDetail()">✕</button>
+        </div>
     </div>
-    <div id="detailContent"></div>
+    <div id="detailContent" style="padding:1.5rem;"></div>
 </div>
 
-<!-- Neue Aufgabe Modal -->
+<!-- Neue Aufgabe Modal (erweitert mit Farbe, Antwort-Pflicht) -->
 <div id="createModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+    <div style="background:white; border-radius:8px; padding:2rem; width:560px; max-width:90vw; max-height:90vh; overflow-y:auto;">
         <h3 style="margin-bottom:1rem;">Neue Aufgabe</h3>
         <form method="POST" action="{{ url_for('tasks.create') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -193,6 +224,26 @@
                     <input type="date" name="due_date" class="form-input">
                 </div>
             </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                <div class="form-group">
+                    <label class="form-label">Farbe</label>
+                    <select name="task_color" class="form-input">
+                        <option value="0">Standard</option>
+                        <option value="1">Gelb</option>
+                        <option value="2">Grün</option>
+                        <option value="3">Blau</option>
+                        <option value="4">Rot</option>
+                        <option value="5">Lila</option>
+                        <option value="6">Rosa</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <label style="font-size:0.85rem; display:flex; align-items:center; gap:0.5rem;">
+                        <input type="checkbox" name="task_force_response" value="1">
+                        Antwort erforderlich
+                    </label>
+                </div>
+            </div>
             <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
                 <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Abbrechen</button>
                 <button type="submit" class="btn btn-primary">Erstellen</button>
@@ -201,97 +252,360 @@
     </div>
 </div>
 
+<!-- Bearbeiten-Modal -->
+<div id="editModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1001; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:8px; padding:2rem; width:500px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+        <h3 style="margin-bottom:1rem;">Aufgabe bearbeiten</h3>
+        <input type="hidden" id="editId">
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Titel</label>
+            <input type="text" id="editTitle" class="form-input">
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Beschreibung</label>
+            <textarea id="editDescription" class="form-input" rows="3"></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+            <div class="form-group">
+                <label class="form-label">Priorität</label>
+                <select id="editPriority" class="form-input">
+                    <option value="low">Niedrig</option>
+                    <option value="normal">Mittel</option>
+                    <option value="high">Hoch</option>
+                    <option value="critical">Kritisch</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Kategorie</label>
+                <select id="editCategory" class="form-input">
+                    <option value="sonstiges">Sonstiges</option>
+                    <option value="patientendaten">Patientendaten</option>
+                    <option value="versicherung">Versicherung</option>
+                    <option value="arzt">Arzt</option>
+                    <option value="verordnung">Verordnung</option>
+                    <option value="abrechnung">Abrechnung</option>
+                    <option value="gutsprache">Gutsprache</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+            <div class="form-group">
+                <label class="form-label">Fälligkeitsdatum</label>
+                <input type="date" id="editDueDate" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Farbe</label>
+                <select id="editColor" class="form-input">
+                    <option value="0">Standard</option>
+                    <option value="1">Gelb</option>
+                    <option value="2">Grün</option>
+                    <option value="3">Blau</option>
+                    <option value="4">Rot</option>
+                    <option value="5">Lila</option>
+                    <option value="6">Rosa</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="hideEditModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="saveEdit()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<!-- Weiterleiten-Modal -->
+<div id="forwardModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1001; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:8px; padding:2rem; width:400px; max-width:90vw;">
+        <h3 style="margin-bottom:1rem;">Aufgabe weiterleiten</h3>
+        <input type="hidden" id="forwardTaskId">
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Empfänger</label>
+            <select id="forwardEmployee" class="form-input">
+                {% for e in employees %}
+                {% if e.user %}
+                <option value="{{ e.id }}">{{ e.user.first_name }} {{ e.user.last_name }}</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Nachricht (optional)</label>
+            <textarea id="forwardMessage" class="form-input" rows="2" placeholder="Nachricht an Empfänger..."></textarea>
+        </div>
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="hideForwardModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="submitForward()">Weiterleiten</button>
+        </div>
+    </div>
+</div>
+
 <script>
-function showCreateModal() {
-    document.getElementById('createModal').style.display = 'flex';
-}
-function hideCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
-}
+var currentDetailId = null;
+var detailData = null;
+
+function showCreateModal() { document.getElementById('createModal').style.display = 'flex'; }
+function hideCreateModal() { document.getElementById('createModal').style.display = 'none'; }
+function hideEditModal() { document.getElementById('editModal').style.display = 'none'; }
+function hideForwardModal() { document.getElementById('forwardModal').style.display = 'none'; }
 
 function completeTask(id) {
-    fetchWithCSRF(`/tasks/api/${id}/complete`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
-        .then(r => r.json())
-        .then(data => { if (data.success) location.reload(); });
+    fetchWithCSRF('/tasks/api/' + id + '/complete', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.success) location.reload(); });
 }
 
 function reopenTask(id) {
-    fetchWithCSRF(`/tasks/api/${id}/reopen`, {method: 'POST', headers: {'Content-Type': 'application/json'}})
-        .then(r => r.json())
-        .then(data => { if (data.success) location.reload(); });
+    fetchWithCSRF('/tasks/api/' + id + '/reopen', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.success) location.reload(); });
 }
 
 function generateTasks() {
     fetchWithCSRF('/tasks/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}})
-        .then(r => r.json())
-        .then(data => {
-            alert(data.message);
-            location.reload();
-        });
+        .then(function(r) { return r.json(); })
+        .then(function(data) { alert(data.message); location.reload(); });
+}
+
+function startTask(id) {
+    fetchWithCSRF('/tasks/api/' + id + '/start', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(function(r) { return r.json(); })
+        .then(function() { showDetail(id); });
 }
 
 function showDetail(id) {
-    fetch(`/tasks/api/${id}/detail`)
-        .then(r => r.json())
-        .then(data => {
+    currentDetailId = id;
+    // Gelesen markieren
+    fetchWithCSRF('/tasks/api/' + id + '/read', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+
+    fetch('/tasks/api/' + id + '/full-detail')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            detailData = data;
             document.getElementById('detailTitle').textContent = data.title;
-            let html = `
-                <div style="margin-bottom:1rem;">
-                    <span class="badge badge-${ data.priority === 'critical' ? 'danger' : (data.priority === 'high' ? 'warning' : (data.priority === 'normal' ? 'info' : 'secondary')) }">${data.priority_label}</span>
-                    <span class="badge badge-secondary">${data.category_label}</span>
-                    ${data.auto_generated ? '<span style="font-size:0.7rem; color:#999;">automatisch</span>' : ''}
-                </div>
-                ${data.description ? '<p>' + data.description + '</p>' : ''}
-                <div style="font-size:0.85rem; color:#666; margin-bottom:1rem;">
-                    ${data.patient ? '<p><strong>Patient:</strong> ' + data.patient + '</p>' : ''}
-                    ${data.assigned_to ? '<p><strong>Zugewiesen an:</strong> ' + data.assigned_to + '</p>' : ''}
-                    ${data.due_date ? '<p><strong>Fällig:</strong> ' + data.due_date + '</p>' : ''}
-                    <p><strong>Erstellt:</strong> ${data.created_at}</p>
-                    ${data.completed_at ? '<p><strong>Erledigt:</strong> ' + data.completed_at + '</p>' : ''}
-                </div>
-            `;
+
+            var colorBg = ['transparent', '#fff3cd', '#d4edda', '#cce5ff', '#f8d7da', '#e2d5f1', '#fce4ec'];
+            var panelEl = document.getElementById('detailPanel');
+            panelEl.style.borderLeft = data.task_color ? '4px solid ' + colorBg[data.task_color] : 'none';
+
+            var html = '';
+
+            // Status und Badges
+            html += '<div style="margin-bottom:1rem; display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;">';
+            html += '<span class="badge badge-' + (data.priority === 'critical' ? 'danger' : (data.priority === 'high' ? 'warning' : (data.priority === 'normal' ? 'info' : 'secondary'))) + '">' + esc(data.priority_label) + '</span>';
+            html += '<span class="badge badge-secondary">' + esc(data.category_label) + '</span>';
+            if (data.task_color && data.task_color > 0) {
+                html += '<span class="badge" style="background:' + colorBg[data.task_color] + ';">' + esc(data.task_color_name) + '</span>';
+            }
+            if (data.auto_generated) html += '<span style="font-size:0.7rem; color:#999;">automatisch</span>';
+            if (data.task_force_response) html += '<span style="font-size:0.7rem; color:#e74c3c; font-weight:600;">Antwort erforderlich</span>';
+            if (data.has_updates) html += '<span style="font-size:0.7rem; color:#e74c3c;">● Neue Updates</span>';
+            html += '</div>';
+
+            // Status
+            var statusMap = {'open': 'Offen', 'in_progress': 'In Bearbeitung', 'completed': 'Erledigt'};
+            var statusColor = {'open': '#3498db', 'in_progress': '#f39c12', 'completed': '#27ae60'};
+            html += '<div style="margin-bottom:1rem; padding:0.5rem; border-radius:4px; background:' + (statusColor[data.status] || '#888') + '15; border-left:3px solid ' + (statusColor[data.status] || '#888') + ';">';
+            html += '<strong>Status:</strong> ' + (statusMap[data.status] || data.status);
+            if (data.status === 'open') {
+                html += ' <button class="btn btn-sm btn-outline" style="margin-left:0.5rem;" onclick="startTask(' + data.id + ')">Starten</button>';
+            }
+            html += '</div>';
+
+            // Beschreibung
+            if (data.description) {
+                html += '<div style="margin-bottom:1rem; padding:0.75rem; background:#f8f9fa; border-radius:4px;">' + esc(data.description) + '</div>';
+            }
+
+            // Details
+            html += '<div style="font-size:0.85rem; color:#666; margin-bottom:1rem;">';
+            if (data.patient) html += '<p><strong>Patient:</strong> <a href="/patients" style="color:#4a90d9;">' + esc(data.patient) + '</a></p>';
+            if (data.assigned_to) html += '<p><strong>Zugewiesen an:</strong> ' + esc(data.assigned_to) + '</p>';
+            if (data.created_by) html += '<p><strong>Erstellt von:</strong> ' + esc(data.created_by) + '</p>';
+            if (data.due_date) html += '<p><strong>Fällig:</strong> ' + data.due_date + '</p>';
+            html += '<p><strong>Erstellt:</strong> ' + data.created_at + '</p>';
+            if (data.completed_at) html += '<p><strong>Erledigt:</strong> ' + data.completed_at + '</p>';
+            html += '</div>';
+
+            // Verknuepfte Entitaeten (Links)
+            if (data.links && Object.keys(data.links).length > 0) {
+                html += '<div style="margin-bottom:1rem;">';
+                html += '<h4 style="font-size:0.9rem; margin-bottom:0.5rem;">Verknüpfungen</h4>';
+                if (data.links.Patient) html += '<a href="/patients" class="btn btn-ghost btn-sm">Patient: ' + esc(data.links.Patient.Name || '') + '</a> ';
+                if (data.links.Invoice) html += '<a href="/billing" class="btn btn-ghost btn-sm">Rechnung: ' + esc(data.links.Invoice.Title || '') + '</a> ';
+                if (data.links.Series) html += '<a href="/treatment" class="btn btn-ghost btn-sm">Serie: ' + esc(data.links.Series.Title || '') + '</a> ';
+                html += '</div>';
+            }
+
+            // Zuweisungen (Cenplex: MissiontoemployeesDto)
+            if (data.assignments && data.assignments.length > 0) {
+                html += '<div style="margin-bottom:1rem;">';
+                html += '<h4 style="font-size:0.9rem; margin-bottom:0.5rem;">Empfänger</h4>';
+                data.assignments.forEach(function(a) {
+                    html += '<div style="display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0; font-size:0.85rem;">';
+                    html += '<span style="font-weight:500;">' + esc(a.employee) + '</span>';
+                    if (a.read_date) html += '<span style="color:#27ae60; font-size:0.75rem;">Gelesen ' + a.read_date + '</span>';
+                    else html += '<span style="color:#aaa; font-size:0.75rem;">Ungelesen</span>';
+                    if (a.started) html += '<span style="color:#f39c12; font-size:0.75rem;">Gestartet ' + a.started + '</span>';
+                    if (a.finished) html += '<span style="color:#27ae60; font-size:0.75rem;">Erledigt ' + a.finished + '</span>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            // Antworten (Cenplex: MissionresponseDto)
+            if (data.responses && data.responses.length > 0) {
+                html += '<div style="margin-bottom:1rem;">';
+                html += '<h4 style="font-size:0.9rem; margin-bottom:0.5rem;">Antworten</h4>';
+                data.responses.forEach(function(r) {
+                    html += '<div style="border-left:3px solid #27ae60; padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f0faf0; border-radius:0 4px 4px 0;">';
+                    html += '<div style="font-size:0.75rem; color:#888;">' + esc(r.sender) + ' · ' + r.created_at;
+                    if (r.read_date) html += ' · Gelesen ' + r.read_date;
+                    html += '</div>';
+                    html += '<div style="font-size:0.85rem;">' + esc(r.message) + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
 
             // Kommentare
             if (data.comments && data.comments.length > 0) {
-                html += '<h4 style="margin:1rem 0 0.5rem;">Kommentare</h4>';
-                data.comments.forEach(c => {
-                    html += '<div style="border-left:3px solid #4a90d9; padding:0.5rem; margin-bottom:0.5rem; background:#f8f9fa;">';
-                    html += '<div style="font-size:0.75rem; color:#888;">' + c.user + ' · ' + c.created_at + '</div>';
-                    html += '<div>' + c.comment + '</div>';
+                html += '<div style="margin-bottom:1rem;">';
+                html += '<h4 style="font-size:0.9rem; margin-bottom:0.5rem;">Kommentare</h4>';
+                data.comments.forEach(function(c) {
+                    html += '<div style="border-left:3px solid #4a90d9; padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f8f9fa; border-radius:0 4px 4px 0;">';
+                    html += '<div style="font-size:0.75rem; color:#888;">' + esc(c.user) + ' · ' + c.created_at + '</div>';
+                    html += '<div style="font-size:0.85rem;">' + esc(c.comment) + '</div>';
                     html += '</div>';
                 });
+                html += '</div>';
             }
 
-            // Kommentar hinzufuegen
+            // Aktionen (nur wenn nicht erledigt)
             if (data.status !== 'completed') {
-                html += `
-                    <div style="margin-top:1rem;">
-                        <textarea id="commentInput" class="form-input" rows="2" placeholder="Kommentar..."></textarea>
-                        <button class="btn btn-secondary btn-sm" style="margin-top:0.5rem;" onclick="addComment(${data.id})">Kommentar hinzufügen</button>
-                    </div>
-                `;
+                html += '<div style="border-top:1px solid #eee; padding-top:1rem; margin-top:1rem;">';
+
+                // Antwort-Formular
+                html += '<div style="margin-bottom:1rem;">';
+                html += '<h4 style="font-size:0.9rem; margin-bottom:0.5rem;">Antworten</h4>';
+                html += '<textarea id="responseInput" class="form-input" rows="2" placeholder="Antwort verfassen..."></textarea>';
+                html += '<div style="display:flex; gap:0.5rem; margin-top:0.5rem;">';
+                html += '<button class="btn btn-primary btn-sm" onclick="sendResponse(' + data.id + ')">Antworten</button>';
+                html += '<button class="btn btn-secondary btn-sm" onclick="addComment(' + data.id + ')">Als Kommentar</button>';
+                html += '</div>';
+                html += '</div>';
+
+                // Aktions-Buttons
+                html += '<div style="display:flex; gap:0.5rem; flex-wrap:wrap;">';
+                html += '<button class="btn btn-secondary btn-sm" onclick="showForwardModal(' + data.id + ')">Weiterleiten</button>';
+                html += '<button class="btn btn-secondary btn-sm" onclick="showEditModal()">Bearbeiten</button>';
+                if (data.status !== 'completed') {
+                    html += '<button class="btn btn-success btn-sm" onclick="completeTask(' + data.id + ')" style="background:#27ae60; color:white; border-color:#27ae60;">Erledigt</button>';
+                }
+                html += '</div>';
+                html += '</div>';
             }
 
             document.getElementById('detailContent').innerHTML = html;
             document.getElementById('detailPanel').style.display = 'block';
+
+            // Edit-Button Listener
+            document.getElementById('detailEditBtn').onclick = function() { showEditModal(); };
         });
 }
 
 function hideDetail() {
     document.getElementById('detailPanel').style.display = 'none';
+    currentDetailId = null;
+    detailData = null;
+}
+
+function sendResponse(taskId) {
+    var msg = document.getElementById('responseInput').value.trim();
+    if (!msg) return;
+    fetchWithCSRF('/tasks/api/' + taskId + '/respond', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg})
+    }).then(function(r) { return r.json(); })
+      .then(function(data) { if (data.success) showDetail(taskId); });
 }
 
 function addComment(taskId) {
-    const comment = document.getElementById('commentInput').value.trim();
+    var input = document.getElementById('responseInput');
+    var comment = input ? input.value.trim() : '';
     if (!comment) return;
-    fetchWithCSRF(`/tasks/api/${taskId}/comment`, {
+    fetchWithCSRF('/tasks/api/' + taskId + '/comment', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({comment: comment})
-    }).then(r => r.json())
-      .then(data => {
-          if (data.success) showDetail(taskId);
+    }).then(function(r) { return r.json(); })
+      .then(function(data) { if (data.success) showDetail(taskId); });
+}
+
+function showEditModal() {
+    if (!detailData) return;
+    document.getElementById('editId').value = detailData.id;
+    document.getElementById('editTitle').value = detailData.title || '';
+    document.getElementById('editDescription').value = detailData.description || '';
+    document.getElementById('editPriority').value = detailData.priority || 'normal';
+    document.getElementById('editCategory').value = detailData.category || 'sonstiges';
+    document.getElementById('editDueDate').value = detailData.due_date_iso || '';
+    document.getElementById('editColor').value = detailData.task_color || 0;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function saveEdit() {
+    var id = document.getElementById('editId').value;
+    fetchWithCSRF('/tasks/api/' + id + '/edit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            title: document.getElementById('editTitle').value,
+            description: document.getElementById('editDescription').value,
+            priority: document.getElementById('editPriority').value,
+            category: document.getElementById('editCategory').value,
+            due_date: document.getElementById('editDueDate').value,
+            task_color: document.getElementById('editColor').value
+        })
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+          if (data.success) {
+              hideEditModal();
+              showDetail(parseInt(id));
+          }
       });
+}
+
+function showForwardModal(taskId) {
+    document.getElementById('forwardTaskId').value = taskId;
+    document.getElementById('forwardMessage').value = '';
+    document.getElementById('forwardModal').style.display = 'flex';
+}
+
+function submitForward() {
+    var taskId = document.getElementById('forwardTaskId').value;
+    var empSelect = document.getElementById('forwardEmployee');
+    var empId = empSelect.value;
+    var msg = document.getElementById('forwardMessage').value;
+
+    fetchWithCSRF('/tasks/api/' + taskId + '/forward', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({employee_id: empId, message: msg})
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+          if (data.success) {
+              hideForwardModal();
+              showDetail(parseInt(taskId));
+          }
+      });
+}
+
+function esc(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 </script>
 {% endblock %}
