@@ -1004,3 +1004,169 @@ def import_payments():
         return render_template('billing/import_result.html', result=result)
 
     return render_template('billing/import_payments.html')
+
+
+# ============================================================
+# Cenplex Phase 5: Fehlende Billing-Features
+# ============================================================
+
+@billing_bp.route('/api/search')
+@login_required
+def api_search_invoices():
+    """Rechnungssuche (Cenplex: FindInvoice) - nach Nummer, Patient, Betrag"""
+    from models import Invoice, Patient
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    org_id = current_user.organization_id
+    query = Invoice.query.filter_by(organization_id=org_id, is_deleted=False)
+
+    query = query.filter(
+        db.or_(
+            Invoice.invoice_number.ilike(f'%{q}%'),
+            Invoice.reference_number.ilike(f'%{q}%'),
+            Invoice.patient.has(db.or_(
+                Patient.first_name.ilike(f'%{q}%'),
+                Patient.last_name.ilike(f'%{q}%'),
+                Patient.patient_number.ilike(f'%{q}%')
+            ))
+        )
+    )
+
+    invoices = query.order_by(Invoice.created_at.desc()).limit(20).all()
+    return jsonify([{
+        'id': i.id,
+        'invoice_number': i.invoice_number,
+        'patient_name': f'{i.patient.last_name}, {i.patient.first_name}' if i.patient else '',
+        'amount_total': float(i.amount_total or 0),
+        'amount_open': float(i.amount_open or 0),
+        'status': i.status,
+        'created_at': i.created_at.isoformat() if i.created_at else ''
+    } for i in invoices])
+
+
+@billing_bp.route('/api/batch-send', methods=['POST'])
+@login_required
+@require_permission('billing.send_invoice')
+def api_batch_send():
+    """Batch-Versand von Rechnungen (Cenplex: FindInvoicesToSend)"""
+    from models import Invoice
+    data = request.get_json()
+    invoice_ids = data.get('invoice_ids', [])
+
+    if not invoice_ids:
+        return jsonify({'error': 'Keine Rechnungen ausgewählt'}), 400
+
+    org_id = current_user.organization_id
+    sent_count = 0
+    errors = []
+
+    for inv_id in invoice_ids:
+        inv = Invoice.query.filter_by(id=inv_id, organization_id=org_id).first()
+        if not inv:
+            errors.append(f'Rechnung {inv_id} nicht gefunden')
+            continue
+        if inv.status not in ('draft', 'approved'):
+            errors.append(f'Rechnung {inv.invoice_number}: Status {inv.status} erlaubt keinen Versand')
+            continue
+
+        inv.status = 'sent'
+        inv.sent_at = datetime.now()
+        if current_user.employee:
+            inv.sent_by_id = current_user.employee.id
+        sent_count += 1
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'sent_count': sent_count,
+        'errors': errors
+    })
+
+
+@billing_bp.route('/<int:id>/reset', methods=['POST'])
+@login_required
+@require_permission('billing.cancel_invoice')
+def reset_invoice(id):
+    """Rechnung zuruecksetzen (Cenplex: ResetInvoice)"""
+    from models import Invoice
+    invoice = Invoice.query.get_or_404(id)
+    if invoice.organization_id != current_user.organization_id:
+        abort(403)
+
+    if invoice.status == 'paid':
+        flash('Bezahlte Rechnungen können nicht zurückgesetzt werden.', 'error')
+        return redirect(url_for('billing.detail', id=id))
+
+    invoice.status = 'draft'
+    invoice.sent_at = None
+    invoice.approved_date = None
+    invoice.approved_by_id = None
+    invoice.was_disapproved = False
+    invoice.medidata_state = None
+    db.session.commit()
+
+    flash('Rechnung wurde auf Entwurf zurückgesetzt.', 'success')
+    return redirect(url_for('billing.detail', id=id))
+
+
+@billing_bp.route('/api/voucher/<string:code>')
+@login_required
+def api_find_voucher(code):
+    """Gutschein-Code suchen (Cenplex: FindVoucher)"""
+    from models import Invoice
+    voucher = Invoice.query.filter_by(
+        organization_id=current_user.organization_id,
+        is_voucher=True,
+        voucher_code=code,
+        is_deleted=False
+    ).first()
+
+    if not voucher:
+        return jsonify({'found': False})
+
+    return jsonify({
+        'found': True,
+        'id': voucher.id,
+        'amount': float(voucher.amount_total or 0),
+        'patient_name': f'{voucher.patient.first_name} {voucher.patient.last_name}' if voucher.patient else '',
+        'status': voucher.status
+    })
+
+
+@billing_bp.route('/api/invoice-validations')
+@login_required
+def api_invoice_validations():
+    """Rechnungsvalidierungen laden (Cenplex: GetInvoiceValidations)
+    Prüft offene Serien auf Abrechnungsbereitschaft"""
+    org_id = current_user.organization_id
+    from models import TreatmentSeries, Appointment, TreatmentSeriesTemplate
+
+    active_series = TreatmentSeries.query.filter_by(status='active').filter(
+        TreatmentSeries.patient.has(organization_id=org_id)
+    ).all()
+
+    validations = []
+    for s in active_series:
+        appt_count = Appointment.query.filter_by(series_id=s.id).filter(
+            Appointment.status.notin_(['cancelled', 'no_show'])
+        ).count()
+        max_appts = s.template.num_appointments if s.template else 0
+
+        issues = []
+        if max_appts > 0 and appt_count >= max_appts:
+            issues.append('Serie vollständig - bereit zur Abrechnung')
+        if s.template and s.template.auto_billing_after and appt_count >= s.template.auto_billing_after:
+            issues.append(f'Auto-Abrechnung nach {s.template.auto_billing_after} Terminen fällig')
+
+        if issues:
+            validations.append({
+                'series_id': s.id,
+                'patient_name': f'{s.patient.last_name}, {s.patient.first_name}' if s.patient else '',
+                'series_title': s.title or (s.template.name if s.template else ''),
+                'progress': f'{appt_count}/{max_appts}',
+                'issues': issues
+            })
+
+    return jsonify(validations)

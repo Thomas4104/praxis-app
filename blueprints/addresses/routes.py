@@ -372,3 +372,85 @@ def api_search_practitioners():
     if error:
         return jsonify({'error': error, 'results': []}), 200
     return jsonify({'results': results})
+
+
+# ============================================================
+# Cenplex Phase 9: Fehlende Kontakt-Features
+# ============================================================
+
+@addresses_bp.route('/api/doctors/search')
+@login_required
+def api_search_doctors():
+    """Arztsuche (Cenplex: FindDoctors) - Name, GLN, ZSR"""
+    from models import Doctor, Contact
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify([])
+
+    org_id = current_user.organization_id
+
+    # Zuerst in Doctor-Tabelle suchen
+    doctors = Doctor.query.filter_by(organization_id=org_id).filter(
+        db.or_(
+            Doctor.first_name.ilike(f'%{q}%'),
+            Doctor.last_name.ilike(f'%{q}%'),
+            Doctor.gln_number.ilike(f'%{q}%'),
+            Doctor.zsr_number.ilike(f'%{q}%')
+        )
+    ).limit(15).all()
+
+    result = [{
+        'id': d.id,
+        'type': 'doctor',
+        'name': f'{d.last_name}, {d.first_name}' if d.first_name else d.last_name,
+        'gln': d.gln_number or '',
+        'zsr': d.zsr_number or '',
+        'city': d.city or '',
+        'phone': d.phone or ''
+    } for d in doctors]
+
+    # Auch in Kontakten mit Typ=Arzt suchen (Cenplex: ContactType=2)
+    contacts = Contact.query.filter_by(organization_id=org_id, contact_type=2).filter(
+        db.or_(
+            Contact.first_name.ilike(f'%{q}%'),
+            Contact.last_name.ilike(f'%{q}%'),
+            Contact.company_name.ilike(f'%{q}%'),
+            Contact.gln.ilike(f'%{q}%')
+        )
+    ).limit(10).all()
+
+    for c in contacts:
+        result.append({
+            'id': c.id,
+            'type': 'contact',
+            'name': c.company_name or f'{c.last_name}, {c.first_name}',
+            'gln': c.gln or '',
+            'zsr': c.zsr or '',
+            'city': c.city or '',
+            'phone': c.phone or ''
+        })
+
+    return jsonify(result)
+
+
+@addresses_bp.route('/api/contacts/by-type')
+@login_required
+def api_contacts_by_type():
+    """Kontakte nach Typ filtern (Cenplex: Typ 1=Versicherung, 2=Arzt, etc.)"""
+    from models import Contact
+    contact_type = request.args.get('type', type=int)
+    org_id = current_user.organization_id
+
+    query = Contact.query.filter_by(organization_id=org_id, is_deleted=False)
+    if contact_type is not None:
+        query = query.filter_by(contact_type=contact_type)
+
+    contacts = query.order_by(Contact.company_name, Contact.last_name).limit(100).all()
+    return jsonify([{
+        'id': c.id,
+        'name': c.company_name or f'{c.last_name or ""}, {c.first_name or ""}',
+        'type': c.contact_type,
+        'city': c.city or '',
+        'email': c.email or '',
+        'gln': c.gln or ''
+    } for c in contacts])

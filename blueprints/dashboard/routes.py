@@ -825,3 +825,145 @@ def global_search():
         })
 
     return jsonify({'results': results})
+
+
+# ============================================================
+# Cenplex Phase 11: Fehlende Dashboard/Aufgaben-Features
+# ============================================================
+
+@dashboard_bp.route('/api/missions')
+@login_required
+def api_get_missions():
+    """Missionen/Aufgaben laden (Cenplex: GetMissions)"""
+    from models import Task, MissionToEmployee
+    employee = current_user.employee
+    if not employee:
+        return jsonify([])
+
+    load_all = request.args.get('all', type=bool, default=False)
+
+    if load_all:
+        tasks = Task.query.filter_by(
+            organization_id=current_user.organization_id
+        ).filter(Task.status != 'completed').order_by(Task.created_at.desc()).limit(50).all()
+    else:
+        # Nur zugewiesene Aufgaben
+        assigned = MissionToEmployee.query.filter_by(employee_id=employee.id).all()
+        task_ids = [a.task_id for a in assigned]
+        direct = Task.query.filter_by(assigned_to_id=current_user.id).filter(
+            Task.status != 'completed'
+        ).all()
+        task_ids.extend([t.id for t in direct])
+        tasks = Task.query.filter(Task.id.in_(set(task_ids))).order_by(Task.created_at.desc()).all()
+
+    return jsonify([{
+        'id': t.id,
+        'title': t.title,
+        'description': t.description or '',
+        'status': t.status,
+        'priority': t.priority,
+        'due_date': t.due_date.isoformat() if t.due_date else '',
+        'created_by': t.created_by.name if t.created_by else '',
+        'assigned_to': t.assigned_to.name if t.assigned_to else '',
+        'patient_name': f'{t.related_patient.last_name}, {t.related_patient.first_name}' if t.related_patient else '',
+        'has_updates': t.has_updates or False,
+        'color': t.task_color or 0,
+        'created_at': t.created_at.isoformat() if t.created_at else ''
+    } for t in tasks])
+
+
+@dashboard_bp.route('/api/missions/<int:id>/respond', methods=['POST'])
+@login_required
+def api_respond_mission(id):
+    """Auf Mission antworten (Cenplex: RespondToMission)"""
+    from models import Task, MissionResponse
+    task = Task.query.get_or_404(id)
+    if task.organization_id != current_user.organization_id:
+        abort(403)
+
+    data = request.get_json()
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Nachricht ist leer'}), 400
+
+    employee = current_user.employee
+    if not employee:
+        return jsonify({'error': 'Kein Mitarbeiter-Profil'}), 400
+
+    receiver_id = data.get('receiver_id')
+    if not receiver_id:
+        # Standard: an Ersteller
+        receiver_id = task.created_by.employee.id if task.created_by and task.created_by.employee else None
+
+    response = MissionResponse(
+        task_id=task.id,
+        sender_id=employee.id,
+        receiver_id=receiver_id or employee.id,
+        response=message
+    )
+    task.has_updates = True
+    db.session.add(response)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@dashboard_bp.route('/api/missions/<int:id>/forward', methods=['POST'])
+@login_required
+def api_forward_mission(id):
+    """Mission weiterleiten (Cenplex: ForwardMission)"""
+    from models import Task, MissionToEmployee
+    task = Task.query.get_or_404(id)
+    if task.organization_id != current_user.organization_id:
+        abort(403)
+
+    data = request.get_json()
+    receiver_id = data.get('employee_id')
+    message = data.get('message', '')
+
+    if not receiver_id:
+        return jsonify({'error': 'Empfänger fehlt'}), 400
+
+    assignment = MissionToEmployee(
+        task_id=task.id,
+        employee_id=int(receiver_id),
+        notes=message
+    )
+    task.has_updates = True
+    db.session.add(assignment)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@dashboard_bp.route('/api/birthdays')
+@login_required
+def api_birthdays():
+    """Geburtstage laden (Cenplex: LoadBirthdays)"""
+    from models import Patient
+    org_id = current_user.organization_id
+    today = date.today()
+    days_ahead = request.args.get('days', 7, type=int)
+
+    patients = Patient.query.filter_by(
+        organization_id=org_id, is_active=True
+    ).filter(Patient.date_of_birth.isnot(None)).all()
+
+    birthdays = []
+    for p in patients:
+        bday_this_year = p.date_of_birth.replace(year=today.year)
+        if bday_this_year < today:
+            bday_this_year = bday_this_year.replace(year=today.year + 1)
+        diff = (bday_this_year - today).days
+        if 0 <= diff <= days_ahead:
+            age = today.year - p.date_of_birth.year
+            if bday_this_year.year > today.year:
+                age += 1
+            birthdays.append({
+                'patient_id': p.id,
+                'name': f'{p.first_name} {p.last_name}',
+                'date': bday_this_year.isoformat(),
+                'age': age,
+                'days_until': diff
+            })
+
+    birthdays.sort(key=lambda x: x['days_until'])
+    return jsonify(birthdays)

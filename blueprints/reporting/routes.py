@@ -415,3 +415,106 @@ def api_kpi():
     )
 
     return jsonify(result)
+
+
+# ============================================================
+# Cenplex Phase 14: KPI Dashboard
+# ============================================================
+
+@reporting_bp.route('/api/kpi-dashboard')
+@login_required
+def api_kpi_dashboard():
+    """KPI-Dashboard Daten (Cenplex: KPI PerformanceIndicator)"""
+    from models import Appointment, Invoice, Patient, TreatmentSeries, Employee
+    org_id = current_user.organization_id
+
+    period_str = request.args.get('period', 'month')  # month, quarter, year
+    today = date.today()
+
+    if period_str == 'year':
+        start_date = today.replace(month=1, day=1)
+    elif period_str == 'quarter':
+        quarter_start = ((today.month - 1) // 3) * 3 + 1
+        start_date = today.replace(month=quarter_start, day=1)
+    else:
+        start_date = today.replace(day=1)
+
+    start_dt = datetime.combine(start_date, time.min)
+    end_dt = datetime.combine(today, time.max)
+
+    # Termine
+    total_appointments = Appointment.query.filter(
+        Appointment.employee.has(organization_id=org_id),
+        Appointment.start_time.between(start_dt, end_dt),
+        Appointment.status.notin_(['cancelled'])
+    ).count()
+
+    cancelled = Appointment.query.filter(
+        Appointment.employee.has(organization_id=org_id),
+        Appointment.start_time.between(start_dt, end_dt),
+        Appointment.status == 'cancelled'
+    ).count()
+
+    no_shows = Appointment.query.filter(
+        Appointment.employee.has(organization_id=org_id),
+        Appointment.start_time.between(start_dt, end_dt),
+        Appointment.status == 'no_show'
+    ).count()
+
+    # Umsatz
+    revenue = db.session.query(
+        func.sum(Invoice.amount_total)
+    ).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['sent', 'paid']),
+        Invoice.created_at.between(start_dt, end_dt)
+    ).scalar() or 0
+
+    open_amount = db.session.query(
+        func.sum(Invoice.amount_open)
+    ).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_(['sent', 'overdue']),
+        Invoice.amount_open > 0
+    ).scalar() or 0
+
+    # Neue Patienten
+    new_patients = Patient.query.filter_by(organization_id=org_id).filter(
+        Patient.created_at.between(start_dt, end_dt)
+    ).count()
+
+    # Aktive Serien
+    active_series = TreatmentSeries.query.filter_by(status='active').filter(
+        TreatmentSeries.patient.has(organization_id=org_id)
+    ).count()
+
+    # Durchschnittliche Auslastung pro Therapeut
+    therapists = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    utilization = {}
+    for t in therapists:
+        if t.user and t.user.role == 'therapist':
+            appts = Appointment.query.filter_by(employee_id=t.id).filter(
+                Appointment.start_time.between(start_dt, end_dt),
+                Appointment.status.notin_(['cancelled', 'no_show'])
+            ).count()
+            utilization[t.id] = {
+                'name': f'{t.user.first_name} {t.user.last_name}' if t.user else '',
+                'appointments': appts
+            }
+
+    return jsonify({
+        'period': period_str,
+        'start_date': start_date.isoformat(),
+        'end_date': today.isoformat(),
+        'kpis': {
+            'total_appointments': total_appointments,
+            'cancelled_appointments': cancelled,
+            'no_shows': no_shows,
+            'cancellation_rate': round(cancelled / max(total_appointments + cancelled, 1) * 100, 1),
+            'revenue': float(revenue),
+            'open_amount': float(open_amount),
+            'new_patients': new_patients,
+            'active_series': active_series,
+            'therapist_utilization': utilization
+        }
+    })

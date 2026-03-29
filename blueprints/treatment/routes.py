@@ -1215,3 +1215,106 @@ def arztbericht_pdf(serie_id):
     from flask import send_file
     return send_file(filepath, as_attachment=True,
                     download_name=f'Arztbericht_{series.patient.last_name}_{series.patient.first_name}.pdf')
+
+
+# ============================================================
+# Cenplex Phase 6: Fehlende Behandlungsplan-Features
+# ============================================================
+
+@treatment_bp.route('/api/plans/<int:plan_id>/finish', methods=['POST'])
+@login_required
+def api_finish_plan(plan_id):
+    """Behandlungsplan abschliessen (Cenplex: FinishPlan)"""
+    from models import TreatmentPlan
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
+
+    data = request.get_json() or {}
+    plan.finished_date = datetime.now()
+    plan.finished_reason = data.get('reason', '')
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@treatment_bp.route('/api/plans/<int:plan_id>/assessments')
+@login_required
+def api_plan_assessments(plan_id):
+    """Assessments eines Behandlungsplans (Cenplex: GetAssessments)"""
+    from models import TreatmentPlan, Assessment, AssessmentResult
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
+
+    assessments = Assessment.query.filter_by(treatment_plan_id=plan.id).all()
+    return jsonify([{
+        'id': a.id,
+        'title': a.title or '',
+        'assessment_type': a.assessment_type,
+        'execution_count': a.execution_count,
+        'results': [{
+            'id': r.id,
+            'text_value': r.text_value or '',
+            'calculated_value': float(r.calculated_value) if r.calculated_value else None,
+            'created_at': r.created_at.isoformat() if r.created_at else ''
+        } for r in a.results]
+    } for a in assessments])
+
+
+@treatment_bp.route('/api/plans/<int:plan_id>/measurements')
+@login_required
+def api_plan_measurements(plan_id):
+    """Messwerte eines Behandlungsplans (Cenplex: Measurements)"""
+    from models import TreatmentPlan, Measurement
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
+
+    measurements = Measurement.query.filter_by(
+        patient_id=plan.patient_id
+    ).order_by(Measurement.measured_at.desc()).all()
+
+    return jsonify([{
+        'id': m.id,
+        'measurement_type': m.measurement_type,
+        'name': m.name or '',
+        'value_json': m.value_json,
+        'unit': m.unit or '',
+        'measured_at': m.measured_at.isoformat() if m.measured_at else '',
+        'notes': m.notes or ''
+    } for m in measurements])
+
+
+@treatment_bp.route('/api/plans/<int:plan_id>/phases', methods=['POST'])
+@login_required
+def api_save_phase(plan_id):
+    """Behandlungsphase erstellen/aktualisieren (Cenplex: UpdatePhaseItem)"""
+    from models import TreatmentPlan, TreatmentPhase
+    plan = TreatmentPlan.query.get_or_404(plan_id)
+    if plan.organization_id != current_user.organization_id:
+        abort(403)
+
+    data = request.get_json()
+    phase_id = data.get('id')
+
+    if phase_id:
+        phase = TreatmentPhase.query.get_or_404(int(phase_id))
+    else:
+        phase = TreatmentPhase(treatment_plan_id=plan.id)
+
+    phase.title = data.get('title', '')
+    phase.position = data.get('position', 0)
+    phase.default_duration_days = data.get('duration_days')
+
+    from datetime import datetime as dt
+    if data.get('start_date'):
+        phase.start_date = dt.strptime(data['start_date'], '%Y-%m-%d').date()
+    if data.get('end_date'):
+        phase.end_date = dt.strptime(data['end_date'], '%Y-%m-%d').date()
+
+    phase.check_states_json = json.dumps(data.get('check_states')) if data.get('check_states') else None
+
+    if not phase_id:
+        db.session.add(phase)
+    db.session.commit()
+    return jsonify({'success': True, 'id': phase.id})
