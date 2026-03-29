@@ -11,6 +11,7 @@ from models import (db, CostApproval, CostApprovalItem, Patient, InsuranceProvid
                     Doctor, Employee, TreatmentSeries, TreatmentSeriesTemplate,
                     MedidataResponse, MedidataTracking, Contact)
 from utils.auth import check_org, get_org_id
+from services.user_rights_service import require_right
 
 
 # === Konstanten (Cenplex-Enums) ===
@@ -270,6 +271,7 @@ def _parse_xml45_response(xml_str):
 
 @cost_approvals_bp.route('/')
 @login_required
+@require_right('kostengutsprache', 'can_read')
 def index():
     """Gutsprachen-Uebersicht mit erweiterten Filtern (Cenplex: KostengutsprachenViewModel)"""
     search = request.args.get('search', '').strip()
@@ -370,6 +372,7 @@ def index():
 
 @cost_approvals_bp.route('/create', methods=['GET', 'POST'])
 @login_required
+@require_right('kostengutsprache', 'can_edit')
 def create():
     """Neue Gutsprache erstellen (Cenplex: KostengutspracheDialogViewModel)"""
     if request.method == 'POST':

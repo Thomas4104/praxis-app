@@ -23,6 +23,7 @@ from services.reporting_service import (
 from blueprints.reporting import reporting_bp
 from utils.auth import check_org, get_org_id
 from utils.permissions import require_permission
+from services.user_rights_service import require_right
 from services.audit_service import log_data_export
 
 
@@ -41,6 +42,7 @@ def index():
 @reporting_bp.route('/kpis')
 @login_required
 @require_permission('reporting.view')
+@require_right('kpi', 'can_read')
 def kpis():
     """KPI-Dashboard"""
     return render_template('reporting/kpis.html')

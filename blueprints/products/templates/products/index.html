@@ -18,6 +18,7 @@
     </svg>
     Tags verwalten
 </a>
+{% if has_right('product', 'can_edit') %}
 <a href="{{ url_for('products.create') }}" class="btn btn-primary">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -25,6 +26,7 @@
     </svg>
     Neues Produkt
 </a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -121,6 +123,10 @@
                     <td>{{ product.mige_number or '-' }}</td>
                     <td>
                         {% if product.tags %}
+                            {% set tag_ids = product.tags | tojson | default('[]') %}
+                            {% for tid in product.tags | default('[]') | safe | tojson | default([]) %}
+                            {% endfor %}
+                            {% set parsed_tags = [] %}
                             {% for tid, tname in tag_map.items() %}
                                 {% if product.tags and ('"' ~ tid ~ '"') in product.tags %}
                                     <span class="badge badge-info" style="font-size: 0.75rem; margin: 1px;">{{ tname }}</span>

@@ -13,6 +13,7 @@
 {% block page_title %}Abonnemente{% endblock %}
 
 {% block page_actions %}
+{% if has_right('fitness', 'can_edit') %}
 <a href="{{ url_for('fitness.subscription_new') }}" class="btn btn-primary">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -20,6 +21,7 @@
     </svg>
     Neues Abo
 </a>
+{% endif %}
 {% endblock %}
 
 {% block content %}

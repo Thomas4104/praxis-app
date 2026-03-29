@@ -11,6 +11,7 @@
 {% block page_title %}Adressverwaltung{% endblock %}
 
 {% block page_actions %}
+{% if has_right('address', 'can_edit') %}
 {% if tab == 'insurances' %}
 <a href="{{ url_for('addresses.create_insurance') }}" class="btn btn-primary">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -46,6 +47,7 @@
     </svg>
     Neue Bank
 </a>
+{% endif %}
 {% endif %}
 {% endblock %}
 

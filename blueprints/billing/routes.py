@@ -23,6 +23,7 @@ from services.settings_service import get_setting
 from services.accounting_service import book_invoice, book_payment
 from utils.auth import check_org, get_org_id
 from utils.permissions import require_permission
+from services.user_rights_service import require_right
 from services.audit_service import log_action
 
 
@@ -41,6 +42,7 @@ def _check_invoice_immutable(invoice):
 
 @billing_bp.route('/')
 @login_required
+@require_right('invoice', 'can_read')
 @require_permission('billing.view')
 def index():
     """Abrechnungsuebersicht mit Tabs und Filtern"""
@@ -194,6 +196,7 @@ def index():
 
 @billing_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_right('invoice', 'can_edit')
 @require_permission('billing.create_invoice')
 def create():
     """Neue Rechnung erstellen"""
@@ -368,6 +371,7 @@ def check_invoice(id):
 @billing_bp.route('/<int:id>/send', methods=['POST'])
 @login_required
 @require_permission('billing.send_invoice')
+@require_right('invoice', 'can_send')
 def send_invoice(id):
     """Rechnung senden (Geprueft -> Gesendet)"""
     invoice = Invoice.query.get_or_404(id)
@@ -404,6 +408,7 @@ def send_invoice(id):
 @billing_bp.route('/<int:id>/cancel', methods=['POST'])
 @login_required
 @require_permission('billing.cancel_invoice')
+@require_right('invoice', 'can_cancel')
 def cancel_invoice(id):
     """Rechnung stornieren"""
     invoice = Invoice.query.get_or_404(id)
@@ -426,6 +431,7 @@ def cancel_invoice(id):
 
 @billing_bp.route('/<int:id>/payment', methods=['POST'])
 @login_required
+@require_right('invoice', 'can_edit')
 @require_permission('billing.record_payment')
 def add_payment(id):
     """Zahlung erfassen"""
@@ -559,6 +565,7 @@ def disapprove(id):
 @billing_bp.route('/<int:id>/close', methods=['POST'])
 @login_required
 @require_permission('billing.record_payment')
+@require_right('invoice', 'can_close')
 def close(id):
     """Rechnung abschliessen (Cenplex: CloseInvoice)"""
     invoice = Invoice.query.get_or_404(id)
@@ -1200,6 +1207,7 @@ def toggle_discount_route(id):
 @billing_bp.route('/<int:id>/payment/<int:payment_id>/delete', methods=['POST'])
 @login_required
 @require_permission('billing.record_payment')
+@require_right('invoice', 'can_delete_payment')
 def delete_payment_route(id, payment_id):
     """Zahlung loeschen (Cenplex: DeletePayment)"""
     invoice = Invoice.query.get_or_404(id)

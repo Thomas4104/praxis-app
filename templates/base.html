@@ -119,8 +119,8 @@
                 <span class="nav-label">Patienten</span>
             </a>
 
-            {# === Admin + Therapeut: Behandlung === #}
-            {% if current_user.role in ('admin', 'therapeut') %}
+            {# === Behandlung: nur mit Patienten-Leserecht === #}
+            {% if has_right('patient', 'can_read') and current_user.role in ('admin', 'manager', 'therapist') %}
             <a href="{{ url_for('treatment.index') }}" class="nav-item {% if request.blueprint == 'treatment' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
@@ -139,8 +139,8 @@
                 <span class="nav-badge" id="taskBadge" style="display:none"></span>
             </a>
 
-            {# === Admin + Empfang: Kommunikation === #}
-            {% if current_user.role in ('admin', 'empfang') %}
+            {# === Kommunikation: mit Mailing-Leserecht === #}
+            {% if has_right('mailing', 'can_read') %}
             <a href="{{ url_for('mailing.index') }}" class="nav-item {% if request.blueprint == 'mailing' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
@@ -151,8 +151,8 @@
             </a>
             {% endif %}
 
-            {# === Nur Admin: alle weiteren Module === #}
-            {% if current_user.role == 'admin' %}
+            {# === Mitarbeiter: mit Employee-Leserecht === #}
+            {% if has_right('employee', 'can_read') %}
             <a href="{{ url_for('employees.index') }}" class="nav-item {% if request.blueprint == 'employees' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -160,6 +160,10 @@
                 </svg>
                 <span class="nav-label">Mitarbeiter</span>
             </a>
+            {% endif %}
+
+            {# === Abrechnung: mit Rechnungs-Leserecht === #}
+            {% if has_right('invoice', 'can_read') %}
             <a href="{{ url_for('billing.index') }}" class="nav-item {% if request.blueprint == 'billing' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -167,6 +171,10 @@
                 </svg>
                 <span class="nav-label">Abrechnung</span>
             </a>
+            {% endif %}
+
+            {# === Gutsprachen: mit Kostengutsprache-Leserecht === #}
+            {% if has_right('kostengutsprache', 'can_read') %}
             <a href="{{ url_for('cost_approvals.index') }}" class="nav-item {% if request.blueprint == 'cost_approvals' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -176,6 +184,10 @@
                 </svg>
                 <span class="nav-label">Gutsprachen</span>
             </a>
+            {% endif %}
+
+            {# === Finanzen: nur Admin/Manager === #}
+            {% if current_user.role in ('admin', 'manager') %}
             <a href="{{ url_for('accounting.index') }}" class="nav-item {% if request.blueprint == 'accounting' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -183,6 +195,10 @@
                 </svg>
                 <span class="nav-label">Finanzen</span>
             </a>
+            {% endif %}
+
+            {# === HR: mit Employee-Bearbeitungsrecht === #}
+            {% if has_right('employee', 'can_edit') %}
             <a href="{{ url_for('hr.index') }}" class="nav-item {% if request.blueprint == 'hr' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -192,6 +208,10 @@
                 </svg>
                 <span class="nav-label">HR</span>
             </a>
+            {% endif %}
+
+            {# === Auswertungen: mit Statistik- oder KPI-Leserecht === #}
+            {% if has_right('statistic', 'can_read') or has_right('kpi', 'can_read') or current_user.role in ('admin', 'manager') %}
             <div class="nav-group {% if request.blueprint == 'reporting' %}open{% endif %}">
                 <a href="{{ url_for('reporting.index') }}" class="nav-item {% if request.blueprint == 'reporting' %}active{% endif %}">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -206,9 +226,11 @@
                     <a href="{{ url_for('reporting.index') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.index' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Berichte</span>
                     </a>
+                    {% if has_right('kpi', 'can_read') or current_user.role in ('admin', 'manager') %}
                     <a href="{{ url_for('reporting.kpis') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.kpis' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Kennzahlen</span>
                     </a>
+                    {% endif %}
                     <a href="{{ url_for('reporting.scorecard') }}" class="nav-item nav-sub-item {% if request.endpoint == 'reporting.scorecard' %}active{% endif %}" style="padding: 6px 0; font-size: 12px;">
                         <span class="nav-label">Scorecard</span>
                     </a>
@@ -221,6 +243,10 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
+
+            {# === Archiv: mit Archiv-Leserecht === #}
+            {% if has_right('archive', 'can_read') %}
             <a href="{{ url_for('archive.index') }}" class="nav-item {% if request.blueprint == 'archive' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="21 8 21 21 3 21 3 8"></polyline>
@@ -229,6 +255,10 @@
                 </svg>
                 <span class="nav-label">Archiv</span>
             </a>
+            {% endif %}
+
+            {# === Produkte: mit Produkt-Leserecht === #}
+            {% if has_right('product', 'can_read') %}
             <a href="{{ url_for('products.index') }}" class="nav-item {% if request.blueprint == 'products' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
@@ -237,6 +267,9 @@
                 </svg>
                 <span class="nav-label">Produkte</span>
             </a>
+            {% endif %}
+            {# === Ressourcen: mit Ressourcen-Leserecht === #}
+            {% if has_right('resource', 'can_read') %}
             <a href="{{ url_for('resources.index') }}" class="nav-item {% if request.blueprint == 'resources' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
@@ -244,6 +277,10 @@
                 </svg>
                 <span class="nav-label">Ressourcen</span>
             </a>
+            {% endif %}
+
+            {# === Fitness: mit Fitness-Leserecht === #}
+            {% if has_right('fitness', 'can_read') %}
             <div class="nav-group {% if request.blueprint == 'fitness' %}open{% endif %}">
                 <a href="{{ url_for('fitness.index') }}" class="nav-item {% if request.blueprint == 'fitness' %}active{% endif %}">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -281,6 +318,10 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
+
+            {# === Adressen: mit Adressen-Leserecht === #}
+            {% if has_right('address', 'can_read') %}
             <a href="{{ url_for('addresses.index') }}" class="nav-item {% if request.blueprint == 'addresses' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 17H2a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1zM6 11V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"></path>
@@ -288,6 +329,10 @@
                 </svg>
                 <span class="nav-label">Adressen</span>
             </a>
+            {% endif %}
+
+            {# === Praxis: mit Praxis-Leserecht === #}
+            {% if has_right('practice', 'can_read') %}
             <a href="{{ url_for('practice.index') }}" class="nav-item {% if request.blueprint == 'practice' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -295,6 +340,10 @@
                 </svg>
                 <span class="nav-label">Praxis</span>
             </a>
+            {% endif %}
+
+            {# === Portal: nur Admin === #}
+            {% if current_user.role == 'admin' %}
             <a href="{{ url_for('portal.admin') }}" class="nav-item {% if request.blueprint == 'portal' and request.endpoint == 'portal.admin' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -305,7 +354,8 @@
 
             <div class="nav-spacer"></div>
 
-            {% if current_user.role == 'admin' %}
+            {# === Einstellungen: mit Einstellungen-Leserecht oder Admin === #}
+            {% if has_right('setting', 'can_read') or current_user.role == 'admin' %}
             <a href="{{ url_for('settings.index') }}" class="nav-item {% if request.blueprint == 'settings' %}active{% endif %}">
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"></circle>

@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from blueprints.practice import practice_bp
 from models import db, Organization, Location, BankAccount, Holiday, TreatmentSeriesTemplate, TaxPointValue, InsuranceProvider, Employee, TreatmentCategory, FindingTemplate
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -14,6 +15,7 @@ from utils.auth import check_org
 
 @practice_bp.route('/')
 @login_required
+@require_right('practice', 'can_read')
 def index():
     """Praxis-Uebersicht mit Tabs"""
     tab = request.args.get('tab', 'base')
@@ -108,6 +110,7 @@ def _tax_points_tab(org):
 
 @practice_bp.route('/base/edit', methods=['POST'])
 @login_required
+@require_right('practice', 'can_edit')
 def edit_base():
     """Basisdaten der Organisation bearbeiten"""
     if current_user.role != 'admin':
@@ -181,6 +184,7 @@ def edit_base():
 
 @practice_bp.route('/locations/new', methods=['GET', 'POST'])
 @login_required
+@require_right('practice', 'can_edit')
 def create_location():
     """Neuen Standort erstellen"""
     if request.method == 'POST':
@@ -499,6 +503,7 @@ def _get_canton_holidays(canton, year):
 
 @practice_bp.route('/bank-accounts/new', methods=['GET', 'POST'])
 @login_required
+@require_right('practice', 'can_edit')
 def create_bank_account():
     """Neues Bankkonto erstellen"""
     if request.method == 'POST':

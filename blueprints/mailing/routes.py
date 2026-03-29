@@ -9,6 +9,7 @@ from models import (db, Email, EmailAttachment, EmailFolder, EmailTemplate,
                      Patient, TreatmentSeries, Invoice, Organization,
                      CostApproval, Appointment, SystemSetting, Employee, Location)
 from utils.auth import check_org, get_org_id
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -17,6 +18,7 @@ from utils.auth import check_org, get_org_id
 
 @mailing_bp.route('/')
 @login_required
+@require_right('mailing', 'can_read')
 def index():
     """E-Mail-Uebersicht mit Ordner-Navigation und E-Mail-Liste"""
     folder = request.args.get('folder', 'inbox')
@@ -155,6 +157,7 @@ def detail(email_id):
 
 @mailing_bp.route('/compose')
 @login_required
+@require_right('mailing', 'can_edit')
 def compose():
     """E-Mail verfassen"""
     org_id = current_user.organization_id
@@ -387,6 +390,7 @@ def sms_index():
 
 @mailing_bp.route('/sms/compose')
 @login_required
+@require_right('mailing', 'can_edit')
 def sms_compose():
     """SMS verfassen"""
     org_id = current_user.organization_id
@@ -433,6 +437,7 @@ def sms_compose():
 
 @mailing_bp.route('/api/sms/send', methods=['POST'])
 @login_required
+@require_right('mailing', 'can_edit')
 def send_sms():
     """SMS senden (Demo-Modus: wird nur protokolliert)"""
     data = request.get_json()
@@ -754,6 +759,7 @@ def delete_account(mapping_id):
 
 @mailing_bp.route('/api/send', methods=['POST'])
 @login_required
+@require_right('mailing', 'can_edit')
 def send_email():
     """E-Mail senden (Demo-Modus: wird nur gespeichert)"""
     data = request.get_json()

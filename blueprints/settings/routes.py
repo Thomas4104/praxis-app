@@ -532,11 +532,17 @@ def tp_copy_save():
 # ============================================================
 
 def _users_category(org):
+    from models import Employee, EmployeeGroup
+    from services.user_rights_service import (
+        get_rights_schema, get_user_rights, RIGHTS_LABELS,
+        KPI_CATEGORIES, STATISTIC_CATEGORIES
+    )
+
     users = User.query.filter_by(
         organization_id=org.id
     ).order_by(User.last_name, User.first_name).all()
 
-    # Berechtigungen laden
+    # Berechtigungen laden (Rollen-Matrix)
     permissions = Permission.query.filter_by(organization_id=org.id).all()
     permissions_matrix = {}
     for p in permissions:
@@ -551,9 +557,27 @@ def _users_category(org):
     actions = ['lesen', 'erstellen', 'bearbeiten', 'loeschen']
     roles = ['admin', 'therapist', 'reception']
 
+    # Mitarbeiter mit ihren effektiven Rechten (fuer feingranulare Rechte-UI)
+    employees = Employee.query.filter_by(
+        organization_id=org.id
+    ).order_by(Employee.last_name, Employee.first_name).all()
+
+    # Benutzergruppen
+    employee_groups = EmployeeGroup.query.filter_by(
+        organization_id=org.id
+    ).order_by(EmployeeGroup.name).all()
+
+    # Rechte-Schema fuer die UI
+    rights_schema = get_rights_schema()
+
     return render_template('settings/index.html', category='users', org=org,
                            users=users, permissions_matrix=permissions_matrix,
-                           modules=modules, actions=actions, roles=roles)
+                           modules=modules, actions=actions, roles=roles,
+                           employees=employees, employee_groups=employee_groups,
+                           rights_schema=rights_schema,
+                           kpi_categories=KPI_CATEGORIES,
+                           statistic_categories=STATISTIC_CATEGORIES,
+                           rights_labels=RIGHTS_LABELS)
 
 
 @settings_bp.route('/users/permissions/save', methods=['POST'])
@@ -1124,114 +1148,77 @@ def appointment_display_save():
 
 @settings_bp.route('/api/user-rights-schema')
 @login_required
+@admin_required
 def api_user_rights_schema():
-    """Benutzerrechte-Schema (Cenplex: 20 Rechte-Klassen)"""
-    schema = {
-        'AddressRights': {
-            'label': 'Adressen',
-            'permissions': ['view', 'edit', 'delete', 'export']
-        },
-        'ArchiveRights': {
-            'label': 'Archiv',
-            'permissions': ['view', 'export']
-        },
-        'CalendarRights': {
-            'label': 'Kalender',
-            'permissions': ['view', 'edit', 'delete', 'manage_blockers', 'manage_waitlist', 'view_all_employees']
-        },
-        'DashboardRights': {
-            'label': 'Dashboard',
-            'permissions': ['view', 'edit_config', 'view_statistics']
-        },
-        'EmployeeRights': {
-            'label': 'Mitarbeiter',
-            'permissions': ['view', 'edit', 'delete', 'manage_schedules', 'manage_vacations', 'manage_capacities']
-        },
-        'FitnessRights': {
-            'label': 'Fitness',
-            'permissions': ['view', 'edit', 'manage_abos', 'manage_visits', 'manage_devices']
-        },
-        'GutspracheRights': {
-            'label': 'Kostengutsprachen',
-            'permissions': ['view', 'create', 'send', 'cancel']
-        },
-        'InvoiceRights': {
-            'label': 'Rechnungen',
-            'permissions': ['view', 'create', 'edit', 'approve', 'send', 'cancel', 'record_payment', 'manage_dunning']
-        },
-        'InvoiceValidationRights': {
-            'label': 'Rechnungsvalidierung',
-            'permissions': ['view', 'validate', 'override']
-        },
-        'KpiRights': {
-            'label': 'KPI/Statistik',
-            'permissions': ['view', 'edit_config', 'export']
-        },
-        'LicenseRights': {
-            'label': 'Lizenzen',
-            'permissions': ['view', 'manage']
-        },
-        'MailingRights': {
-            'label': 'E-Mail/SMS',
-            'permissions': ['view_inbox', 'send', 'manage_templates', 'manage_folders']
-        },
-        'PatientRights': {
-            'label': 'Patienten',
-            'permissions': ['view_list', 'view_detail', 'edit', 'delete', 'merge', 'manage_documents', 'manage_surveys']
-        },
-        'PracticeRights': {
-            'label': 'Praxis',
-            'permissions': ['view', 'edit', 'manage_locations', 'manage_templates', 'manage_bank_accounts']
-        },
-        'ProductRights': {
-            'label': 'Produkte',
-            'permissions': ['view', 'edit', 'delete', 'manage_categories']
-        },
-        'ResourceRights': {
-            'label': 'Ressourcen',
-            'permissions': ['view', 'edit', 'delete', 'manage_bookings']
-        },
-        'SettingRights': {
-            'label': 'Einstellungen',
-            'permissions': ['view', 'edit', 'manage_users', 'manage_system']
-        },
-        'StatisticRights': {
-            'label': 'Auswertungen',
-            'permissions': ['view', 'create', 'delete', 'export']
-        }
-    }
-    return jsonify(schema)
+    """Benutzerrechte-Schema (Cenplex: 18 Rechte-Klassen)"""
+    from services.user_rights_service import get_rights_schema, KPI_CATEGORIES, STATISTIC_CATEGORIES
+    schema = get_rights_schema()
+    return jsonify({
+        'schema': schema,
+        'kpi_categories': KPI_CATEGORIES,
+        'statistic_categories': STATISTIC_CATEGORIES
+    })
 
 
 @settings_bp.route('/api/user-rights/<int:employee_id>')
 @login_required
+@admin_required
 def api_get_user_rights(employee_id):
-    """Benutzerrechte eines Mitarbeiters laden"""
+    """Benutzerrechte eines Mitarbeiters laden (effektive Rechte inkl. Gruppen/Rolle)"""
     from models import Employee
+    from services.user_rights_service import get_user_rights, DEFAULT_RIGHTS
     emp = Employee.query.get_or_404(employee_id)
     if emp.organization_id != current_user.organization_id:
         abort(403)
 
-    rights = {}
+    # Effektive Rechte (Merge aus Rolle + Gruppen + Individuell)
+    effective = get_user_rights(emp)
+
+    # Individuelle Overrides (nur die manuell gesetzten)
+    individual = {}
     if emp.user_rights_json:
         try:
-            rights = json.loads(emp.user_rights_json)
+            individual = json.loads(emp.user_rights_json)
         except (json.JSONDecodeError, TypeError):
             pass
 
-    return jsonify(rights)
+    return jsonify({
+        'effective': effective,
+        'individual': individual,
+        'role': emp.user.role if emp.user else 'therapist'
+    })
 
 
 @settings_bp.route('/api/user-rights/<int:employee_id>', methods=['PUT'])
 @login_required
+@require_permission('settings.edit')
 def api_save_user_rights(employee_id):
     """Benutzerrechte speichern (Cenplex: SaveUserRights)"""
+    from models import Employee
+    from services.user_rights_service import save_user_rights
+    emp = Employee.query.get_or_404(employee_id)
+    if emp.organization_id != current_user.organization_id:
+        abort(403)
+
+    # Admin-Rechte koennen nicht manuell gesetzt werden
+    if emp.user and emp.user.role == 'admin':
+        return jsonify({'error': 'Admin-Rechte koennen nicht geaendert werden'}), 400
+
+    data = request.get_json()
+    save_user_rights(employee_id, data)
+    return jsonify({'success': True})
+
+
+@settings_bp.route('/api/user-rights/<int:employee_id>/reset', methods=['POST'])
+@login_required
+@require_permission('settings.edit')
+def api_reset_user_rights(employee_id):
+    """Benutzerrechte auf Rollen-Default zuruecksetzen"""
     from models import Employee
     emp = Employee.query.get_or_404(employee_id)
     if emp.organization_id != current_user.organization_id:
         abort(403)
 
-    data = request.get_json()
-    emp.user_rights_json = json.dumps(data)
+    emp.user_rights_json = None
     db.session.commit()
     return jsonify({'success': True})

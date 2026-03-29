@@ -18,6 +18,7 @@ from services.bank_import_service import (
     book_import, get_import_history
 )
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -26,6 +27,7 @@ from utils.auth import check_org
 
 @accounting_bp.route('/')
 @login_required
+@require_right('invoice', 'can_read')
 def index():
     """Finanzbuchhaltung-Uebersicht"""
     org_id = current_user.organization_id
@@ -127,6 +129,7 @@ def chart_of_accounts():
 
 @accounting_bp.route('/chart/create', methods=['POST'])
 @login_required
+@require_right('invoice', 'can_edit')
 def create_account():
     """Neues Konto erstellen"""
     org_id = current_user.organization_id
@@ -257,6 +260,7 @@ def journal():
 
 @accounting_bp.route('/journal/create', methods=['GET', 'POST'])
 @login_required
+@require_right('invoice', 'can_edit')
 def create_booking():
     """Neue Buchung erstellen"""
     org_id = current_user.organization_id
@@ -804,6 +808,7 @@ def closing():
 
 @accounting_bp.route('/closing/lock-month', methods=['POST'])
 @login_required
+@require_right('invoice', 'can_edit')
 def lock_month():
     """Monat sperren"""
     org_id = current_user.organization_id

@@ -9,6 +9,7 @@ from models import db, User, Employee, WorkSchedule, Absence, AbsenceQuota, Cert
     Location, Resource, Appointment, Holiday
 from sqlalchemy.orm import joinedload
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -17,6 +18,7 @@ from utils.auth import check_org
 
 @employees_bp.route('/')
 @login_required
+@require_right('employee', 'can_read')
 def index():
     """Mitarbeiteruebersicht mit Suche und Filter"""
     search = request.args.get('search', '').strip()
@@ -75,6 +77,7 @@ def index():
 
 @employees_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_right('employee', 'can_edit')
 def create():
     """Neuen Mitarbeiter erstellen"""
     if request.method == 'POST':
@@ -88,6 +91,7 @@ def create():
 
 @employees_bp.route('/<int:employee_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('employee', 'can_edit')
 def edit(employee_id):
     """Mitarbeiter bearbeiten"""
     employee = Employee.query.get_or_404(employee_id)
@@ -408,6 +412,7 @@ def detail(employee_id):
 
 @employees_bp.route('/<int:employee_id>/toggle', methods=['POST'])
 @login_required
+@require_right('employee', 'can_edit')
 def toggle_active(employee_id):
     """Mitarbeiter aktivieren/deaktivieren"""
     employee = Employee.query.get_or_404(employee_id)
@@ -429,6 +434,7 @@ def toggle_active(employee_id):
 
 @employees_bp.route('/<int:employee_id>/schedules', methods=['GET', 'POST'])
 @login_required
+@require_right('employee', 'can_edit_work_schedule')
 def schedules(employee_id):
     """Arbeitszeiten verwalten"""
     employee = Employee.query.get_or_404(employee_id)
@@ -529,6 +535,7 @@ def absences(employee_id):
 
 @employees_bp.route('/<int:employee_id>/absences/new', methods=['GET', 'POST'])
 @login_required
+@require_right('employee', 'can_add_vacation')
 def create_absence(employee_id):
     """Neue Absenz erstellen"""
     employee = Employee.query.get_or_404(employee_id)
@@ -723,6 +730,7 @@ def delete_certificate(cert_id):
 
 @employees_bp.route('/calendar')
 @login_required
+@require_right('employee', 'can_access_vacation_plan')
 def absence_calendar():
     """Urlaubskalender: Monatsansicht aller Mitarbeiter"""
     year = request.args.get('year', date.today().year, type=int)
@@ -1207,6 +1215,7 @@ def save_employee_group():
 
 @employees_bp.route('/vacation-allotments')
 @login_required
+@require_right('employee', 'can_edit_vacation_allotment_settings')
 def vacation_allotments_page():
     """Ferienkontingente-Verwaltung (HTML-Seite)"""
     from models import VacationAllotment
@@ -1323,6 +1332,7 @@ def overtime_page():
 
 @employees_bp.route('/groups')
 @login_required
+@require_right('employee', 'can_edit_user_groups')
 def employee_groups_page():
     """Benutzergruppen-Verwaltung (HTML-Seite)"""
     from models import EmployeeGroup, EmployeeGroupMember
@@ -1410,6 +1420,7 @@ def delete_employee_group_page(group_id):
 
 @employees_bp.route('/room-planning')
 @login_required
+@require_right('employee', 'can_edit_room_plan')
 def room_planning():
     """Raumplanung: Wochenansicht der Raumbelegung"""
     org_id = current_user.organization_id
@@ -1472,4 +1483,19 @@ def delete_employee_group(group_id):
     EmployeeGroupMember.query.filter_by(group_id=group.id).delete()
     db.session.delete(group)
     db.session.commit()
+    return jsonify({'success': True})
+
+
+@employees_bp.route('/api/groups/<int:group_id>/rights', methods=['PUT'])
+@login_required
+def save_group_rights(group_id):
+    """Gruppen-Berechtigungen speichern (Cenplex: SaveGroupRights)"""
+    from models import EmployeeGroup
+    from services.user_rights_service import save_group_rights as _save
+    group = EmployeeGroup.query.get_or_404(group_id)
+    if group.organization_id != current_user.organization_id:
+        return jsonify({'error': 'Nicht erlaubt'}), 403
+
+    data = request.get_json()
+    _save(group_id, data)
     return jsonify({'success': True})

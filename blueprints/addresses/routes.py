@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from blueprints.addresses import addresses_bp
 from models import db, InsuranceProvider, Doctor, Contact, Patient, TreatmentSeries
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -76,6 +77,7 @@ KANTONE = [
 
 @addresses_bp.route('/')
 @login_required
+@require_right('address', 'can_read')
 def index():
     """Adressuebersicht mit Tabs"""
     tab = request.args.get('tab', 'insurances')
@@ -218,6 +220,7 @@ def index():
 
 @addresses_bp.route('/insurances/new', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def create_insurance():
     """Neue Versicherung erstellen"""
     if request.method == 'POST':
@@ -228,6 +231,7 @@ def create_insurance():
 
 @addresses_bp.route('/insurances/<int:insurance_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def edit_insurance(insurance_id):
     """Versicherung bearbeiten"""
     insurance = InsuranceProvider.query.get_or_404(insurance_id)
@@ -328,6 +332,7 @@ def _save_insurance(insurance):
 
 @addresses_bp.route('/insurances/<int:insurance_id>/toggle', methods=['POST'])
 @login_required
+@require_right('address', 'can_edit')
 def toggle_insurance(insurance_id):
     """Versicherung aktivieren/deaktivieren"""
     insurance = InsuranceProvider.query.get_or_404(insurance_id)
@@ -344,6 +349,7 @@ def toggle_insurance(insurance_id):
 
 @addresses_bp.route('/doctors/new', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def create_doctor():
     """Neuen Arzt erstellen"""
     if request.method == 'POST':
@@ -353,6 +359,7 @@ def create_doctor():
 
 @addresses_bp.route('/doctors/<int:doctor_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def edit_doctor(doctor_id):
     """Arzt bearbeiten"""
     doctor = Doctor.query.get_or_404(doctor_id)
@@ -473,6 +480,7 @@ def _save_doctor(doctor):
 
 @addresses_bp.route('/doctors/<int:doctor_id>/toggle', methods=['POST'])
 @login_required
+@require_right('address', 'can_edit')
 def toggle_doctor(doctor_id):
     """Arzt aktivieren/deaktivieren"""
     doctor = Doctor.query.get_or_404(doctor_id)
@@ -489,6 +497,7 @@ def toggle_doctor(doctor_id):
 
 @addresses_bp.route('/contacts/new', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def create_contact():
     """Neuen Kontakt erstellen"""
     contact_type = request.args.get('type', 0, type=int)
@@ -504,6 +513,7 @@ def create_contact():
 
 @addresses_bp.route('/contacts/<int:contact_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('address', 'can_edit')
 def edit_contact(contact_id):
     """Kontakt bearbeiten"""
     contact = Contact.query.get_or_404(contact_id)
@@ -645,6 +655,7 @@ def _save_contact(contact):
 
 @addresses_bp.route('/contacts/<int:contact_id>/toggle', methods=['POST'])
 @login_required
+@require_right('address', 'can_edit')
 def toggle_contact(contact_id):
     """Kontakt aktivieren/deaktivieren"""
     contact = Contact.query.get_or_404(contact_id)

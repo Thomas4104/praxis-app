@@ -8,6 +8,7 @@ from models import (db, SubscriptionTemplate, Subscription, FitnessVisit, Patien
                     Invoice, InvoiceItem, SubscriptionBreak, FitnessConfig, FitnessAutomation,
                     GantnerTrace, AboAction, AboPosition, Employee)
 from sqlalchemy import func, or_, and_
+from services.user_rights_service import require_right
 
 
 def _add_months(source_date, months):
@@ -42,6 +43,7 @@ def _log_abo_action(subscription_id, action_type, content=''):
 
 @fitness_bp.route('/')
 @login_required
+@require_right('fitness', 'can_read')
 def index():
     """Fitness-Dashboard mit Kennzahlen"""
     org_id = current_user.organization_id
@@ -234,6 +236,7 @@ def template_delete(template_id):
 
 @fitness_bp.route('/subscriptions')
 @login_required
+@require_right('fitness', 'can_read')
 def subscriptions():
     """Liste aller Abonnemente"""
     org_id = current_user.organization_id
@@ -281,6 +284,7 @@ def subscriptions():
 
 @fitness_bp.route('/subscriptions/new', methods=['GET', 'POST'])
 @login_required
+@require_right('fitness', 'can_edit')
 def subscription_new():
     """Neues Abo erstellen"""
     org_id = current_user.organization_id
@@ -408,6 +412,7 @@ def subscription_detail(sub_id):
 
 @fitness_bp.route('/subscriptions/<int:sub_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('fitness', 'can_change_abo')
 def subscription_edit(sub_id):
     """Abo bearbeiten"""
     org_id = current_user.organization_id
@@ -508,6 +513,7 @@ def subscription_resume(sub_id):
 
 @fitness_bp.route('/subscriptions/<int:sub_id>/cancel', methods=['POST'])
 @login_required
+@require_right('fitness', 'can_change_abo')
 def subscription_cancel(sub_id):
     """Abo kuendigen"""
     org_id = current_user.organization_id
@@ -611,6 +617,7 @@ def subscription_create_invoice(sub_id):
 
 @fitness_bp.route('/subscriptions/<int:sub_id>/delete', methods=['POST'])
 @login_required
+@require_right('fitness', 'can_delete_abo')
 def subscription_delete(sub_id):
     """Abo loeschen (soft delete)"""
     org_id = current_user.organization_id

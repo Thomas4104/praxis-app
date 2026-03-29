@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from blueprints.resources import resources_bp
 from models import db, Resource, ResourceBooking, MaintenanceRecord, Location, Appointment, Employee, User
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # Erlaubte Bild-Dateitypen
@@ -19,6 +20,7 @@ def _allowed_file(filename):
 
 @resources_bp.route('/')
 @login_required
+@require_right('resource', 'can_read')
 def index():
     """Ressourcenuebersicht mit Tabs, Suche, Gruppierung"""
     tab = request.args.get('tab', 'rooms')
@@ -103,6 +105,7 @@ def index():
 
 @resources_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_right('resource', 'can_edit')
 def create():
     """Neue Ressource erstellen"""
     if request.method == 'POST':
@@ -248,6 +251,7 @@ def detail(resource_id):
 
 @resources_bp.route('/<int:resource_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('resource', 'can_edit')
 def edit(resource_id):
     """Ressource bearbeiten"""
     resource = Resource.query.get_or_404(resource_id)
@@ -277,6 +281,7 @@ def edit(resource_id):
 
 @resources_bp.route('/<int:resource_id>/toggle', methods=['POST'])
 @login_required
+@require_right('resource', 'can_edit')
 def toggle_active(resource_id):
     """Ressource aktivieren/deaktivieren (wie Cenplex ToggleResourceState)"""
     resource = Resource.query.get_or_404(resource_id)

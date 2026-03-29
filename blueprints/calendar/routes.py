@@ -10,6 +10,7 @@ from models import db, Appointment, Employee, Patient, Location, Resource, \
 from blueprints.calendar import calendar_bp
 from services.settings_service import get_setting
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # ============================================================
@@ -18,6 +19,7 @@ from utils.auth import check_org
 
 @calendar_bp.route('/')
 @login_required
+@require_right('calendar', 'can_read')
 def index():
     """Tagesansicht (Standard-Kalenderansicht)"""
     date_str = request.args.get('date')
@@ -76,6 +78,7 @@ def index():
 
 @calendar_bp.route('/week')
 @login_required
+@require_right('calendar', 'can_read')
 def week():
     """Wochenansicht fuer einen Therapeuten"""
     date_str = request.args.get('date')
@@ -126,6 +129,7 @@ def week():
 
 @calendar_bp.route('/month')
 @login_required
+@require_right('calendar', 'can_read')
 def month():
     """Monatsansicht"""
     date_str = request.args.get('date')
@@ -308,6 +312,7 @@ def api_get_appointments():
 
 @calendar_bp.route('/api/appointments', methods=['POST'])
 @login_required
+@require_right('calendar', 'can_edit')
 def api_create_appointment():
     """Neuen Termin erstellen"""
     data = request.get_json()
@@ -404,6 +409,7 @@ def api_create_appointment():
 
 @calendar_bp.route('/api/appointments/<int:appointment_id>', methods=['PUT'])
 @login_required
+@require_right('calendar', 'can_edit')
 def api_update_appointment(appointment_id):
     """Termin aktualisieren"""
     appointment = Appointment.query.get_or_404(appointment_id)
@@ -458,6 +464,7 @@ def api_update_appointment(appointment_id):
 
 @calendar_bp.route('/api/appointments/<int:appointment_id>/move', methods=['PUT'])
 @login_required
+@require_right('calendar', 'can_edit')
 def api_move_appointment(appointment_id):
     """Termin verschieben (Drag & Drop)"""
     appointment = Appointment.query.get_or_404(appointment_id)
@@ -537,10 +544,12 @@ def api_update_status(appointment_id):
 
 @calendar_bp.route('/api/appointments/<int:appointment_id>', methods=['DELETE'])
 @login_required
+@require_right('calendar', 'can_edit')
 def api_delete_appointment(appointment_id):
-    """Termin loeschen (nur Admin)"""
-    if current_user.role != 'admin':
-        return jsonify({'error': 'Nur Administratoren dürfen Termine löschen.'}), 403
+    """Termin loeschen (Cenplex: CalendarRights)"""
+    from services.user_rights_service import has_right
+    if not has_right('calendar', 'can_delete_appointment_series'):
+        return jsonify({'error': 'Keine Berechtigung zum Loeschen von Terminen.'}), 403
 
     appointment = Appointment.query.get_or_404(appointment_id)
     # IDOR-Schutz

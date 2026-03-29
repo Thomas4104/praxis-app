@@ -43,20 +43,20 @@ Rechnung {{ invoice.invoice_number }}
 {% endblock %}
 
 {% block page_actions %}
-{% if invoice.status == 'draft' %}
+{% if invoice.status == 'draft' and has_right('invoice', 'can_edit') %}
     <form method="POST" action="{{ url_for('billing.check_invoice', id=invoice.id) }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-primary">Prüfen</button>
     </form>
 {% endif %}
-{% if invoice.status in ('draft', 'checked') %}
+{% if invoice.status in ('draft', 'checked') and has_right('invoice', 'can_send') %}
     <form method="POST" action="{{ url_for('billing.send_invoice', id=invoice.id) }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="send_via" value="print">
         <button type="submit" class="btn btn-primary">Senden</button>
     </form>
 {% endif %}
-{% if invoice.status not in ('paid', 'cancelled') %}
+{% if invoice.status not in ('paid', 'cancelled') and has_right('invoice', 'can_edit') %}
     <button type="button" class="btn btn-secondary" onclick="document.getElementById('paymentModal').style.display='flex'">Zahlung erfassen</button>
 {% endif %}
 {% if invoice.status in ('sent', 'overdue', 'partially_paid') and invoice.amount_open > 0 and not invoice.reminder_stop %}
@@ -89,7 +89,7 @@ Rechnung {{ invoice.invoice_number }}
 {% if invoice.status in ('sent', 'paid', 'overdue', 'partially_paid') and invoice.invoice_type != 2 %}
     <button type="button" class="btn btn-ghost" onclick="document.getElementById('creditNoteModal').style.display='flex'">Gutschrift</button>
 {% endif %}
-{% if invoice.status != 'cancelled' %}
+{% if invoice.status != 'cancelled' and has_right('invoice', 'can_cancel') %}
     <form method="POST" action="{{ url_for('billing.cancel_invoice', id=invoice.id) }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-ghost" style="color:#e74c3c;" onclick="return confirm('Rechnung wirklich stornieren?')">Stornieren</button>
@@ -262,7 +262,7 @@ Rechnung {{ invoice.invoice_number }}
                             <td>{{ p.reference or '-' }}</td>
                             <td>{{ p.notes or '-' }}</td>
                             <td>
-                                {% if invoice.status not in ('cancelled',) %}
+                                {% if invoice.status not in ('cancelled',) and has_right('invoice', 'can_delete_payment') %}
                                 <form method="POST" action="{{ url_for('billing.delete_payment_route', id=invoice.id, payment_id=p.id) }}" style="display:inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-ghost" style="padding:2px 6px;font-size:12px;color:#e74c3c;" onclick="return confirm('Zahlung von CHF {{ '%.2f'|format(p.amount) }} wirklich stornieren?')">×</button>

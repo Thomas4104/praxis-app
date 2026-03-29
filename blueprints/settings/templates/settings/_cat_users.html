@@ -25,8 +25,10 @@
                     <td>
                         <span class="badge badge-{{ user.role }}">
                             {% if user.role == 'admin' %}Administrator
+                            {% elif user.role == 'manager' %}Praxisleitung
                             {% elif user.role == 'therapist' %}Therapeut
                             {% elif user.role == 'reception' %}Empfang
+                            {% elif user.role == 'billing' %}Abrechnung
                             {% else %}{{ user.role }}{% endif %}
                         </span>
                     </td>
@@ -45,6 +47,15 @@
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                         </a>
+                        {% if user.role != 'admin' %}
+                        <button type="button" class="btn btn-sm btn-ghost" title="Benutzerrechte"
+                                onclick="openUserRightsModal({{ user.employee.id }}, '{{ user.first_name }} {{ user.last_name }}', '{{ user.role }}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </button>
+                        {% endif %}
                         {% endif %}
                     </td>
                 </tr>
@@ -54,10 +65,59 @@
     </div>
 </div>
 
+<!-- Benutzergruppen -->
+<div class="card" style="margin-top: var(--spacing-lg);">
+    <div class="card-header d-flex justify-between align-center">
+        <h2>Benutzergruppen</h2>
+        <button type="button" class="btn btn-sm btn-primary" onclick="openGroupModal()">
+            + Neue Gruppe
+        </button>
+    </div>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Beschreibung</th>
+                    <th>Mitglieder</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if employee_groups %}
+                {% for group in employee_groups %}
+                <tr>
+                    <td><strong>{{ group.title }}</strong></td>
+                    <td>{{ group.description or '-' }}</td>
+                    <td>{{ group.members|length if group.members else 0 }}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-ghost" title="Gruppenrechte bearbeiten"
+                                onclick="openGroupRightsModal({{ group.id }}, '{{ group.title }}')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">Keine Benutzergruppen vorhanden</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- Rollen-Berechtigungen -->
 <div class="card" style="margin-top: var(--spacing-lg);">
     <div class="card-header">
         <h2>Rollen-Berechtigungen</h2>
+        <p class="text-muted" style="margin-top: 4px; font-size: 0.85rem;">
+            Grundlegende Modul-Berechtigungen pro Rolle. Feingranulare Rechte werden pro Mitarbeiter konfiguriert.
+        </p>
     </div>
     <form method="POST" action="{{ url_for('settings.save_permissions') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -120,10 +180,532 @@
             <span><strong>L</strong> = Lesen</span>
             <span><strong>E</strong> = Erstellen</span>
             <span><strong>B</strong> = Bearbeiten</span>
-            <span><strong>D</strong> = Löschen</span>
+            <span><strong>D</strong> = Loeschen</span>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Berechtigungen speichern</button>
         </div>
     </form>
 </div>
+
+<!-- Modal: Feingranulare Benutzerrechte -->
+<div id="userRightsModal" class="modal" style="display:none;">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3 id="userRightsTitle">Benutzerrechte</h3>
+            <button type="button" class="modal-close" onclick="closeUserRightsModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="rights-info" style="margin-bottom: var(--spacing-md); padding: 12px; background: var(--bg-light); border-radius: 8px;">
+                <span id="rightsEmployeeRole" class="badge" style="margin-right: 8px;"></span>
+                <span class="text-muted" style="font-size: 0.85rem;">
+                    Individuelle Rechte ueberschreiben die Rollen-Defaults. Nicht gesetzte Rechte werden von der Rolle/Gruppe geerbt.
+                </span>
+            </div>
+
+            <div class="rights-actions" style="margin-bottom: var(--spacing-md); display: flex; gap: 8px;">
+                <button type="button" class="btn btn-sm btn-ghost" onclick="resetUserRights()" title="Auf Rollen-Default zuruecksetzen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"></polyline>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                    </svg>
+                    Zuruecksetzen
+                </button>
+            </div>
+
+            <div id="rightsContainer" class="rights-sections">
+                <!-- Wird per JavaScript gefuellt -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeUserRightsModal()">Abbrechen</button>
+            <button type="button" class="btn btn-primary" onclick="saveUserRights()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Benutzerrechte-Modal */
+.modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background: var(--bg-primary, #fff);
+    border-radius: 12px;
+    max-width: 600px;
+    width: 95%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.modal-content.modal-lg {
+    max-width: 800px;
+}
+.modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.modal-header h3 { margin: 0; }
+.modal-close {
+    background: none; border: none; font-size: 24px; cursor: pointer;
+    color: var(--text-secondary); padding: 0; line-height: 1;
+}
+.modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Rechte-Sektionen */
+.rights-section {
+    margin-bottom: var(--spacing-md, 16px);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.rights-section-header {
+    padding: 10px 16px;
+    background: var(--bg-light, #f7fafc);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+.rights-section-header:hover {
+    background: var(--bg-hover, #edf2f7);
+}
+.rights-section-header .toggle-icon {
+    transition: transform 0.2s;
+    font-size: 12px;
+}
+.rights-section-header.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+.rights-section-body {
+    padding: 12px 16px;
+}
+.rights-section-body.collapsed {
+    display: none;
+}
+.right-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-light, #f0f0f0);
+}
+.right-row:last-child {
+    border-bottom: none;
+}
+.right-label {
+    font-size: 0.9rem;
+}
+.right-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/* Toggle-Switch */
+.toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--border-color, #cbd5e0);
+    border-radius: 22px;
+    transition: 0.2s;
+}
+.toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--primary, #3b82f6);
+}
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(18px);
+}
+/* Inherited-Indikator */
+.right-inherited {
+    font-size: 0.75rem;
+    color: var(--text-muted, #a0aec0);
+    font-style: italic;
+}
+.d-flex { display: flex; }
+.justify-between { justify-content: space-between; }
+.align-center { align-items: center; }
+</style>
+
+<script>
+// Rechte-Schema (aus Backend)
+const RIGHTS_SCHEMA = {{ rights_schema|tojson }};
+const KPI_CATEGORIES = {{ kpi_categories|tojson }};
+const STATISTIC_CATEGORIES = {{ statistic_categories|tojson }};
+
+let currentEmployeeId = null;
+let currentRights = {};
+let effectiveRights = {};
+
+function openUserRightsModal(employeeId, name, role) {
+    currentEmployeeId = employeeId;
+    document.getElementById('userRightsTitle').textContent = 'Benutzerrechte: ' + name;
+
+    const roleLabels = {
+        'admin': 'Administrator', 'manager': 'Praxisleitung',
+        'therapist': 'Therapeut', 'reception': 'Empfang', 'billing': 'Abrechnung'
+    };
+    const roleEl = document.getElementById('rightsEmployeeRole');
+    roleEl.textContent = roleLabels[role] || role;
+    roleEl.className = 'badge badge-' + role;
+
+    // Rechte vom Server laden
+    fetchWithCSRF('/settings/api/user-rights/' + employeeId)
+        .then(r => r.json())
+        .then(data => {
+            effectiveRights = data.effective || {};
+            currentRights = data.individual || {};
+            renderRightsForm();
+            document.getElementById('userRightsModal').style.display = 'flex';
+        })
+        .catch(err => {
+            console.error('Fehler beim Laden der Rechte:', err);
+            alert('Fehler beim Laden der Benutzerrechte.');
+        });
+}
+
+function closeUserRightsModal() {
+    document.getElementById('userRightsModal').style.display = 'none';
+    currentEmployeeId = null;
+}
+
+function renderRightsForm() {
+    const container = document.getElementById('rightsContainer');
+    container.innerHTML = '';
+
+    // Sektionen in logischer Reihenfolge
+    const sectionOrder = [
+        'calendar', 'patient', 'invoice', 'employee', 'dashboard',
+        'address', 'product', 'resource', 'fitness', 'mailing',
+        'practice', 'setting', 'kostengutsprache', 'archive',
+        'invoice_validation', 'kpi', 'statistic', 'license'
+    ];
+
+    for (const section of sectionOrder) {
+        const schema = RIGHTS_SCHEMA[section];
+        if (!schema) continue;
+
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'rights-section';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'rights-section-header';
+        header.innerHTML = `<span>${schema.label}</span><span class="toggle-icon">&#9660;</span>`;
+        header.onclick = function() {
+            this.classList.toggle('collapsed');
+            this.nextElementSibling.classList.toggle('collapsed');
+        };
+        sectionDiv.appendChild(header);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'rights-section-body';
+
+        for (const perm of schema.permissions) {
+            if (perm.type === 'categories') {
+                // Kategorie-Auswahl (KPI/Statistik)
+                const categories = section === 'kpi' ? KPI_CATEGORIES :
+                                   section === 'statistic' ? STATISTIC_CATEGORIES : {};
+                body.appendChild(renderCategoryRow(section, perm, categories));
+            } else {
+                body.appendChild(renderBooleanRow(section, perm));
+            }
+        }
+
+        sectionDiv.appendChild(body);
+        container.appendChild(sectionDiv);
+    }
+}
+
+function renderBooleanRow(section, perm) {
+    const row = document.createElement('div');
+    row.className = 'right-row';
+
+    // Effektiver Wert (Rolle + Gruppen + Individuell)
+    const effectiveVal = getNestedValue(effectiveRights, section, perm.key);
+    // Individueller Override
+    const individualVal = getNestedValue(currentRights, section, perm.key);
+    const hasOverride = individualVal !== undefined;
+
+    const labelSpan = document.createElement('div');
+    labelSpan.className = 'right-label';
+    labelSpan.textContent = perm.label;
+    if (!hasOverride) {
+        const inherited = document.createElement('span');
+        inherited.className = 'right-inherited';
+        inherited.textContent = ' (geerbt)';
+        labelSpan.appendChild(inherited);
+    }
+
+    const control = document.createElement('div');
+    control.className = 'right-control';
+
+    const toggle = document.createElement('label');
+    toggle.className = 'toggle-switch';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = hasOverride ? !!individualVal : !!effectiveVal;
+    input.dataset.section = section;
+    input.dataset.perm = perm.key;
+    input.onchange = function() {
+        setRightValue(section, perm.key, this.checked);
+        // Cenplex-Logik: can_read=false deaktiviert alle anderen
+        if (perm.key === 'can_read' && !this.checked) {
+            disableSectionPerms(section);
+        }
+    };
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    toggle.appendChild(input);
+    toggle.appendChild(slider);
+    control.appendChild(toggle);
+
+    row.appendChild(labelSpan);
+    row.appendChild(control);
+    return row;
+}
+
+function renderCategoryRow(section, perm, categories) {
+    const wrapper = document.createElement('div');
+    wrapper.style.padding = '6px 0';
+
+    const label = document.createElement('div');
+    label.className = 'right-label';
+    label.textContent = perm.label;
+    label.style.marginBottom = '6px';
+    wrapper.appendChild(label);
+
+    const currentCategories = getNestedValue(currentRights, section, perm.key) ||
+                              getNestedValue(effectiveRights, section, perm.key) || [];
+    const isAll = currentCategories.length === 1 && currentCategories[0] === '*';
+
+    for (const [catKey, catLabel] of Object.entries(categories)) {
+        const catRow = document.createElement('div');
+        catRow.style.cssText = 'display:flex; align-items:center; gap:8px; padding:3px 0 3px 16px;';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = isAll || currentCategories.includes(catKey);
+        cb.dataset.section = section;
+        cb.dataset.perm = perm.key;
+        cb.dataset.category = catKey;
+        cb.onchange = function() { updateCategoryValue(section, perm.key); };
+
+        const cbLabel = document.createElement('label');
+        cbLabel.textContent = catLabel;
+        cbLabel.style.fontSize = '0.85rem';
+
+        catRow.appendChild(cb);
+        catRow.appendChild(cbLabel);
+        wrapper.appendChild(catRow);
+    }
+
+    return wrapper;
+}
+
+function getNestedValue(obj, section, key) {
+    if (!obj || !obj[section]) return undefined;
+    return obj[section][key];
+}
+
+function setRightValue(section, key, value) {
+    if (!currentRights[section]) currentRights[section] = {};
+    currentRights[section][key] = value;
+}
+
+function updateCategoryValue(section, key) {
+    const checkboxes = document.querySelectorAll(
+        `input[data-section="${section}"][data-perm="${key}"]`
+    );
+    const selected = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked && cb.dataset.category) {
+            selected.push(cb.dataset.category);
+        }
+    });
+    setRightValue(section, key, selected);
+}
+
+function disableSectionPerms(section) {
+    // Cenplex-Regel: can_read=false -> alle anderen auch false
+    const inputs = document.querySelectorAll(
+        `input[data-section="${section}"]`
+    );
+    inputs.forEach(input => {
+        if (input.dataset.perm !== 'can_read') {
+            input.checked = false;
+            setRightValue(section, input.dataset.perm, false);
+        }
+    });
+}
+
+function saveUserRights() {
+    if (!currentEmployeeId) return;
+
+    fetchWithCSRF('/settings/api/user-rights/' + currentEmployeeId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(currentRights)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            closeUserRightsModal();
+            showToast('Benutzerrechte gespeichert', 'success');
+        } else {
+            alert(data.error || 'Fehler beim Speichern');
+        }
+    })
+    .catch(err => {
+        console.error('Fehler:', err);
+        alert('Fehler beim Speichern der Benutzerrechte.');
+    });
+}
+
+function resetUserRights() {
+    if (!currentEmployeeId) return;
+    if (!confirm('Individuelle Rechte zuruecksetzen? Der Mitarbeiter erhaelt dann die Rollen-Defaults.')) return;
+
+    fetchWithCSRF('/settings/api/user-rights/' + currentEmployeeId + '/reset', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            closeUserRightsModal();
+            showToast('Rechte auf Rollen-Default zurueckgesetzt', 'success');
+        }
+    })
+    .catch(err => {
+        console.error('Fehler:', err);
+    });
+}
+
+function openGroupRightsModal(groupId, name) {
+    // Gruppen-Rechte nutzen das gleiche Modal
+    currentEmployeeId = null;
+    document.getElementById('userRightsTitle').textContent = 'Gruppenrechte: ' + name;
+    document.getElementById('rightsEmployeeRole').textContent = 'Gruppe';
+    document.getElementById('rightsEmployeeRole').className = 'badge';
+
+    fetchWithCSRF('/settings/api/user-rights-schema')
+        .then(r => r.json())
+        .then(data => {
+            effectiveRights = {};
+            currentRights = {};
+            renderRightsForm();
+            document.getElementById('userRightsModal').style.display = 'flex';
+
+            // Save-Funktion ueberschreiben fuer Gruppen
+            const saveBtn = document.querySelector('#userRightsModal .modal-footer .btn-primary');
+            saveBtn.onclick = function() {
+                fetchWithCSRF('/employees/api/groups/' + groupId + '/rights', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(currentRights)
+                })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        closeUserRightsModal();
+                        showToast('Gruppenrechte gespeichert', 'success');
+                    }
+                });
+            };
+        });
+}
+
+function openGroupModal() {
+    // Einfacher Dialog fuer neue Gruppe
+    const name = prompt('Name der neuen Benutzergruppe:');
+    if (!name || !name.trim()) return;
+
+    fetchWithCSRF('/employees/api/groups', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: name.trim()})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Fehler');
+        }
+    });
+}
+
+// Toast-Funktion (falls nicht vorhanden)
+function showToast(message, type) {
+    if (window.showToast && window.showToast !== showToast) {
+        window.showToast(message, type);
+        return;
+    }
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:white;z-index:9999;font-size:0.9rem;' +
+        (type === 'success' ? 'background:#48bb78;' : 'background:#f56565;');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// fetchWithCSRF Fallback
+if (typeof fetchWithCSRF === 'undefined') {
+    function fetchWithCSRF(url, options) {
+        options = options || {};
+        options.credentials = 'same-origin';
+        if (!options.headers) options.headers = {};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (csrfToken) {
+            options.headers['X-CSRFToken'] = csrfToken.content;
+        }
+        return fetch(url, options);
+    }
+}
+</script>

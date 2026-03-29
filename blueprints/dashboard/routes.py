@@ -10,6 +10,7 @@ from ai.coordinator import Coordinator
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, selectinload
 from utils.auth import check_org
+from services.user_rights_service import require_right
 from app import limiter
 
 
@@ -226,6 +227,7 @@ def dashboard_aufgaben():
 
 @dashboard_bp.route('/api/dashboard/umsatz', methods=['GET'])
 @login_required
+@require_right('kpi', 'can_read')
 def dashboard_umsatz():
     """Umsatzuebersicht: aktueller Monat + 6-Monate-Verlauf"""
     org_id = current_user.organization_id
@@ -527,6 +529,7 @@ def dashboard_patientenverlauf():
 
 @dashboard_bp.route('/api/dashboard/offene-rechnungen', methods=['GET'])
 @login_required
+@require_right('invoice', 'can_read')
 def dashboard_offene_rechnungen():
     """Offene und ueberfaellige Rechnungen"""
     org_id = current_user.organization_id

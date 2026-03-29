@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from blueprints.products import products_bp
 from models import db, Product, ProductPriceHistory, ProductTag, Contact, BankAccount
 from utils.auth import check_org
+from services.user_rights_service import require_right
 
 
 # Cenplex Produkt-Kategorien (ProductCategory Enum)
@@ -46,6 +47,7 @@ ERGO_TAXPOINTS = [
 
 @products_bp.route('/')
 @login_required
+@require_right('product', 'can_read')
 def index():
     """Produktuebersicht mit Suche, Filter und Sortierung"""
     search = request.args.get('search', '').strip()
@@ -131,6 +133,7 @@ def index():
 
 @products_bp.route('/new', methods=['GET', 'POST'])
 @login_required
+@require_right('product', 'can_edit')
 def create():
     """Neues Produkt erstellen"""
     if request.method == 'POST':
@@ -184,6 +187,7 @@ def detail(product_id):
 
 @products_bp.route('/<int:product_id>/edit', methods=['GET', 'POST'])
 @login_required
+@require_right('product', 'can_edit')
 def edit(product_id):
     """Produkt bearbeiten"""
     product = Product.query.get_or_404(product_id)
@@ -212,6 +216,7 @@ def edit(product_id):
 
 @products_bp.route('/<int:product_id>/toggle', methods=['POST'])
 @login_required
+@require_right('product', 'can_edit')
 def toggle_active(product_id):
     """Produkt aktivieren/deaktivieren (Cenplex: ActivateProduct/DeactivateProduct)"""
     product = Product.query.get_or_404(product_id)
