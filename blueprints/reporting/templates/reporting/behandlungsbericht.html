@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Behandlungsbericht{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.ausdrucke') }}">Ausdrucke</a>
+<span class="breadcrumb-separator">/</span>
+<span>Behandlungsbericht</span>
+{% endblock %}
+
+{% block page_title %}Behandlungsbericht{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    {% if series %}
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    {% endif %}
+    <a href="{{ url_for('reporting.ausdrucke') }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-select {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+    display: flex; gap: 16px; align-items: end; flex-wrap: wrap;
+}
+.report-select .form-group { margin: 0; min-width: 300px; }
+.report-select label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.report-select select {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+}
+
+/* Behandlungsbericht */
+.treatment-report {
+    background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 40px; max-width: 800px; margin: 0 auto;
+}
+.tr-header {
+    display: flex; justify-content: space-between; margin-bottom: 24px;
+    padding-bottom: 16px; border-bottom: 2px solid #1e293b;
+}
+.tr-practice { font-size: 13px; }
+.tr-practice .name { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.tr-practice .details { color: #64748b; line-height: 1.6; }
+.tr-meta { text-align: right; font-size: 13px; color: #64748b; }
+
+.tr-title {
+    font-size: 20px; font-weight: 700; color: #1e293b;
+    text-align: center; margin: 24px 0 20px;
+    padding: 12px; background: #f0f7ff; border-radius: 6px;
+}
+
+.tr-section { margin-bottom: 24px; page-break-inside: avoid; }
+.tr-section h3 {
+    font-size: 14px; font-weight: 600; color: #1e293b;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px;
+}
+.tr-field { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.tr-field .label { font-weight: 600; color: #475569; min-width: 160px; flex-shrink: 0; }
+.tr-field .value { color: #1e293b; }
+
+.tr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tr-table th {
+    text-align: left; padding: 8px 10px; background: #f8fafc;
+    font-weight: 600; font-size: 11px; color: #64748b; border-bottom: 1px solid #e2e8f0;
+}
+.tr-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+
+/* Verlauf-Timeline */
+.tr-timeline { position: relative; padding-left: 20px; }
+.tr-timeline::before {
+    content: ''; position: absolute; left: 6px; top: 0; bottom: 0;
+    width: 2px; background: #e2e8f0;
+}
+.tr-timeline-item {
+    position: relative; margin-bottom: 16px; padding-left: 16px;
+}
+.tr-timeline-item::before {
+    content: ''; position: absolute; left: -17px; top: 4px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #4a90d9; border: 2px solid white;
+    box-shadow: 0 0 0 2px #4a90d9;
+}
+.tr-timeline-item.completed::before { background: #10b981; box-shadow: 0 0 0 2px #10b981; }
+.tr-timeline-date { font-size: 11px; color: #64748b; font-weight: 600; }
+.tr-timeline-content { font-size: 13px; margin-top: 4px; }
+.tr-timeline-soap { font-size: 12px; color: #475569; margin-top: 4px; padding: 8px 12px; background: #f8fafc; border-radius: 4px; }
+.tr-timeline-soap .soap-label { font-weight: 600; font-size: 11px; color: #64748b; }
+
+/* Befunde */
+.tr-finding {
+    background: #f8fafc; border-radius: 6px; padding: 12px 16px;
+    margin-bottom: 12px; border-left: 3px solid #4a90d9;
+}
+.tr-finding-header { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+
+.tr-summary {
+    padding: 16px; background: #f0fdf4; border-radius: 6px;
+    border-left: 3px solid #10b981; font-size: 13px;
+}
+
+.tr-footer {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between;
+}
+.tr-signature { text-align: center; min-width: 200px; }
+.tr-signature .sig-line { border-top: 1px solid #94a3b8; margin-top: 50px; padding-top: 6px; font-size: 12px; color: #64748b; }
+
+.no-data { padding: 40px; text-align: center; color: #94a3b8; }
+
+/* Druck */
+@media print {
+    .report-select, .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header, .no-print { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .treatment-report { box-shadow: none; padding: 20px 0; max-width: none; }
+    .tr-table th, .tr-title, .tr-finding, .tr-summary, .tr-timeline-soap {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Serienauswahl -->
+<div class="report-select no-print">
+    <div class="form-group">
+        <label>Behandlungsserie waehlen</label>
+        <select id="selSeries" onchange="loadSeries()">
+            <option value="">-- Bitte waehlen --</option>
+            {% for s in active_series %}
+            <option value="{{ s.id }}" {% if series and s.id == series.id %}selected{% endif %}>
+                {% if s.patient %}{{ s.patient.last_name }}, {{ s.patient.first_name }}{% endif %}
+                - {{ s.title or s.diagnosis_text or 'Serie' }}
+                ({{ s.status }}, {{ s.created_at.strftime('%d.%m.%Y') if s.created_at else '' }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{% if series and patient %}
+<div class="treatment-report">
+    <!-- Header -->
+    <div class="tr-header">
+        <div class="tr-practice">
+            <div class="name">{{ org.name if org else '' }}</div>
+            <div class="details">
+                {{ org.address if org else '' }}<br>
+                {{ org.zip_code if org else '' }} {{ org.city if org else '' }}<br>
+                ZSR: {{ org.zsr_number if org else '' }} | GLN: {{ org.gln_number if org else '' }}
+            </div>
+        </div>
+        <div class="tr-meta">
+            Datum: {{ today.strftime('%d.%m.%Y') }}
+        </div>
+    </div>
+
+    <div class="tr-title">Behandlungsbericht</div>
+
+    <!-- Patientendaten -->
+    <div class="tr-section">
+        <h3>Patient/in</h3>
+        <div class="tr-field"><span class="label">Name:</span> <span class="value">{{ patient.last_name }}, {{ patient.first_name }}</span></div>
+        <div class="tr-field"><span class="label">Geburtsdatum:</span> <span class="value">{{ patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else '-' }}</span></div>
+        <div class="tr-field"><span class="label">AHV-Nr.:</span> <span class="value">{{ patient.ahv_number or '-' }}</span></div>
+        <div class="tr-field"><span class="label">Versicherung:</span> <span class="value">{{ patient.insurance_provider.name if patient.insurance_provider else '-' }} ({{ patient.insurance_type or '-' }})</span></div>
+    </div>
+
+    <!-- Behandlungsserie -->
+    <div class="tr-section">
+        <h3>Behandlungsserie</h3>
+        <div class="tr-field"><span class="label">Diagnose:</span> <span class="value">{{ series.diagnosis_text or '-' }}</span></div>
+        {% if series.diagnosis_code %}<div class="tr-field"><span class="label">ICD-Code:</span> <span class="value">{{ series.diagnosis_code }}</span></div>{% endif %}
+        <div class="tr-field"><span class="label">Verordnungsdatum:</span> <span class="value">{{ series.prescription_date.strftime('%d.%m.%Y') if series.prescription_date else '-' }}</span></div>
+        <div class="tr-field"><span class="label">Therapeut/in:</span> <span class="value">{% if therapist and therapist.user %}{{ therapist.user.first_name }} {{ therapist.user.last_name }}{% else %}-{% endif %}</span></div>
+        <div class="tr-field"><span class="label">Versicherungstyp:</span> <span class="value">{{ series.insurance_type or '-' }}</span></div>
+        <div class="tr-field"><span class="label">Status:</span> <span class="value">{% if series.status == 'active' %}Aktiv{% elif series.status == 'completed' %}Abgeschlossen{% else %}{{ series.status }}{% endif %}</span></div>
+        {% if series.prescribing_doctor_id %}
+        {% set doc = series.prescribing_doctor_id %}
+        <div class="tr-field"><span class="label">Ueberweisender Arzt:</span> <span class="value">-</span></div>
+        {% endif %}
+    </div>
+
+    <!-- Behandlungsplan -->
+    {% if plan %}
+    <div class="tr-section">
+        <h3>Behandlungsplan</h3>
+        {% if plan.title %}<div class="tr-field"><span class="label">Titel:</span> <span class="value">{{ plan.title }}</span></div>{% endif %}
+        {% if plan.diagnosis %}<div class="tr-field"><span class="label">Diagnose:</span> <span class="value">{{ plan.diagnosis }}</span></div>{% endif %}
+        {% if plan.hypothesis %}<div class="tr-field"><span class="label">Arbeitshypothese:</span> <span class="value">{{ plan.hypothesis }}</span></div>{% endif %}
+        {% if plan.start_date %}<div class="tr-field"><span class="label">Startdatum:</span> <span class="value">{{ plan.start_date.strftime('%d.%m.%Y') }}</span></div>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Klinische Befunde -->
+    {% if findings %}
+    <div class="tr-section">
+        <h3>Klinische Befunde</h3>
+        {% for f in findings %}
+        <div class="tr-finding">
+            <div class="tr-finding-header">
+                {{ f.finding_type|capitalize }} vom {{ f.created_at.strftime('%d.%m.%Y %H:%M') }}
+                {% if f.created_by %} — {{ f.created_by.first_name }} {{ f.created_by.last_name }}{% endif %}
+            </div>
+            <div style="font-size:12px; color:#334155;">
+                Typ: {{ f.finding_type }}
+                {% if f.template %} | Vorlage: {{ f.template.name }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Behandlungsverlauf (Termine mit SOAP) -->
+    <div class="tr-section">
+        <h3>Behandlungsverlauf ({{ appointments|length }} Termine)</h3>
+        {% if appointments %}
+        <div class="tr-timeline">
+            {% for a in appointments %}
+            <div class="tr-timeline-item {% if a.status == 'completed' %}completed{% endif %}">
+                <div class="tr-timeline-date">
+                    {{ a.start_time.strftime('%d.%m.%Y') }} | {{ a.start_time.strftime('%H:%M') }}-{{ a.end_time.strftime('%H:%M') }}
+                    ({{ a.duration_minutes }} Min)
+                    {% if a.series_number %} — Sitzung {{ a.series_number }}{% endif %}
+                    <span style="color: {% if a.status == 'completed' %}#10b981{% else %}#3b82f6{% endif %};">
+                        {% if a.status == 'completed' %}Erledigt{% elif a.status == 'scheduled' %}Geplant{% else %}{{ a.status }}{% endif %}
+                    </span>
+                </div>
+                {% if a.title %}
+                <div class="tr-timeline-content">{{ a.title }}</div>
+                {% endif %}
+                {% if a.soap_subjective or a.soap_objective or a.soap_assessment or a.soap_plan %}
+                <div class="tr-timeline-soap">
+                    {% if a.soap_subjective %}<div><span class="soap-label">S:</span> {{ a.soap_subjective }}</div>{% endif %}
+                    {% if a.soap_objective %}<div><span class="soap-label">O:</span> {{ a.soap_objective }}</div>{% endif %}
+                    {% if a.soap_assessment %}<div><span class="soap-label">A:</span> {{ a.soap_assessment }}</div>{% endif %}
+                    {% if a.soap_plan %}<div><span class="soap-label">P:</span> {{ a.soap_plan }}</div>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Zusammenfassung -->
+        {% set completed = appointments|selectattr('status', 'equalto', 'completed')|list %}
+        <div class="tr-summary" style="margin-top:16px;">
+            <strong>Zusammenfassung:</strong>
+            {{ completed|length }} von {{ appointments|length }} Terminen durchgefuehrt |
+            Gesamtdauer: {{ (appointments|sum(attribute='duration_minutes')) // 60 }}h {{ (appointments|sum(attribute='duration_minutes')) % 60 }}min |
+            Zeitraum: {{ appointments[0].start_time.strftime('%d.%m.%Y') }} - {{ appointments[-1].start_time.strftime('%d.%m.%Y') }}
+        </div>
+        {% else %}
+        <p style="color:#94a3b8;">Keine Termine vorhanden.</p>
+        {% endif %}
+    </div>
+
+    <!-- Abschlussbemerkung (editierbar) -->
+    <div class="tr-section">
+        <h3>Abschlussbemerkung / Empfehlung</h3>
+        <textarea id="reportRemarks" rows="5" style="width:100%; padding:12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;" class="no-print" placeholder="Hier koennen Sie die abschliessende Beurteilung und Empfehlungen eingeben..."></textarea>
+        <div class="tr-finding print-only" id="remarksPreview" style="display:none;"></div>
+    </div>
+
+    <!-- Unterschrift -->
+    <div class="tr-footer">
+        <div class="tr-signature">
+            <div class="sig-line">Ort, Datum</div>
+        </div>
+        <div class="tr-signature">
+            <div class="sig-line">
+                {% if therapist and therapist.user %}
+                {{ therapist.user.first_name }} {{ therapist.user.last_name }}
+                {% else %}
+                Therapeut/in
+                {% endif %}
+                (Stempel & Unterschrift)
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="treatment-report">
+    <div class="no-data">
+        <p>Bitte waehlen Sie eine Behandlungsserie, um den Behandlungsbericht zu erstellen.</p>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function loadSeries() {
+    const seriesId = document.getElementById('selSeries').value;
+    if (seriesId) {
+        window.location.href = "{{ url_for('reporting.behandlungsbericht') }}?series_id=" + seriesId;
+    }
+}
+
+// Bemerkungen in Druckansicht uebernehmen
+window.addEventListener('beforeprint', function() {
+    const textarea = document.getElementById('reportRemarks');
+    const preview = document.getElementById('remarksPreview');
+    if (textarea && preview) {
+        preview.textContent = textarea.value || '(Keine Bemerkungen)';
+        preview.style.display = 'block';
+        textarea.style.display = 'none';
+    }
+});
+window.addEventListener('afterprint', function() {
+    const textarea = document.getElementById('reportRemarks');
+    const preview = document.getElementById('remarksPreview');
+    if (textarea && preview) {
+        preview.style.display = 'none';
+        textarea.style.display = '';
+    }
+});
+</script>
+{% endblock %}

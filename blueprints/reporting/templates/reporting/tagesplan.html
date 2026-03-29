@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Tagesplan{% if employee %} - {{ employee.user.first_name }} {{ employee.user.last_name }}{% endif %}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.ausdrucke') }}">Ausdrucke</a>
+<span class="breadcrumb-separator">/</span>
+<span>Tagesplan</span>
+{% endblock %}
+
+{% block page_title %}Tagesplan{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    <a href="{{ url_for('reporting.ausdrucke') }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Bildschirm-Styles */
+.dayplan-filter {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+    display: flex; gap: 16px; align-items: end; flex-wrap: wrap;
+}
+.dayplan-filter .form-group { margin: 0; min-width: 180px; }
+.dayplan-filter label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.dayplan-filter select, .dayplan-filter input {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+}
+
+.dayplan-content {
+    background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;
+}
+.dayplan-header {
+    padding: 20px; border-bottom: 2px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.dayplan-header h2 { margin: 0; font-size: 18px; }
+.dayplan-header .meta { font-size: 13px; color: #64748b; }
+.dayplan-praxis { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+.appt-table { width: 100%; border-collapse: collapse; }
+.appt-table th {
+    text-align: left; padding: 10px 16px; font-size: 12px; font-weight: 600;
+    color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+}
+.appt-table td {
+    padding: 10px 16px; font-size: 13px; border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+.appt-table tr:hover td { background: #f8fafc; }
+.appt-time { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.appt-patient { font-weight: 500; }
+.appt-type {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500;
+}
+.appt-type-treatment { background: #dbeafe; color: #1e40af; }
+.appt-type-group { background: #fef3c7; color: #92400e; }
+.appt-type-mtt { background: #d1fae5; color: #065f46; }
+.appt-type-default { background: #f1f5f9; color: #475569; }
+.appt-status-completed { color: #10b981; }
+.appt-status-scheduled { color: #3b82f6; }
+.appt-status-no_show { color: #ef4444; }
+.appt-notes { font-size: 12px; color: #64748b; font-style: italic; }
+.appt-flags { display: flex; gap: 4px; flex-wrap: wrap; }
+.appt-flag {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: #f1f5f9; color: #475569;
+}
+.dayplan-summary {
+    padding: 16px 20px; background: #f8fafc; border-top: 2px solid #e2e8f0;
+    display: flex; gap: 24px; font-size: 13px; color: #475569;
+}
+.dayplan-summary strong { color: #1e293b; }
+
+.no-data { padding: 40px; text-align: center; color: #94a3b8; }
+
+/* Druck-Styles */
+@media print {
+    .dayplan-filter, .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .dayplan-content { box-shadow: none; border: none; }
+    .dayplan-header { padding: 10px 0; }
+    .appt-table th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .appt-type { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="dayplan-filter no-print">
+    <div class="form-group">
+        <label>Therapeut</label>
+        <select id="selEmployee" onchange="updateDayplan()">
+            <option value="">-- Bitte waehlen --</option>
+            {% for e in employees %}
+            <option value="{{ e.id }}" {% if employee and e.id == employee.id %}selected{% endif %}>
+                {{ e.user.first_name if e.user else '' }} {{ e.user.last_name if e.user else '' }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Datum</label>
+        <input type="date" id="selDate" value="{{ day.isoformat() }}" onchange="updateDayplan()">
+    </div>
+    <div class="form-group" style="display:flex; gap:6px; align-items:end;">
+        <button class="btn btn-sm btn-outline" onclick="changeDay(-1)">&#9664; Vortag</button>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('selDate').value=new Date().toISOString().split('T')[0]; updateDayplan();">Heute</button>
+        <button class="btn btn-sm btn-outline" onclick="changeDay(1)">Naechster &#9654;</button>
+    </div>
+</div>
+
+<!-- Tagesplan Inhalt -->
+{% if employee %}
+<div class="dayplan-content">
+    <div class="dayplan-header">
+        <div>
+            <h2>Tagesplan: {{ employee.user.first_name if employee.user else '' }} {{ employee.user.last_name if employee.user else '' }}</h2>
+            <div class="dayplan-praxis">{{ org.name if org else '' }}</div>
+        </div>
+        <div class="meta">
+            <strong>{{ formatted_day }}</strong>
+        </div>
+    </div>
+
+    {% if appointments %}
+    <table class="appt-table">
+        <thead>
+            <tr>
+                <th style="width:90px;">Zeit</th>
+                <th>Patient</th>
+                <th>Behandlung</th>
+                <th style="width:80px;">Dauer</th>
+                <th>Status</th>
+                <th>Hinweise</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in appointments %}
+            <tr>
+                <td class="appt-time">
+                    {{ a.start_time.strftime('%H:%M') }} - {{ a.end_time.strftime('%H:%M') }}
+                </td>
+                <td class="appt-patient">
+                    {% if a.patient %}
+                        {{ a.patient.last_name }}, {{ a.patient.first_name }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if a.title %}{{ a.title }}{% endif %}
+                    <span class="appt-type {% if a.appointment_type == 'treatment' %}appt-type-treatment{% elif a.is_group %}appt-type-group{% elif a.is_mtt %}appt-type-mtt{% else %}appt-type-default{% endif %}">
+                        {% if a.is_group %}Gruppe{% elif a.is_mtt %}MTT{% elif a.appointment_type == 'treatment' %}Therapie{% elif a.appointment_type == 'fitness' %}Fitness{% else %}{{ a.appointment_type or 'Termin' }}{% endif %}
+                    </span>
+                </td>
+                <td>{{ a.duration_minutes or '' }} Min</td>
+                <td>
+                    <span class="appt-status-{{ a.status }}">
+                        {% if a.status == 'completed' %}Erledigt{% elif a.status == 'scheduled' %}Geplant{% elif a.status == 'no_show' %}Nicht erschienen{% elif a.status == 'confirmed' %}Bestaetigt{% else %}{{ a.status }}{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <div class="appt-flags">
+                        {% if a.is_remote %}<span class="appt-flag">Remote</span>{% endif %}
+                        {% if a.is_domicile %}<span class="appt-flag">Domizil</span>{% endif %}
+                        {% if a.is_emr %}<span class="appt-flag">EMR</span>{% endif %}
+                        {% if a.series and a.series_number %}<span class="appt-flag">{{ a.series_number }}/{{ a.series.appointments.count() }}</span>{% endif %}
+                    </div>
+                    {% if a.notes %}<div class="appt-notes">{{ a.notes[:80] }}{% if a.notes|length > 80 %}...{% endif %}</div>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="dayplan-summary">
+        <div><strong>{{ appointments|length }}</strong> Termine</div>
+        <div><strong>{{ appointments|selectattr('status', 'equalto', 'completed')|list|length }}</strong> erledigt</div>
+        <div><strong>{{ (appointments|sum(attribute='duration_minutes')) // 60 }}h {{ (appointments|sum(attribute='duration_minutes')) % 60 }}min</strong> Gesamtdauer</div>
+    </div>
+    {% else %}
+    <div class="no-data">
+        <p>Keine Termine fuer diesen Tag.</p>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="dayplan-content">
+    <div class="no-data">
+        <p>Bitte waehlen Sie einen Therapeuten und ein Datum.</p>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function updateDayplan() {
+    const empId = document.getElementById('selEmployee').value;
+    const dateVal = document.getElementById('selDate').value;
+    window.location.href = "{{ url_for('reporting.tagesplan') }}?employee_id=" + empId + "&date=" + dateVal;
+}
+function changeDay(offset) {
+    const dateInput = document.getElementById('selDate');
+    const d = new Date(dateInput.value);
+    d.setDate(d.getDate() + offset);
+    dateInput.value = d.toISOString().split('T')[0];
+    updateDayplan();
+}
+</script>
+{% endblock %}

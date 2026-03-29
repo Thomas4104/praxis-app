@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ labels.title }} {{ invoice.invoice_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('billing.index') }}">Abrechnung</a>
+<span class="breadcrumb-separator">/</span>
+<span>{{ labels.title }} {{ invoice.invoice_number }}</span>
+{% endblock %}
+
+{% block page_title %}{{ labels.title }} {{ invoice.invoice_number }}{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    <!-- Sprachauswahl -->
+    <div style="display:flex; gap:4px;">
+        <a href="{{ url_for('reporting.rechnung_print', invoice_id=invoice.id, lang='de', copy='1' if is_copy else '0', reminder='1' if is_reminder else '0') }}"
+           class="btn btn-sm {% if lang == 'de' %}btn-primary{% else %}btn-outline{% endif %}">DE</a>
+        <a href="{{ url_for('reporting.rechnung_print', invoice_id=invoice.id, lang='fr', copy='1' if is_copy else '0', reminder='1' if is_reminder else '0') }}"
+           class="btn btn-sm {% if lang == 'fr' %}btn-primary{% else %}btn-outline{% endif %}">FR</a>
+        <a href="{{ url_for('reporting.rechnung_print', invoice_id=invoice.id, lang='it', copy='1' if is_copy else '0', reminder='1' if is_reminder else '0') }}"
+           class="btn btn-sm {% if lang == 'it' %}btn-primary{% else %}btn-outline{% endif %}">IT</a>
+    </div>
+    <a href="{{ url_for('reporting.rechnung_print', invoice_id=invoice.id, lang=lang, copy='1', reminder='1' if is_reminder else '0') }}"
+       class="btn btn-sm btn-outline">{{ labels.copy }}</a>
+    <a href="{{ url_for('billing.detail', id=invoice.id) }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.invoice-print {
+    background: white; max-width: 800px; margin: 0 auto;
+    padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+/* Wasserzeichen fuer Kopie */
+{% if is_copy %}
+.invoice-print::before {
+    content: '{{ labels.copy }}';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font-size: 80px; font-weight: 700; color: rgba(0,0,0,0.05);
+    pointer-events: none; z-index: 0;
+}
+{% endif %}
+
+.inv-header { display: flex; justify-content: space-between; margin-bottom: 30px; padding-bottom: 16px; border-bottom: 2px solid #1e293b; }
+.inv-sender .name { font-size: 16px; font-weight: 700; color: #1e293b; }
+.inv-sender .details { font-size: 12px; color: #64748b; line-height: 1.6; }
+.inv-logo { max-height: 50px; }
+
+.inv-recipient { margin: 16px 0 30px; }
+.inv-recipient .to-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+.inv-recipient .to-name { font-size: 14px; font-weight: 600; }
+.inv-recipient .to-addr { font-size: 13px; color: #475569; }
+
+.inv-title { font-size: 22px; font-weight: 700; color: #1e293b; margin: 24px 0 16px; }
+{% if is_reminder %}
+.inv-title { color: #dc2626; }
+{% endif %}
+
+.inv-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 24px; font-size: 13px; }
+.inv-info-item { display: flex; gap: 8px; }
+.inv-info-item .il { font-weight: 600; color: #475569; min-width: 140px; }
+.inv-info-item .iv { color: #1e293b; }
+
+/* Positionen-Tabelle */
+.inv-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 20px 0; }
+.inv-table th {
+    text-align: left; padding: 8px 10px; background: #1e293b; color: white;
+    font-size: 11px; font-weight: 600;
+}
+.inv-table th.right { text-align: right; }
+.inv-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+.inv-table td.right { text-align: right; font-variant-numeric: tabular-nums; }
+.inv-table tr:nth-child(even) td { background: #f8fafc; }
+
+/* Summen */
+.inv-totals { margin-left: auto; width: 280px; font-size: 13px; }
+.inv-total-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.inv-total-row.grand { font-weight: 700; font-size: 15px; border-top: 2px solid #1e293b; padding-top: 8px; margin-top: 4px; }
+.inv-total-row .tl { color: #475569; }
+.inv-total-row .tv { font-variant-numeric: tabular-nums; }
+
+/* Zahlungshinweis */
+.inv-payment-note { margin: 24px 0; padding: 12px 16px; background: #f0f7ff; border-radius: 6px; font-size: 13px; color: #1e40af; }
+{% if is_reminder %}
+.inv-payment-note { background: #fef2f2; color: #dc2626; border-left: 3px solid #dc2626; }
+{% endif %}
+
+/* QR-Bereich */
+.inv-qr { margin-top: 24px; text-align: center; }
+.inv-qr h4 { font-size: 13px; margin-bottom: 8px; }
+
+/* Behandlungszeitraum */
+.inv-treatment-period {
+    font-size: 12px; color: #64748b; margin-bottom: 16px;
+    padding: 8px 12px; background: #f8fafc; border-radius: 4px;
+}
+
+.inv-footer {
+    margin-top: 30px; padding-top: 12px; border-top: 1px solid #e2e8f0;
+    font-size: 10px; color: #94a3b8; text-align: center;
+}
+
+/* Druck */
+@media print {
+    .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header, .no-print { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .invoice-print { box-shadow: none; padding: 20px 0; max-width: none; }
+    .inv-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .inv-table tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .inv-payment-note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    {% if is_copy %}
+    .invoice-print::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    {% endif %}
+    body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="invoice-print">
+    <!-- Header mit Praxis-Daten -->
+    <div class="inv-header">
+        <div class="inv-sender">
+            <div class="name">{{ org.name if org else '' }}</div>
+            <div class="details">
+                {{ org.address if org else '' }}<br>
+                {{ org.zip_code if org else '' }} {{ org.city if org else '' }}<br>
+                Tel: {{ org.phone if org else '' }}<br>
+                ZSR: {{ org.zsr_number if org else '' }} | GLN: {{ org.gln_number if org else '' }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Empfaenger -->
+    {% if patient %}
+    <div class="inv-recipient">
+        <div class="to-label">{{ labels.patient }}</div>
+        <div class="to-name">{{ patient.salutation or '' }} {{ patient.first_name }} {{ patient.last_name }}</div>
+        <div class="to-addr">
+            {{ patient.address or '' }}<br>
+            {{ patient.zip_code or '' }} {{ patient.city or '' }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Titel -->
+    <div class="inv-title">
+        {% if is_reminder %}{{ labels.reminder }}{% else %}{{ labels.title }}{% endif %}
+        Nr. {{ invoice.invoice_number }}
+        {% if is_copy %}<span style="font-size:14px; color:#94a3b8;"> ({{ labels.copy }})</span>{% endif %}
+    </div>
+
+    <!-- Info-Felder -->
+    <div class="inv-info">
+        <div class="inv-info-item"><span class="il">{{ labels.date }}:</span> <span class="iv">{{ invoice.created_at.strftime('%d.%m.%Y') if invoice.created_at else '-' }}</span></div>
+        <div class="inv-info-item"><span class="il">{{ labels.due_date }}:</span> <span class="iv">{{ invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else '-' }}</span></div>
+        {% if invoice.insurance_provider %}
+        <div class="inv-info-item"><span class="il">{{ labels.insurance }}:</span> <span class="iv">{{ invoice.insurance_provider.name }}</span></div>
+        {% endif %}
+        <div class="inv-info-item"><span class="il">{{ labels.billing_model }}:</span> <span class="iv">{{ labels.tiers_garant if invoice.billing_model == 'tiers_garant' else labels.tiers_payant }}</span></div>
+        {% if therapist and therapist.user %}
+        <div class="inv-info-item"><span class="il">{{ labels.therapist }}:</span> <span class="iv">{{ therapist.user.first_name }} {{ therapist.user.last_name }}</span></div>
+        {% endif %}
+    </div>
+
+    {% if treatment_period %}
+    <div class="inv-treatment-period">
+        {{ labels.treatment_period }}: {{ treatment_period }}
+    </div>
+    {% endif %}
+
+    <!-- Positionen -->
+    <table class="inv-table">
+        <thead>
+            <tr>
+                <th>{{ labels.position }}</th>
+                <th>{{ labels.tariff_code }}</th>
+                <th>{{ labels.description }}</th>
+                <th class="right">{{ labels.quantity }}</th>
+                <th class="right">{{ labels.tax_points }}</th>
+                <th class="right">{{ labels.tp_value }}</th>
+                <th class="right">{{ labels.amount }}</th>
+                <th class="right">{{ labels.vat }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.position or loop.index }}</td>
+                <td>{{ item.tariff_code or '' }}</td>
+                <td>{{ item.description or '' }}</td>
+                <td class="right">{{ '%.0f'|format(item.quantity) if item.quantity == (item.quantity|int) else '%.1f'|format(item.quantity) }}</td>
+                <td class="right">{{ '%.1f'|format(item.tax_points) }}</td>
+                <td class="right">{{ '%.2f'|format(item.tax_point_value) }}</td>
+                <td class="right">{{ '%.2f'|format(item.amount) }}</td>
+                <td class="right">{{ '%.1f'|format(item.vat_rate) if item.vat_rate else '0.0' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Summen -->
+    <div class="inv-totals">
+        <div class="inv-total-row"><span class="tl">{{ labels.subtotal }}:</span> <span class="tv">CHF {{ '%.2f'|format(subtotal) }}</span></div>
+        {% if total_vat > 0 %}
+        <div class="inv-total-row"><span class="tl">{{ labels.vat_label }}:</span> <span class="tv">CHF {{ '%.2f'|format(total_vat) }}</span></div>
+        {% endif %}
+        <div class="inv-total-row grand"><span class="tl">{{ labels.total }}:</span> <span class="tv">CHF {{ '%.2f'|format(invoice.amount_total) }}</span></div>
+        {% if invoice.amount_paid > 0 %}
+        <div class="inv-total-row"><span class="tl">{{ labels.paid }}:</span> <span class="tv">CHF {{ '%.2f'|format(invoice.amount_paid) }}</span></div>
+        <div class="inv-total-row" style="font-weight:600;"><span class="tl">{{ labels.open }}:</span> <span class="tv">CHF {{ '%.2f'|format(invoice.amount_open) }}</span></div>
+        {% endif %}
+    </div>
+
+    <!-- Zahlungshinweis -->
+    <div class="inv-payment-note">
+        {% if is_reminder %}
+            {{ labels.reminder }}
+        {% else %}
+            {{ labels.payment_note.replace('{days}', '30') }}
+        {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <div class="inv-footer">
+        {{ org.name if org else '' }} | {{ org.address if org else '' }}, {{ org.zip_code if org else '' }} {{ org.city if org else '' }} | {{ org.phone if org else '' }}
+    </div>
+</div>
+{% endblock %}

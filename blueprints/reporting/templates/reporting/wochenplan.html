@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Wochenplan{% if employee %} - {{ employee.user.first_name }} {{ employee.user.last_name }}{% endif %}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.ausdrucke') }}">Ausdrucke</a>
+<span class="breadcrumb-separator">/</span>
+<span>Wochenplan</span>
+{% endblock %}
+
+{% block page_title %}Wochenplan{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    <a href="{{ url_for('reporting.ausdrucke') }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.weekplan-filter {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+    display: flex; gap: 16px; align-items: end; flex-wrap: wrap;
+}
+.weekplan-filter .form-group { margin: 0; min-width: 180px; }
+.weekplan-filter label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.weekplan-filter select, .weekplan-filter input {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+}
+
+.weekplan-content {
+    background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;
+}
+.weekplan-header {
+    padding: 20px; border-bottom: 2px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.weekplan-header h2 { margin: 0; font-size: 18px; }
+.weekplan-header .meta { font-size: 13px; color: #64748b; text-align: right; }
+
+/* Wochenraster */
+.week-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    min-height: 400px;
+}
+.week-grid.show-weekend {
+    grid-template-columns: repeat(7, 1fr);
+}
+.day-column {
+    border-right: 1px solid #e2e8f0;
+    min-height: 300px;
+}
+.day-column:last-child { border-right: none; }
+.day-column-header {
+    padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    text-align: center; font-size: 12px; font-weight: 600;
+}
+.day-column-header .day-name { color: #1e293b; }
+.day-column-header .day-date { color: #64748b; font-weight: 400; }
+.day-column-body { padding: 4px; }
+
+.week-appt {
+    padding: 6px 8px; margin: 3px 0; border-radius: 4px;
+    font-size: 11px; border-left: 3px solid #4a90d9;
+    background: #f0f7ff; cursor: default;
+}
+.week-appt .appt-time-w { font-weight: 600; color: #1e40af; font-variant-numeric: tabular-nums; }
+.week-appt .appt-patient-w { font-weight: 500; margin-top: 2px; }
+.week-appt .appt-detail-w { color: #64748b; font-size: 10px; margin-top: 1px; }
+.week-appt.type-group { border-left-color: #f59e0b; background: #fffbeb; }
+.week-appt.type-mtt { border-left-color: #10b981; background: #ecfdf5; }
+.week-appt.type-fitness { border-left-color: #8b5cf6; background: #f5f3ff; }
+.week-appt.status-completed { opacity: 0.7; }
+
+.day-column.is-weekend .day-column-header { background: #fef2f2; }
+.day-column.is-today .day-column-header { background: #dbeafe; }
+
+.week-summary {
+    padding: 16px 20px; background: #f8fafc; border-top: 2px solid #e2e8f0;
+    display: flex; gap: 24px; font-size: 13px; color: #475569;
+}
+.week-summary strong { color: #1e293b; }
+
+.no-data { padding: 40px; text-align: center; color: #94a3b8; }
+
+/* Checkbox fuer Wochenende */
+.weekend-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+/* Druck-Styles */
+@media print {
+    .weekplan-filter, .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header, .weekend-toggle { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .weekplan-content { box-shadow: none; border: none; }
+    .week-grid { grid-template-columns: repeat(5, 1fr) !important; }
+    .day-column.is-weekend { display: none !important; }
+    .week-appt { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .day-column-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 10px; }
+    @page { size: landscape; margin: 10mm; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="weekplan-filter no-print">
+    <div class="form-group">
+        <label>Therapeut</label>
+        <select id="selEmployee" onchange="updateWeekplan()">
+            <option value="">-- Bitte waehlen --</option>
+            {% for e in employees %}
+            <option value="{{ e.id }}" {% if employee and e.id == employee.id %}selected{% endif %}>
+                {{ e.user.first_name if e.user else '' }} {{ e.user.last_name if e.user else '' }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Woche von</label>
+        <input type="date" id="selDate" value="{{ week_start.isoformat() }}" onchange="updateWeekplan()">
+    </div>
+    <div class="form-group" style="display:flex; gap:6px; align-items:end;">
+        <button class="btn btn-sm btn-outline" onclick="changeWeek(-7)">&#9664; Vorwoche</button>
+        <button class="btn btn-sm btn-outline" onclick="goToday()">Heute</button>
+        <button class="btn btn-sm btn-outline" onclick="changeWeek(7)">Naechste &#9654;</button>
+    </div>
+    <div class="form-group">
+        <label class="weekend-toggle">
+            <input type="checkbox" id="showWeekend" onchange="toggleWeekend()"> Wochenende anzeigen
+        </label>
+    </div>
+</div>
+
+{% if employee %}
+<div class="weekplan-content">
+    <div class="weekplan-header">
+        <div>
+            <h2>Wochenplan: {{ employee.user.first_name if employee.user else '' }} {{ employee.user.last_name if employee.user else '' }}</h2>
+            <div style="font-size:12px; color:#94a3b8;">{{ org.name if org else '' }}</div>
+        </div>
+        <div class="meta">
+            <strong>KW {{ kw }}</strong><br>
+            {{ week_start.strftime('%d.%m.%Y') }} - {{ week_end.strftime('%d.%m.%Y') }}
+        </div>
+    </div>
+
+    {% if week_data %}
+    <div class="week-grid" id="weekGrid">
+        {% for i in range(7) %}
+        {% if i in week_data %}
+        {% set wd = week_data[i] %}
+        <div class="day-column {% if i >= 5 %}is-weekend{% endif %} {% if wd.date == today %}is-today{% endif %}" {% if i >= 5 %}style="display:none;" data-weekend{% endif %}>
+            <div class="day-column-header">
+                <div class="day-name">{{ wd.weekday }}</div>
+                <div class="day-date">{{ wd.date.strftime('%d.%m.') }}</div>
+            </div>
+            <div class="day-column-body">
+                {% for a in wd.appointments %}
+                <div class="week-appt {% if a.is_group %}type-group{% elif a.is_mtt %}type-mtt{% elif a.appointment_type == 'fitness' %}type-fitness{% endif %} {% if a.status == 'completed' %}status-completed{% endif %}">
+                    <div class="appt-time-w">{{ a.start_time.strftime('%H:%M') }}-{{ a.end_time.strftime('%H:%M') }}</div>
+                    <div class="appt-patient-w">
+                        {% if a.patient %}{{ a.patient.last_name }}, {{ a.patient.first_name }}{% else %}-{% endif %}
+                    </div>
+                    <div class="appt-detail-w">
+                        {% if a.title %}{{ a.title }}{% endif %}
+                        {% if a.is_remote %} (Remote){% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not wd.appointments %}
+                <div style="padding:20px 8px; text-align:center; color:#cbd5e1; font-size:11px;">Keine Termine</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    {% set total_appts = week_data.values()|sum(attribute='appointments', default=[])|list|length if week_data else 0 %}
+    <div class="week-summary">
+        <div><strong>KW {{ kw }}</strong></div>
+        <div>
+            {% set all_appts = [] %}
+            {% for wd in week_data.values() %}{% for a in wd.appointments %}{% if all_appts.append(a) %}{% endif %}{% endfor %}{% endfor %}
+            <strong>{{ all_appts|length }}</strong> Termine
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="weekplan-content">
+    <div class="no-data">
+        <p>Bitte waehlen Sie einen Therapeuten.</p>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function updateWeekplan() {
+    const empId = document.getElementById('selEmployee').value;
+    const dateVal = document.getElementById('selDate').value;
+    window.location.href = "{{ url_for('reporting.wochenplan') }}?employee_id=" + empId + "&date=" + dateVal;
+}
+function changeWeek(offset) {
+    const dateInput = document.getElementById('selDate');
+    const d = new Date(dateInput.value);
+    d.setDate(d.getDate() + offset);
+    dateInput.value = d.toISOString().split('T')[0];
+    updateWeekplan();
+}
+function goToday() {
+    document.getElementById('selDate').value = new Date().toISOString().split('T')[0];
+    updateWeekplan();
+}
+function toggleWeekend() {
+    const show = document.getElementById('showWeekend').checked;
+    const grid = document.getElementById('weekGrid');
+    if (grid) {
+        grid.classList.toggle('show-weekend', show);
+        document.querySelectorAll('[data-weekend]').forEach(el => {
+            el.style.display = show ? '' : 'none';
+        });
+    }
+}
+</script>
+{% endblock %}

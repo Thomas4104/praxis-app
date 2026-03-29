@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Arztbericht{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.ausdrucke') }}">Ausdrucke</a>
+<span class="breadcrumb-separator">/</span>
+<span>Arztbericht</span>
+{% endblock %}
+
+{% block page_title %}Arztbericht{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    {% if series %}
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    {% endif %}
+    <a href="{{ url_for('reporting.ausdrucke') }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-select {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+    display: flex; gap: 16px; align-items: end; flex-wrap: wrap;
+}
+.report-select .form-group { margin: 0; min-width: 300px; }
+.report-select label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.report-select select {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+}
+
+/* Druckbarer Bericht */
+.doctor-report {
+    background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 40px; max-width: 800px; margin: 0 auto;
+}
+.report-letterhead {
+    display: flex; justify-content: space-between; margin-bottom: 30px;
+    padding-bottom: 20px; border-bottom: 2px solid #1e293b;
+}
+.report-sender { font-size: 13px; }
+.report-sender .practice-name { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.report-sender .practice-details { color: #64748b; line-height: 1.6; }
+.report-date { text-align: right; font-size: 13px; color: #64748b; }
+
+.report-recipient {
+    margin: 20px 0 30px; padding: 16px; background: #f8fafc; border-radius: 6px;
+}
+.report-recipient .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.report-recipient .name { font-size: 15px; font-weight: 600; }
+.report-recipient .details { font-size: 13px; color: #475569; line-height: 1.5; }
+
+.report-title { font-size: 20px; font-weight: 700; color: #1e293b; margin: 30px 0 20px; }
+
+.report-section { margin-bottom: 24px; }
+.report-section h3 {
+    font-size: 14px; font-weight: 600; color: #1e293b;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px;
+}
+.report-section table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-section table th {
+    text-align: left; padding: 6px 10px; background: #f8fafc;
+    font-weight: 600; font-size: 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;
+}
+.report-section table td {
+    padding: 6px 10px; border-bottom: 1px solid #f1f5f9;
+}
+.report-field { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.report-field .field-label { font-weight: 600; color: #475569; min-width: 160px; }
+.report-field .field-value { color: #1e293b; }
+
+.report-text-block {
+    font-size: 13px; line-height: 1.7; color: #334155;
+    padding: 12px 16px; background: #f8fafc; border-radius: 6px;
+    border-left: 3px solid #4a90d9; white-space: pre-wrap;
+}
+
+.report-footer {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between;
+}
+.report-signature { text-align: center; min-width: 200px; }
+.report-signature .sig-line { border-top: 1px solid #94a3b8; margin-top: 50px; padding-top: 6px; font-size: 12px; color: #64748b; }
+
+.no-data { padding: 40px; text-align: center; color: #94a3b8; }
+
+/* Druck */
+@media print {
+    .report-select, .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .doctor-report { box-shadow: none; padding: 20px 0; max-width: none; }
+    .report-section table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .report-text-block { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Serienauswahl -->
+<div class="report-select no-print">
+    <div class="form-group">
+        <label>Behandlungsserie waehlen</label>
+        <select id="selSeries" onchange="loadSeries()">
+            <option value="">-- Bitte waehlen --</option>
+            {% for s in active_series %}
+            <option value="{{ s.id }}" {% if series and s.id == series.id %}selected{% endif %}>
+                {% if s.patient %}{{ s.patient.last_name }}, {{ s.patient.first_name }}{% endif %}
+                - {{ s.title or s.diagnosis_text or 'Serie' }}
+                ({{ s.status }}, {{ s.created_at.strftime('%d.%m.%Y') if s.created_at else '' }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{% if series and patient %}
+<div class="doctor-report">
+    <!-- Briefkopf -->
+    <div class="report-letterhead">
+        <div class="report-sender">
+            <div class="practice-name">{{ org.name if org else '' }}</div>
+            <div class="practice-details">
+                {{ org.address if org else '' }}<br>
+                {{ org.zip_code if org else '' }} {{ org.city if org else '' }}<br>
+                Tel: {{ org.phone if org else '' }}<br>
+                E-Mail: {{ org.email if org else '' }}<br>
+                ZSR: {{ org.zsr_number if org else '' }} | GLN: {{ org.gln_number if org else '' }}
+            </div>
+        </div>
+        <div class="report-date">
+            {{ today.strftime("%d.%m.%Y") }}
+        </div>
+    </div>
+
+    <!-- Empfaenger (Arzt) -->
+    {% if doctor %}
+    <div class="report-recipient">
+        <div class="label">Bericht an</div>
+        <div class="name">{{ doctor.salutation or '' }} {{ doctor.first_name or '' }} {{ doctor.last_name or '' }}</div>
+        <div class="details">
+            {% if doctor.specialty %}{{ doctor.specialty }}<br>{% endif %}
+            {% if doctor.address %}{{ doctor.address }}<br>{% endif %}
+            {% if doctor.zip_code or doctor.city %}{{ doctor.zip_code or '' }} {{ doctor.city or '' }}<br>{% endif %}
+            {% if doctor.gln_number %}GLN: {{ doctor.gln_number }}{% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="report-title">Arztbericht</div>
+
+    <!-- Patientendaten -->
+    <div class="report-section">
+        <h3>Patientendaten</h3>
+        <div class="report-field"><span class="field-label">Name:</span> <span class="field-value">{{ patient.last_name }}, {{ patient.first_name }}</span></div>
+        <div class="report-field"><span class="field-label">Geburtsdatum:</span> <span class="field-value">{{ patient.date_of_birth.strftime('%d.%m.%Y') if patient.date_of_birth else '-' }}</span></div>
+        <div class="report-field"><span class="field-label">AHV-Nr.:</span> <span class="field-value">{{ patient.ahv_number or '-' }}</span></div>
+        <div class="report-field"><span class="field-label">Versicherung:</span> <span class="field-value">{{ patient.insurance_provider.name if patient.insurance_provider else '-' }} ({{ patient.insurance_type or '-' }})</span></div>
+    </div>
+
+    <!-- Behandlungsdetails -->
+    <div class="report-section">
+        <h3>Behandlungsdetails</h3>
+        <div class="report-field"><span class="field-label">Diagnose:</span> <span class="field-value">{{ series.diagnosis_text or '-' }}</span></div>
+        {% if series.diagnosis_code %}<div class="report-field"><span class="field-label">ICD-Code:</span> <span class="field-value">{{ series.diagnosis_code }}</span></div>{% endif %}
+        <div class="report-field"><span class="field-label">Verordnungsdatum:</span> <span class="field-value">{{ series.prescription_date.strftime('%d.%m.%Y') if series.prescription_date else '-' }}</span></div>
+        <div class="report-field"><span class="field-label">Versicherungstyp:</span> <span class="field-value">{{ series.insurance_type or '-' }}</span></div>
+        <div class="report-field"><span class="field-label">Status:</span> <span class="field-value">{{ series.status or '-' }}</span></div>
+    </div>
+
+    <!-- Behandlungsplan -->
+    {% if plan %}
+    <div class="report-section">
+        <h3>Behandlungsplan</h3>
+        {% if plan.diagnosis %}<div class="report-field"><span class="field-label">Diagnose:</span> <span class="field-value">{{ plan.diagnosis }}</span></div>{% endif %}
+        {% if plan.hypothesis %}<div class="report-field"><span class="field-label">Arbeitshypothese:</span> <span class="field-value">{{ plan.hypothesis }}</span></div>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Termine -->
+    <div class="report-section">
+        <h3>Termine ({{ appointments|length }})</h3>
+        {% if appointments %}
+        <table>
+            <thead>
+                <tr><th>Datum</th><th>Zeit</th><th>Status</th><th>Dauer</th></tr>
+            </thead>
+            <tbody>
+                {% for a in appointments %}
+                <tr>
+                    <td>{{ a.start_time.strftime('%d.%m.%Y') }}</td>
+                    <td>{{ a.start_time.strftime('%H:%M') }} - {{ a.end_time.strftime('%H:%M') }}</td>
+                    <td>{% if a.status == 'completed' %}Erledigt{% elif a.status == 'scheduled' %}Geplant{% else %}{{ a.status }}{% endif %}</td>
+                    <td>{{ a.duration_minutes }} Min</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% set completed = appointments|selectattr('status', 'equalto', 'completed')|list %}
+        <div style="margin-top: 8px; font-size: 12px; color: #64748b;">
+            {{ completed|length }} von {{ appointments|length }} Terminen durchgefuehrt |
+            Zeitraum: {% if appointments %}{{ appointments[0].start_time.strftime('%d.%m.%Y') }} - {{ appointments[-1].start_time.strftime('%d.%m.%Y') }}{% endif %}
+        </div>
+        {% else %}
+        <p style="color:#94a3b8;">Keine Termine vorhanden.</p>
+        {% endif %}
+    </div>
+
+    <!-- Befunde -->
+    {% if findings %}
+    <div class="report-section">
+        <h3>Klinische Befunde</h3>
+        {% for f in findings %}
+        <div style="margin-bottom: 12px;">
+            <div style="font-size:12px; color:#64748b; margin-bottom: 4px;">
+                {{ f.finding_type|capitalize }} vom {{ f.created_at.strftime('%d.%m.%Y') }}
+                {% if f.created_by %} ({{ f.created_by.first_name }} {{ f.created_by.last_name }}){% endif %}
+            </div>
+            {% if f.data_json %}
+            {% set finding_data = f.data_json|tojson if f.data_json is string else f.data_json %}
+            <div class="report-text-block">Befunddaten vorhanden ({{ f.finding_type }})</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Bemerkungen (editierbar vor Druck) -->
+    <div class="report-section">
+        <h3>Bemerkungen / Empfehlung</h3>
+        <textarea id="reportRemarks" rows="5" style="width:100%; padding:12px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;" class="no-print" placeholder="Hier koennen Sie zusaetzliche Bemerkungen eingeben..."></textarea>
+        <div class="report-text-block print-only" id="remarksPreview" style="display:none;"></div>
+    </div>
+
+    <!-- Unterschrift -->
+    <div class="report-footer">
+        <div class="report-signature">
+            <div class="sig-line">Ort, Datum</div>
+        </div>
+        <div class="report-signature">
+            <div class="sig-line">Therapeut/in (Stempel & Unterschrift)</div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="doctor-report">
+    <div class="no-data">
+        <p>Bitte waehlen Sie eine Behandlungsserie, um den Arztbericht zu erstellen.</p>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function loadSeries() {
+    const seriesId = document.getElementById('selSeries').value;
+    if (seriesId) {
+        window.location.href = "{{ url_for('reporting.arztbericht') }}?series_id=" + seriesId;
+    }
+}
+
+// Bemerkungen in Druckansicht uebernehmen
+window.addEventListener('beforeprint', function() {
+    const textarea = document.getElementById('reportRemarks');
+    const preview = document.getElementById('remarksPreview');
+    if (textarea && preview) {
+        preview.textContent = textarea.value || '(Keine Bemerkungen)';
+        preview.style.display = 'block';
+        textarea.style.display = 'none';
+    }
+});
+window.addEventListener('afterprint', function() {
+    const textarea = document.getElementById('reportRemarks');
+    const preview = document.getElementById('remarksPreview');
+    if (textarea && preview) {
+        preview.style.display = 'none';
+        textarea.style.display = '';
+    }
+});
+</script>
+{% endblock %}

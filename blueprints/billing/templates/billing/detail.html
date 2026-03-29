@@ -69,6 +69,7 @@ Rechnung {{ invoice.invoice_number }}
     </form>
 {% endif %}
 <a href="{{ url_for('billing.generate_pdf', id=invoice.id) }}" class="btn btn-secondary">PDF</a>
+<a href="{{ url_for('reporting.rechnung_print', invoice_id=invoice.id) }}" class="btn btn-secondary" target="_blank">Druckansicht</a>
 {% if invoice.billing_model == 'tiers_payant' and invoice.status == 'sent' %}
     <form method="POST" action="{{ url_for('billing.send_tp_copy', id=invoice.id) }}" style="display:inline;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

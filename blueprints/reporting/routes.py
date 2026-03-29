@@ -1,10 +1,15 @@
-"""Reporting Blueprint: Auswertungen, KPI-Dashboard, Therapeuten-Scorecard"""
+"""Reporting Blueprint: Auswertungen, KPI-Dashboard, Therapeuten-Scorecard, Ausdrucke"""
 import json
+import io
+import os
 from datetime import date, timedelta, datetime, time
-from flask import render_template, request, jsonify, Response
+from calendar import monthrange
+from flask import render_template, request, jsonify, Response, send_file, abort
 from sqlalchemy import func
 from flask_login import login_required, current_user
-from models import db, SavedReport, Employee, Location, KpiDashboardConfig, KpiBoxDefinition, KpiBudget
+from models import (db, SavedReport, Employee, Location, KpiDashboardConfig, KpiBoxDefinition, KpiBudget,
+                    Appointment, Patient, Organization, TreatmentSeries, TreatmentPlan, Doctor,
+                    Holiday, ClinicalFinding, Invoice, InvoiceItem)
 from services.reporting_service import (
     REPORT_CATEGORIES, get_report_categories, get_category_filters,
     get_category_columns, run_report, calculate_kpis, calculate_kpi_comparison,
@@ -16,7 +21,7 @@ from services.reporting_service import (
     get_controlling_kpis, get_controlling_trend, get_budget_comparison, save_budget
 )
 from blueprints.reporting import reporting_bp
-from utils.auth import check_org
+from utils.auth import check_org, get_org_id
 from utils.permissions import require_permission
 from services.audit_service import log_data_export
 
@@ -704,3 +709,458 @@ def api_kpi_dashboard():
             'therapist_utilization': utilization
         }
     })
+
+
+# ============================================================
+# Ausdrucke (Cenplex: Reports/PrintCases)
+# ============================================================
+
+@reporting_bp.route('/ausdrucke')
+@login_required
+@require_permission('reporting.view')
+def ausdrucke():
+    """Uebersichtsseite fuer alle Ausdrucke"""
+    org_id = current_user.organization_id
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
+    return render_template('reporting/ausdrucke.html', employees=employees, locations=locations)
+
+
+# ============================================================
+# Tagesplan-Druck (Cenplex: DayPlanReport)
+# ============================================================
+
+@reporting_bp.route('/tagesplan')
+@login_required
+@require_permission('reporting.view')
+def tagesplan():
+    """Tagesplan-Druckansicht fuer einen Therapeuten"""
+    org_id = current_user.organization_id
+    employee_id = request.args.get('employee_id', type=int)
+    day_str = request.args.get('date', date.today().isoformat())
+
+    try:
+        day = date.fromisoformat(day_str)
+    except ValueError:
+        day = date.today()
+
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    employee = None
+    appointments = []
+
+    if employee_id:
+        employee = Employee.query.get(employee_id)
+        if employee and employee.organization_id != org_id:
+            abort(403)
+        if employee:
+            day_start = datetime.combine(day, time.min)
+            day_end = datetime.combine(day, time.max)
+            appointments = Appointment.query.filter(
+                Appointment.employee_id == employee_id,
+                Appointment.start_time.between(day_start, day_end),
+                Appointment.status != 'cancelled'
+            ).order_by(Appointment.start_time.asc()).all()
+
+    org = Organization.query.get(org_id)
+    # Wochentag auf Deutsch
+    weekdays_de = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+    formatted_day = f"{weekdays_de[day.weekday()]} {day.strftime('%d.%m.%Y')}"
+
+    return render_template('reporting/tagesplan.html',
+                           employees=employees, employee=employee,
+                           appointments=appointments, day=day,
+                           formatted_day=formatted_day, org=org)
+
+
+# ============================================================
+# Wochenplan-Druck (Cenplex: WeekWorkSheduleReport)
+# ============================================================
+
+@reporting_bp.route('/wochenplan')
+@login_required
+@require_permission('reporting.view')
+def wochenplan():
+    """Wochenplan-Druckansicht fuer einen Therapeuten"""
+    org_id = current_user.organization_id
+    employee_id = request.args.get('employee_id', type=int)
+    day_str = request.args.get('date', date.today().isoformat())
+
+    try:
+        ref_day = date.fromisoformat(day_str)
+    except ValueError:
+        ref_day = date.today()
+
+    # Montag der Woche berechnen
+    week_start = ref_day - timedelta(days=ref_day.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    employees = Employee.query.filter_by(organization_id=org_id, is_active=True).all()
+    employee = None
+    week_data = {}
+
+    if employee_id:
+        employee = Employee.query.get(employee_id)
+        if employee and employee.organization_id != org_id:
+            abort(403)
+        if employee:
+            start_dt = datetime.combine(week_start, time.min)
+            end_dt = datetime.combine(week_end, time.max)
+            appts = Appointment.query.filter(
+                Appointment.employee_id == employee_id,
+                Appointment.start_time.between(start_dt, end_dt),
+                Appointment.status != 'cancelled'
+            ).order_by(Appointment.start_time.asc()).all()
+
+            weekdays_de = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+            for i in range(7):
+                d = week_start + timedelta(days=i)
+                day_appts = [a for a in appts if a.start_time.date() == d]
+                week_data[i] = {
+                    'date': d,
+                    'weekday': weekdays_de[i],
+                    'formatted': f"{weekdays_de[i]}, {d.strftime('%d.%m.%Y')}",
+                    'appointments': day_appts
+                }
+
+    org = Organization.query.get(org_id)
+    kw = week_start.isocalendar()[1]
+
+    return render_template('reporting/wochenplan.html',
+                           employees=employees, employee=employee,
+                           week_data=week_data, week_start=week_start,
+                           week_end=week_end, kw=kw, org=org)
+
+
+# ============================================================
+# Arztbericht (Cenplex: DoctorReport)
+# ============================================================
+
+@reporting_bp.route('/arztbericht')
+@login_required
+@require_permission('reporting.view')
+def arztbericht():
+    """Arztbericht erstellen und drucken"""
+    org_id = current_user.organization_id
+    series_id = request.args.get('series_id', type=int)
+
+    series = None
+    patient = None
+    doctor = None
+    appointments = []
+    findings = []
+    plan = None
+
+    if series_id:
+        series = TreatmentSeries.query.get(series_id)
+        if series:
+            patient = Patient.query.get(series.patient_id)
+            if patient and patient.organization_id != org_id:
+                abort(403)
+            if series.prescribing_doctor_id:
+                doctor = Doctor.query.get(series.prescribing_doctor_id)
+            appointments = Appointment.query.filter_by(
+                series_id=series_id
+            ).filter(
+                Appointment.status.in_(['completed', 'scheduled'])
+            ).order_by(Appointment.start_time.asc()).all()
+            findings = ClinicalFinding.query.filter_by(
+                series_id=series_id
+            ).order_by(ClinicalFinding.created_at.desc()).all()
+            # Behandlungsplan
+            plan = TreatmentPlan.query.filter_by(
+                series_id=series_id, is_deleted=False
+            ).first()
+
+    org = Organization.query.get(org_id)
+
+    # Alle aktiven Serien laden fuer Auswahl
+    active_series = TreatmentSeries.query.filter(
+        TreatmentSeries.status.in_(['active', 'completed']),
+        TreatmentSeries.patient.has(organization_id=org_id)
+    ).order_by(TreatmentSeries.created_at.desc()).limit(100).all()
+
+    return render_template('reporting/arztbericht.html',
+                           series=series, patient=patient, doctor=doctor,
+                           appointments=appointments, findings=findings,
+                           plan=plan, org=org, active_series=active_series)
+
+
+# ============================================================
+# Ferienkalender (Cenplex: VacationCalendarReport)
+# ============================================================
+
+@reporting_bp.route('/ferienkalender')
+@login_required
+@require_permission('reporting.view')
+def ferienkalender():
+    """Ferienkalender drucken"""
+    org_id = current_user.organization_id
+    year = request.args.get('year', date.today().year, type=int)
+    location_id = request.args.get('location_id', type=int)
+
+    # Feiertage und Ferien laden
+    query = Holiday.query.filter_by(organization_id=org_id)
+    if location_id:
+        query = query.filter(db.or_(Holiday.location_id == location_id, Holiday.is_global == True))
+    else:
+        query = query.filter(Holiday.is_global == True)
+
+    holidays = query.filter(
+        db.or_(
+            db.and_(Holiday.date >= date(year, 1, 1), Holiday.date <= date(year, 12, 31)),
+            db.and_(Holiday.is_yearly == True)
+        )
+    ).order_by(Holiday.date.asc()).all()
+
+    # Monate aufbereiten
+    months = []
+    weekdays_de = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+    month_names = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+
+    # Holiday-Daten als Set fuer schnellen Lookup
+    holiday_dates = set()
+    holiday_map = {}
+    for h in holidays:
+        if h.end_date:
+            d = h.date
+            while d <= h.end_date:
+                if d.year == year:
+                    holiday_dates.add(d)
+                    holiday_map[d] = h.name
+                d += timedelta(days=1)
+        else:
+            actual_date = h.date
+            if h.is_yearly and actual_date.year != year:
+                actual_date = actual_date.replace(year=year)
+            holiday_dates.add(actual_date)
+            holiday_map[actual_date] = h.name
+
+    for m in range(1, 13):
+        days_in_month = monthrange(year, m)[1]
+        days = []
+        for d in range(1, days_in_month + 1):
+            dt = date(year, m, d)
+            days.append({
+                'day': d,
+                'date': dt,
+                'weekday': weekdays_de[dt.weekday()],
+                'is_weekend': dt.weekday() >= 5,
+                'is_holiday': dt in holiday_dates,
+                'holiday_name': holiday_map.get(dt, ''),
+            })
+        months.append({
+            'number': m,
+            'name': month_names[m - 1],
+            'days': days
+        })
+
+    org = Organization.query.get(org_id)
+    locations = Location.query.filter_by(organization_id=org_id, is_active=True).all()
+
+    return render_template('reporting/ferienkalender.html',
+                           months=months, holidays=holidays, year=year,
+                           org=org, locations=locations, location_id=location_id)
+
+
+# ============================================================
+# Behandlungsbericht (Cenplex: TreatmentReport)
+# ============================================================
+
+@reporting_bp.route('/behandlungsbericht')
+@login_required
+@require_permission('reporting.view')
+def behandlungsbericht():
+    """Behandlungsbericht erstellen und drucken"""
+    org_id = current_user.organization_id
+    series_id = request.args.get('series_id', type=int)
+
+    series = None
+    patient = None
+    therapist = None
+    appointments = []
+    findings = []
+    plan = None
+
+    if series_id:
+        series = TreatmentSeries.query.get(series_id)
+        if series:
+            patient = Patient.query.get(series.patient_id)
+            if patient and patient.organization_id != org_id:
+                abort(403)
+            if series.therapist_id:
+                therapist = Employee.query.get(series.therapist_id)
+            appointments = Appointment.query.filter_by(
+                series_id=series_id
+            ).filter(
+                Appointment.status.in_(['completed', 'scheduled'])
+            ).order_by(Appointment.start_time.asc()).all()
+            findings = ClinicalFinding.query.filter_by(
+                series_id=series_id
+            ).order_by(ClinicalFinding.created_at.asc()).all()
+            plan = TreatmentPlan.query.filter_by(
+                series_id=series_id, is_deleted=False
+            ).first()
+
+    org = Organization.query.get(org_id)
+
+    # Aktive Serien fuer Auswahl
+    active_series = TreatmentSeries.query.filter(
+        TreatmentSeries.status.in_(['active', 'completed']),
+        TreatmentSeries.patient.has(organization_id=org_id)
+    ).order_by(TreatmentSeries.created_at.desc()).limit(100).all()
+
+    return render_template('reporting/behandlungsbericht.html',
+                           series=series, patient=patient, therapist=therapist,
+                           appointments=appointments, findings=findings,
+                           plan=plan, org=org, active_series=active_series)
+
+
+# ============================================================
+# Rechnungsdruck mit Sprachauswahl DE/FR/IT (Cenplex: InvoiceReportHelper)
+# ============================================================
+
+INVOICE_LABELS = {
+    'de': {
+        'title': 'Rechnung',
+        'invoice_number': 'Rechnungsnummer',
+        'date': 'Rechnungsdatum',
+        'due_date': 'Fällig am',
+        'insurance': 'Versicherung',
+        'billing_type': 'Typ',
+        'billing_model': 'Abrechnungsmodell',
+        'tiers_garant': 'Tiers Garant',
+        'tiers_payant': 'Tiers Payant',
+        'position': 'Pos.',
+        'tariff_code': 'Tarifziffer',
+        'description': 'Beschreibung',
+        'quantity': 'Anzahl',
+        'tax_points': 'TP',
+        'tp_value': 'TP-Wert',
+        'amount': 'Betrag CHF',
+        'vat': 'MwSt %',
+        'subtotal': 'Subtotal',
+        'vat_label': 'MwSt',
+        'total': 'Total',
+        'paid': 'Bezahlt',
+        'open': 'Offen',
+        'payment_note': 'Zahlbar innert {days} Tagen. Vielen Dank für Ihr Vertrauen.',
+        'qr_title': 'QR-Einzahlungsschein',
+        'reminder': 'Zahlungserinnerung',
+        'copy': 'Kopie',
+        'treatment_period': 'Behandlungszeitraum',
+        'patient': 'Patient/in',
+        'therapist': 'Therapeut/in',
+    },
+    'fr': {
+        'title': 'Facture',
+        'invoice_number': 'Numéro de facture',
+        'date': 'Date de facture',
+        'due_date': 'Échéance',
+        'insurance': 'Assurance',
+        'billing_type': 'Type',
+        'billing_model': 'Modèle de facturation',
+        'tiers_garant': 'Tiers Garant',
+        'tiers_payant': 'Tiers Payant',
+        'position': 'Pos.',
+        'tariff_code': 'Code tarif',
+        'description': 'Description',
+        'quantity': 'Quantité',
+        'tax_points': 'PT',
+        'tp_value': 'Val. PT',
+        'amount': 'Montant CHF',
+        'vat': 'TVA %',
+        'subtotal': 'Sous-total',
+        'vat_label': 'TVA',
+        'total': 'Total',
+        'paid': 'Payé',
+        'open': 'Solde',
+        'payment_note': 'Payable dans les {days} jours. Merci de votre confiance.',
+        'qr_title': 'Bulletin de versement QR',
+        'reminder': 'Rappel de paiement',
+        'copy': 'Copie',
+        'treatment_period': 'Période de traitement',
+        'patient': 'Patient/e',
+        'therapist': 'Thérapeute',
+    },
+    'it': {
+        'title': 'Fattura',
+        'invoice_number': 'Numero fattura',
+        'date': 'Data fattura',
+        'due_date': 'Scadenza',
+        'insurance': 'Assicurazione',
+        'billing_type': 'Tipo',
+        'billing_model': 'Modello di fatturazione',
+        'tiers_garant': 'Tiers Garant',
+        'tiers_payant': 'Tiers Payant',
+        'position': 'Pos.',
+        'tariff_code': 'Codice tariffa',
+        'description': 'Descrizione',
+        'quantity': 'Quantità',
+        'tax_points': 'PT',
+        'tp_value': 'Val. PT',
+        'amount': 'Importo CHF',
+        'vat': 'IVA %',
+        'subtotal': 'Subtotale',
+        'vat_label': 'IVA',
+        'total': 'Totale',
+        'paid': 'Pagato',
+        'open': 'Scoperto',
+        'payment_note': 'Pagabile entro {days} giorni. Grazie per la vostra fiducia.',
+        'qr_title': 'Polizza di versamento QR',
+        'reminder': 'Sollecito di pagamento',
+        'copy': 'Copia',
+        'treatment_period': 'Periodo di trattamento',
+        'patient': 'Paziente',
+        'therapist': 'Terapeuta',
+    }
+}
+
+
+@reporting_bp.route('/rechnung/<int:invoice_id>/print')
+@login_required
+@require_permission('billing.view')
+def rechnung_print(invoice_id):
+    """Rechnungs-Druckansicht mit Sprachauswahl (Cenplex: InvoiceReport DE/FR/IT)"""
+    org_id = current_user.organization_id
+    invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.organization_id != org_id:
+        abort(403)
+
+    lang = request.args.get('lang', 'de')
+    is_copy = request.args.get('copy', '0') == '1'
+    is_reminder = request.args.get('reminder', '0') == '1'
+
+    if lang not in INVOICE_LABELS:
+        lang = 'de'
+    labels = INVOICE_LABELS[lang]
+
+    patient = Patient.query.get(invoice.patient_id) if invoice.patient_id else None
+    items = InvoiceItem.query.filter_by(invoice_id=invoice_id).order_by(InvoiceItem.position).all()
+    org = Organization.query.get(org_id)
+
+    # Behandlungszeitraum berechnen (Cenplex: TreatmentPeriod)
+    treatment_period = ''
+    if items:
+        dates = [i.valuta_date for i in items if i.valuta_date]
+        if dates:
+            treatment_period = f"{min(dates).strftime('%d.%m.%Y')} - {max(dates).strftime('%d.%m.%Y')}"
+
+    # Therapeut ermitteln
+    therapist = None
+    if invoice.series_id:
+        series = TreatmentSeries.query.get(invoice.series_id)
+        if series and series.therapist_id:
+            therapist = Employee.query.get(series.therapist_id)
+
+    # Summen
+    subtotal = sum(i.amount for i in items)
+    total_vat = sum(i.vat_amount or 0 for i in items)
+
+    return render_template('reporting/rechnung_print.html',
+                           invoice=invoice, patient=patient, items=items,
+                           org=org, labels=labels, lang=lang,
+                           is_copy=is_copy, is_reminder=is_reminder,
+                           treatment_period=treatment_period,
+                           therapist=therapist, subtotal=subtotal,
+                           total_vat=total_vat)

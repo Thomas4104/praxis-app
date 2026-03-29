@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Ferienkalender {{ year }}{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+<span class="breadcrumb-separator">/</span>
+<a href="{{ url_for('reporting.ausdrucke') }}">Ausdrucke</a>
+<span class="breadcrumb-separator">/</span>
+<span>Ferienkalender</span>
+{% endblock %}
+
+{% block page_title %}Ferienkalender {{ year }}{% endblock %}
+
+{% block page_actions %}
+<div style="display:flex; gap:8px;">
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Drucken
+    </button>
+    <a href="{{ url_for('reporting.ausdrucke') }}" class="btn btn-sm btn-outline">Zurueck</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.cal-filter {
+    background: white; border-radius: 8px; padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
+    display: flex; gap: 16px; align-items: end; flex-wrap: wrap;
+}
+.cal-filter .form-group { margin: 0; }
+.cal-filter label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.cal-filter select, .cal-filter input {
+    padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;
+}
+
+.cal-container {
+    background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 24px; overflow-x: auto;
+}
+.cal-header {
+    text-align: center; margin-bottom: 20px;
+}
+.cal-header h2 { margin: 0; font-size: 20px; font-weight: 700; }
+.cal-header .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+/* Kalender-Grid: 4 Spalten x 3 Zeilen */
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+.cal-month {
+    border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;
+}
+.cal-month-header {
+    padding: 8px 12px; background: #1e293b; color: white;
+    font-size: 13px; font-weight: 600; text-align: center;
+}
+.cal-month-body { padding: 4px; }
+.cal-day-row {
+    display: flex; padding: 1px 4px; font-size: 10px;
+    border-bottom: 1px solid #f8fafc;
+}
+.cal-day-row:last-child { border-bottom: none; }
+.cal-day-num { width: 22px; text-align: right; font-variant-numeric: tabular-nums; color: #475569; }
+.cal-day-wd { width: 22px; text-align: center; color: #94a3b8; }
+.cal-day-name { flex: 1; padding-left: 4px; font-size: 9px; color: #dc2626; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.cal-day-row.is-weekend { background: #fef2f2; }
+.cal-day-row.is-holiday { background: #fef3c7; }
+.cal-day-row.is-weekend .cal-day-num { color: #dc2626; }
+.cal-day-row.is-holiday .cal-day-num { color: #b45309; font-weight: 600; }
+
+/* Legende */
+.cal-legend {
+    margin-top: 16px; display: flex; gap: 20px; font-size: 12px; color: #475569;
+    padding: 12px 16px; background: #f8fafc; border-radius: 6px;
+}
+.cal-legend-item { display: flex; align-items: center; gap: 6px; }
+.cal-legend-color {
+    width: 14px; height: 14px; border-radius: 3px; border: 1px solid #d1d5db;
+}
+
+/* Feiertage-Liste */
+.holidays-list {
+    margin-top: 20px;
+}
+.holidays-list h3 { font-size: 14px; margin-bottom: 10px; }
+.holidays-list table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.holidays-list th { text-align: left; padding: 6px 10px; background: #f8fafc; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+.holidays-list td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+
+/* Druck */
+@media print {
+    .cal-filter, .page-actions, .sidebar, .nav-item, .breadcrumbs,
+    header, footer, .btn, .page-header { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .cal-container { box-shadow: none; padding: 10px 0; }
+    .cal-month-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cal-day-row.is-weekend, .cal-day-row.is-holiday { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cal-legend-color { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 9px; }
+    @page { size: landscape; margin: 8mm; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="cal-filter no-print">
+    <div class="form-group">
+        <label>Jahr</label>
+        <select id="selYear" onchange="updateCal()">
+            {% for y in range(year - 2, year + 3) %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Standort</label>
+        <select id="selLocation" onchange="updateCal()">
+            <option value="">Alle Standorte</option>
+            {% for l in locations %}
+            <option value="{{ l.id }}" {% if location_id and l.id == location_id %}selected{% endif %}>{{ l.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="cal-container">
+    <div class="cal-header">
+        <h2>Ferienkalender {{ year }}</h2>
+        <div class="sub">{{ org.name if org else '' }}</div>
+    </div>
+
+    <div class="cal-grid">
+        {% for month in months %}
+        <div class="cal-month">
+            <div class="cal-month-header">{{ month.name }}</div>
+            <div class="cal-month-body">
+                {% for day in month.days %}
+                <div class="cal-day-row {% if day.is_weekend %}is-weekend{% endif %} {% if day.is_holiday %}is-holiday{% endif %}">
+                    <div class="cal-day-num">{{ day.day }}</div>
+                    <div class="cal-day-wd">{{ day.weekday }}</div>
+                    <div class="cal-day-name">{% if day.is_holiday %}{{ day.holiday_name }}{% endif %}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Legende -->
+    <div class="cal-legend">
+        <div class="cal-legend-item">
+            <div class="cal-legend-color" style="background:#fef2f2;"></div> Wochenende
+        </div>
+        <div class="cal-legend-item">
+            <div class="cal-legend-color" style="background:#fef3c7;"></div> Feiertag / Betriebsferien
+        </div>
+    </div>
+
+    <!-- Feiertage-Liste -->
+    {% if holidays %}
+    <div class="holidays-list">
+        <h3>Feiertage und Betriebsferien {{ year }}</h3>
+        <table>
+            <thead>
+                <tr><th>Datum</th><th>Name</th><th>Typ</th><th>Standort</th></tr>
+            </thead>
+            <tbody>
+                {% for h in holidays %}
+                <tr>
+                    <td>
+                        {{ h.date.strftime('%d.%m.%Y') }}
+                        {% if h.end_date %} - {{ h.end_date.strftime('%d.%m.%Y') }}{% endif %}
+                    </td>
+                    <td>{{ h.name }}</td>
+                    <td>
+                        {% if h.is_vacation %}Betriebsferien{% elif h.holiday_type == 0 %}Feiertag{% elif h.holiday_type == 1 %}Betriebsferien{% else %}Sonstiges{% endif %}
+                    </td>
+                    <td>{% if h.is_global %}Alle{% elif h.location %}{{ h.location.name }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function updateCal() {
+    const year = document.getElementById('selYear').value;
+    const locId = document.getElementById('selLocation').value;
+    let url = "{{ url_for('reporting.ferienkalender') }}?year=" + year;
+    if (locId) url += "&location_id=" + locId;
+    window.location.href = url;
+}
+</script>
+{% endblock %}
